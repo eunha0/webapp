@@ -1,4 +1,4 @@
-// CoGrader Frontend Application
+// EssayGrader AI Frontend Application
 
 let criterionCount = 0;
 
@@ -14,11 +14,11 @@ const defaultCriteria = [
   },
   {
     name: 'Accuracy of Source Citation',
-    description: 'Accurately cited information from the specified resource ("Documentary \'World War II\'") at least twice.'
+    description: 'Accurately cited information from the specified resource at least twice.'
   },
   {
     name: 'Grammatical Accuracy, Organization, and Flow',
-    description: 'Did the essay demonstrate minimal grammatical errors, logical flow (Coherence), and varied sentence structures?'
+    description: 'Minimal grammatical errors, logical flow, and varied sentence structures.'
   }
 ];
 
@@ -26,39 +26,23 @@ const defaultCriteria = [
 window.addEventListener('DOMContentLoaded', () => {
   // Set default assignment prompt
   document.getElementById('assignmentPrompt').value = 
-    'Analyze the major causes of World War II, support your arguments using specific historical examples, and explain the impact of the Treaty of Versailles on the outbreak of war. This assignment uses the 12th-grade social studies standards.';
+    'Analyze the major causes of World War II, support your arguments using specific historical examples, and explain the impact of the Treaty of Versailles on the outbreak of war.';
   
-  document.getElementById('gradeLevel').value = '12th-grade social studies';
+  document.getElementById('gradeLevel').value = '12th Grade AP History';
   
   // Add default criteria
   defaultCriteria.forEach(criterion => {
     addCriterion(criterion.name, criterion.description);
   });
-  
-  // Load history when tab is clicked
-  document.getElementById('tab-history').addEventListener('click', loadHistory);
 });
 
-// Tab navigation
-function showTab(tabName) {
-  // Hide all content
-  document.querySelectorAll('.tab-content').forEach(content => {
-    content.classList.add('hidden');
-  });
-  
-  // Remove active state from all tabs
-  document.querySelectorAll('.tab-button').forEach(button => {
-    button.classList.remove('border-b-2', 'border-indigo-600', 'text-indigo-600');
-    button.classList.add('text-gray-600');
-  });
-  
-  // Show selected content
-  document.getElementById(`content-${tabName}`).classList.remove('hidden');
-  
-  // Activate selected tab
-  const activeTab = document.getElementById(`tab-${tabName}`);
-  activeTab.classList.add('border-b-2', 'border-indigo-600', 'text-indigo-600');
-  activeTab.classList.remove('text-gray-600');
+// Scroll functions
+function scrollToGrader() {
+  document.getElementById('grader').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function scrollToDemo() {
+  document.getElementById('how-it-works').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // Add a rubric criterion
@@ -67,31 +51,31 @@ function addCriterion(defaultName = '', defaultDescription = '') {
   const container = document.getElementById('rubricContainer');
   
   const criterionDiv = document.createElement('div');
-  criterionDiv.className = 'criterion-item border border-gray-300 rounded-lg p-4 bg-gray-50';
+  criterionDiv.className = 'criterion-item border border-gray-200 rounded-lg p-3 bg-white mb-2';
   criterionDiv.id = `criterion-${criterionCount}`;
   
   criterionDiv.innerHTML = `
-    <div class="flex justify-between items-start mb-3">
-      <h4 class="font-semibold text-gray-700">기준 ${criterionCount}</h4>
+    <div class="flex justify-between items-center mb-2">
+      <span class="text-xs font-semibold text-gray-600">Criterion ${criterionCount}</span>
       <button 
         type="button" 
         onclick="removeCriterion(${criterionCount})" 
-        class="text-red-500 hover:text-red-700"
+        class="text-red-500 hover:text-red-700 text-xs"
       >
         <i class="fas fa-times"></i>
       </button>
     </div>
     <input 
       type="text" 
-      class="criterion-name w-full px-3 py-2 border border-gray-300 rounded mb-2" 
-      placeholder="기준 이름 (예: Understanding and Analysis of Key Concepts)"
+      class="criterion-name w-full px-3 py-2 border border-gray-200 rounded mb-2 text-sm" 
+      placeholder="Criterion name (e.g., Thesis & Argument)"
       value="${defaultName}"
       required
     />
     <textarea 
-      class="criterion-description w-full px-3 py-2 border border-gray-300 rounded" 
+      class="criterion-description w-full px-3 py-2 border border-gray-200 rounded text-sm" 
       rows="2" 
-      placeholder="기준 설명"
+      placeholder="Criterion description"
       required
     >${defaultDescription}</textarea>
   `;
@@ -140,12 +124,12 @@ document.getElementById('gradingForm').addEventListener('submit', async (e) => {
   
   // Validate
   if (!assignmentPrompt || !gradeLevel || !essayText || rubricCriteria.length === 0) {
-    alert('모든 필드를 입력해주세요. 최소 1개의 루브릭 기준이 필요합니다.');
+    alert('Please fill in all fields. At least 1 rubric criterion is required.');
     return;
   }
   
-  // Show loading, hide form and results
-  document.getElementById('gradingForm').parentElement.classList.add('hidden');
+  // Show loading, hide main interface
+  document.getElementById('mainInterface').classList.add('hidden');
   document.getElementById('loadingIndicator').classList.remove('hidden');
   document.getElementById('resultsContainer').classList.add('hidden');
   
@@ -166,10 +150,10 @@ document.getElementById('gradingForm').addEventListener('submit', async (e) => {
     }
   } catch (error) {
     console.error('Grading error:', error);
-    alert('채점 중 오류가 발생했습니다: ' + (error.response?.data?.error || error.message));
+    alert('Grading error: ' + (error.response?.data?.error || error.message));
     
     // Show form again
-    document.getElementById('gradingForm').parentElement.classList.remove('hidden');
+    document.getElementById('mainInterface').classList.remove('hidden');
   } finally {
     document.getElementById('loadingIndicator').classList.add('hidden');
   }
@@ -180,54 +164,61 @@ function displayResults(result, essayId) {
   const container = document.getElementById('resultsContainer');
   
   const html = `
-    <div class="bg-white rounded-lg shadow-lg p-8 result-section">
+    <div class="bg-white rounded-xl shadow-2xl p-8 border border-gray-200 result-section mt-8">
       <!-- Header -->
-      <div class="text-center mb-8 pb-6 border-b-2 border-gray-200">
-        <h2 class="text-3xl font-bold text-indigo-900 mb-3">
-          <i class="fas fa-award mr-2"></i>채점 결과
+      <div class="text-center mb-8 pb-6 border-b-2 border-purple-100">
+        <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-500 rounded-full mb-4">
+          <i class="fas fa-award text-3xl text-white"></i>
+        </div>
+        <h2 class="text-3xl font-bold text-gray-900 mb-4">
+          Grading Complete!
         </h2>
-        <div class="inline-block bg-indigo-100 rounded-full px-8 py-4">
-          <span class="text-5xl font-bold text-indigo-600">${result.total_score}</span>
-          <span class="text-2xl text-gray-600">/10</span>
+        <div class="inline-block bg-gradient-to-r from-purple-100 to-blue-100 rounded-2xl px-10 py-6">
+          <span class="text-6xl font-bold bg-gradient-to-r from-purple-600 to-blue-500 bg-clip-text text-transparent">${result.total_score}</span>
+          <span class="text-3xl text-gray-600">/10</span>
         </div>
       </div>
       
       <!-- Summary Evaluation -->
       <div class="mb-8">
-        <h3 class="text-xl font-bold text-gray-800 mb-3 flex items-center">
-          <i class="fas fa-clipboard-check mr-2 text-indigo-600"></i>
-          종합 평가
+        <h3 class="text-xl font-bold text-gray-900 mb-3 flex items-center">
+          <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-2">
+            <i class="fas fa-clipboard-check text-purple-600"></i>
+          </div>
+          Summary Evaluation
         </h3>
-        <p class="text-gray-700 leading-relaxed bg-gray-50 p-4 rounded-lg">
+        <p class="text-gray-700 leading-relaxed bg-gradient-to-r from-purple-50 to-blue-50 p-5 rounded-lg border-l-4 border-purple-500">
           ${result.summary_evaluation}
         </p>
       </div>
       
       <!-- Criterion Scores -->
       <div class="mb-8">
-        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
-          <i class="fas fa-chart-bar mr-2 text-indigo-600"></i>
-          기준별 상세 평가
+        <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+          <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-2">
+            <i class="fas fa-chart-bar text-green-600"></i>
+          </div>
+          Detailed Rubric Scores
         </h3>
         <div class="space-y-4">
           ${result.criterion_scores.map(score => `
-            <div class="criterion-card border border-gray-200 rounded-lg p-5 bg-white">
-              <div class="flex items-start justify-between mb-3">
-                <h4 class="font-bold text-gray-800 flex-1">${score.criterion_name}</h4>
+            <div class="criterion-card border border-gray-200 rounded-xl p-6 bg-white hover:border-purple-300">
+              <div class="flex items-start justify-between mb-4">
+                <h4 class="font-bold text-gray-900 flex-1 text-lg">${score.criterion_name}</h4>
                 <div class="score-badge ${getScoreColor(score.score)}">
                   ${score.score}/4
                 </div>
               </div>
-              <div class="grid md:grid-cols-2 gap-4 mt-4">
-                <div>
-                  <p class="text-sm font-semibold text-green-700 mb-2">
-                    <i class="fas fa-check-circle mr-1"></i>강점
+              <div class="grid md:grid-cols-2 gap-6 mt-4">
+                <div class="bg-green-50 p-4 rounded-lg">
+                  <p class="text-sm font-bold text-green-800 mb-2 flex items-center">
+                    <i class="fas fa-check-circle mr-2"></i>Strengths
                   </p>
                   <p class="text-sm text-gray-700 leading-relaxed">${score.strengths}</p>
                 </div>
-                <div>
-                  <p class="text-sm font-semibold text-orange-700 mb-2">
-                    <i class="fas fa-exclamation-circle mr-1"></i>개선점
+                <div class="bg-orange-50 p-4 rounded-lg">
+                  <p class="text-sm font-bold text-orange-800 mb-2 flex items-center">
+                    <i class="fas fa-arrow-up mr-2"></i>Areas for Improvement
                   </p>
                   <p class="text-sm text-gray-700 leading-relaxed">${score.areas_for_improvement}</p>
                 </div>
@@ -239,50 +230,56 @@ function displayResults(result, essayId) {
       
       <!-- Overall Comment -->
       <div class="mb-8">
-        <h3 class="text-xl font-bold text-gray-800 mb-3 flex items-center">
-          <i class="fas fa-comment-alt mr-2 text-indigo-600"></i>
-          전체 평가
+        <h3 class="text-xl font-bold text-gray-900 mb-3 flex items-center">
+          <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-2">
+            <i class="fas fa-comment-alt text-blue-600"></i>
+          </div>
+          Overall Assessment
         </h3>
-        <p class="text-gray-700 leading-relaxed bg-blue-50 p-5 rounded-lg border-l-4 border-indigo-600">
+        <div class="text-gray-700 leading-relaxed bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-xl border-l-4 border-blue-500">
           ${formatText(result.overall_comment)}
-        </p>
+        </div>
       </div>
       
       <!-- Revision Suggestions -->
       <div class="mb-8">
-        <h3 class="text-xl font-bold text-gray-800 mb-3 flex items-center">
-          <i class="fas fa-edit mr-2 text-indigo-600"></i>
-          구체적 수정 제안
+        <h3 class="text-xl font-bold text-gray-900 mb-3 flex items-center">
+          <div class="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center mr-2">
+            <i class="fas fa-edit text-yellow-600"></i>
+          </div>
+          Specific Revision Suggestions
         </h3>
-        <div class="text-gray-700 leading-relaxed bg-yellow-50 p-5 rounded-lg border-l-4 border-yellow-600">
+        <div class="text-gray-700 leading-relaxed bg-yellow-50 p-6 rounded-xl border-l-4 border-yellow-500">
           ${formatText(result.revision_suggestions)}
         </div>
       </div>
       
       <!-- Next Steps Advice -->
       <div class="mb-8">
-        <h3 class="text-xl font-bold text-gray-800 mb-3 flex items-center">
-          <i class="fas fa-lightbulb mr-2 text-indigo-600"></i>
-          다음 단계 조언
+        <h3 class="text-xl font-bold text-gray-900 mb-3 flex items-center">
+          <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-2">
+            <i class="fas fa-lightbulb text-green-600"></i>
+          </div>
+          Next Steps for Improvement
         </h3>
-        <div class="text-gray-700 leading-relaxed bg-green-50 p-5 rounded-lg border-l-4 border-green-600">
+        <div class="text-gray-700 leading-relaxed bg-green-50 p-6 rounded-xl border-l-4 border-green-500">
           ${formatText(result.next_steps_advice)}
         </div>
       </div>
       
       <!-- Actions -->
-      <div class="flex justify-center space-x-4 pt-6 border-t-2 border-gray-200">
+      <div class="flex flex-col sm:flex-row justify-center gap-4 pt-6 border-t-2 border-gray-100">
         <button 
           onclick="resetForm()" 
-          class="px-6 py-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition"
+          class="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-500 text-white font-bold rounded-lg hover:shadow-xl transition transform hover:scale-105"
         >
-          <i class="fas fa-redo mr-2"></i>새 에세이 채점
+          <i class="fas fa-redo mr-2"></i>Grade Another Essay
         </button>
         <button 
           onclick="printResults()" 
-          class="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition"
+          class="px-8 py-4 bg-gray-700 text-white font-bold rounded-lg hover:bg-gray-800 transition"
         >
-          <i class="fas fa-print mr-2"></i>결과 인쇄
+          <i class="fas fa-print mr-2"></i>Print Results
         </button>
       </div>
     </div>
@@ -297,10 +294,10 @@ function displayResults(result, essayId) {
 
 // Get color class based on score
 function getScoreColor(score) {
-  if (score === 4) return 'bg-green-500 text-white';
-  if (score === 3) return 'bg-blue-500 text-white';
-  if (score === 2) return 'bg-yellow-500 text-white';
-  return 'bg-red-500 text-white';
+  if (score === 4) return 'bg-gradient-to-r from-green-500 to-emerald-500 text-white';
+  if (score === 3) return 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white';
+  if (score === 2) return 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white';
+  return 'bg-gradient-to-r from-red-500 to-pink-500 text-white';
 }
 
 // Format text with line breaks and bold
@@ -318,13 +315,13 @@ function formatText(text) {
 // Reset form to grade another essay
 function resetForm() {
   document.getElementById('resultsContainer').classList.add('hidden');
-  document.getElementById('gradingForm').parentElement.classList.remove('hidden');
+  document.getElementById('mainInterface').classList.remove('hidden');
   
   // Clear essay text only
   document.getElementById('essayText').value = '';
   
-  // Scroll to form
-  document.getElementById('gradingForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Scroll to grader
+  scrollToGrader();
 }
 
 // Print results
