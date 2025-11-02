@@ -1,24 +1,26 @@
-// EssayGrader AI Frontend Application
+// AI 논술 평가 Frontend Application
 
 let criterionCount = 0;
+let materialCount = 0;
+const MAX_MATERIALS = 11; // 4 initial + 7 more
 
 // Default rubric criteria for World War II example
 const defaultCriteria = [
   {
-    name: 'Understanding and Analysis of Key Concepts',
-    description: 'Accurately identified and deeply analyzed the primary causes of World War II.'
+    name: '핵심 개념의 이해와 분석',
+    description: '제2차 세계대전의 주요 원인을 정확하게 파악하고 깊이 있게 분석했습니다.'
   },
   {
-    name: 'Use of Evidence and Historical Examples',
-    description: 'Used specific and appropriate historical examples to support the argument.'
+    name: '증거와 역사적 사례 활용',
+    description: '논거를 뒷받침하기 위해 구체적이고 적절한 역사적 사례를 사용했습니다.'
   },
   {
-    name: 'Accuracy of Source Citation',
-    description: 'Accurately cited information from the specified resource at least twice.'
+    name: '출처 인용의 정확성',
+    description: '지정된 자료에서 정보를 정확하게 최소 두 번 인용했습니다.'
   },
   {
-    name: 'Grammatical Accuracy, Organization, and Flow',
-    description: 'Minimal grammatical errors, logical flow, and varied sentence structures.'
+    name: '문법 정확성, 구성 및 흐름',
+    description: '최소한의 문법 오류, 논리적 흐름, 다양한 문장 구조를 보여줍니다.'
   }
 ];
 
@@ -26,14 +28,19 @@ const defaultCriteria = [
 window.addEventListener('DOMContentLoaded', () => {
   // Set default assignment prompt
   document.getElementById('assignmentPrompt').value = 
-    'Analyze the major causes of World War II, support your arguments using specific historical examples, and explain the impact of the Treaty of Versailles on the outbreak of war.';
+    '제2차 세계대전의 주요 원인을 분석하고, 구체적인 역사적 사례를 사용하여 논거를 뒷받침하고, 베르사유 조약이 전쟁 발발에 미친 영향을 설명하세요.';
   
-  document.getElementById('gradeLevel').value = '12th Grade AP History';
+  document.getElementById('gradeLevel').value = '고등학교 3학년 세계사';
   
   // Add default criteria
   defaultCriteria.forEach(criterion => {
     addCriterion(criterion.name, criterion.description);
   });
+  
+  // Add 4 initial material slots
+  for (let i = 0; i < 4; i++) {
+    addMaterial();
+  }
 });
 
 // Scroll functions
@@ -43,6 +50,75 @@ function scrollToGrader() {
 
 function scrollToDemo() {
   document.getElementById('how-it-works').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Add reference material
+function addMaterial() {
+  if (materialCount >= MAX_MATERIALS) {
+    alert('최대 11개의 자료만 첨부할 수 있습니다.');
+    return;
+  }
+  
+  materialCount++;
+  const container = document.getElementById('materialsContainer');
+  
+  const materialDiv = document.createElement('div');
+  materialDiv.className = 'material-item border border-gray-200 rounded-lg p-3 bg-white';
+  materialDiv.id = `material-${materialCount}`;
+  
+  materialDiv.innerHTML = `
+    <div class="flex items-center gap-2">
+      <div class="flex-shrink-0">
+        <span class="inline-flex items-center justify-center w-6 h-6 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
+          ${materialCount}
+        </span>
+      </div>
+      <input 
+        type="text" 
+        class="material-input flex-1 px-3 py-2 border border-gray-200 rounded text-sm" 
+        placeholder="자료 이름 또는 URL (예: 역사 다큐멘터리, https://example.com/doc.pdf)"
+      />
+      <button 
+        type="button" 
+        onclick="removeMaterial(${materialCount})" 
+        class="text-red-500 hover:text-red-700 text-sm"
+      >
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  `;
+  
+  container.appendChild(materialDiv);
+  
+  // Update button text
+  updateMaterialButtonText();
+}
+
+// Remove reference material
+function removeMaterial(id) {
+  const element = document.getElementById(`material-${id}`);
+  if (element) {
+    element.remove();
+    materialCount--;
+    updateMaterialButtonText();
+  }
+}
+
+// Update material button text
+function updateMaterialButtonText() {
+  const button = document.querySelector('button[onclick="addMaterial()"]');
+  if (button) {
+    const remaining = MAX_MATERIALS - materialCount;
+    if (remaining > 0) {
+      button.innerHTML = `<i class="fas fa-plus mr-2"></i>자료 추가 (${remaining}개 더 가능)`;
+      button.disabled = false;
+      button.classList.remove('opacity-50', 'cursor-not-allowed');
+    } else {
+      button.innerHTML = `<i class="fas fa-check mr-2"></i>최대 개수 도달`;
+      button.disabled = true;
+      button.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+  }
 }
 
 // Add a rubric criterion
@@ -56,7 +132,7 @@ function addCriterion(defaultName = '', defaultDescription = '') {
   
   criterionDiv.innerHTML = `
     <div class="flex justify-between items-center mb-2">
-      <span class="text-xs font-semibold text-gray-600">Criterion ${criterionCount}</span>
+      <span class="text-xs font-semibold text-gray-600">기준 ${criterionCount}</span>
       <button 
         type="button" 
         onclick="removeCriterion(${criterionCount})" 
@@ -68,14 +144,14 @@ function addCriterion(defaultName = '', defaultDescription = '') {
     <input 
       type="text" 
       class="criterion-name w-full px-3 py-2 border border-gray-200 rounded mb-2 text-sm" 
-      placeholder="Criterion name (e.g., Thesis & Argument)"
+      placeholder="기준 이름 (예: 논제 및 논거)"
       value="${defaultName}"
       required
     />
     <textarea 
       class="criterion-description w-full px-3 py-2 border border-gray-200 rounded text-sm" 
       rows="2" 
-      placeholder="Criterion description"
+      placeholder="기준 설명"
       required
     >${defaultDescription}</textarea>
   `;
@@ -124,7 +200,7 @@ document.getElementById('gradingForm').addEventListener('submit', async (e) => {
   
   // Validate
   if (!assignmentPrompt || !gradeLevel || !essayText || rubricCriteria.length === 0) {
-    alert('Please fill in all fields. At least 1 rubric criterion is required.');
+    alert('모든 필드를 입력해주세요. 최소 1개의 루브릭 기준이 필요합니다.');
     return;
   }
   
@@ -150,7 +226,7 @@ document.getElementById('gradingForm').addEventListener('submit', async (e) => {
     }
   } catch (error) {
     console.error('Grading error:', error);
-    alert('Grading error: ' + (error.response?.data?.error || error.message));
+    alert('채점 오류: ' + (error.response?.data?.error || error.message));
     
     // Show form again
     document.getElementById('mainInterface').classList.remove('hidden');
@@ -166,15 +242,15 @@ function displayResults(result, essayId) {
   const html = `
     <div class="bg-white rounded-xl shadow-2xl p-8 border border-gray-200 result-section mt-8">
       <!-- Header -->
-      <div class="text-center mb-8 pb-6 border-b-2 border-purple-100">
-        <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-500 rounded-full mb-4">
+      <div class="text-center mb-8 pb-6 border-b-2 border-green-100">
+        <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-green-500 to-blue-500 rounded-full mb-4">
           <i class="fas fa-award text-3xl text-white"></i>
         </div>
         <h2 class="text-3xl font-bold text-gray-900 mb-4">
-          Grading Complete!
+          채점 완료!
         </h2>
-        <div class="inline-block bg-gradient-to-r from-purple-100 to-blue-100 rounded-2xl px-10 py-6">
-          <span class="text-6xl font-bold bg-gradient-to-r from-purple-600 to-blue-500 bg-clip-text text-transparent">${result.total_score}</span>
+        <div class="inline-block bg-gradient-to-r from-green-100 to-blue-100 rounded-2xl px-10 py-6">
+          <span class="text-6xl font-bold bg-gradient-to-r from-green-500 to-blue-500 bg-clip-text text-transparent">${result.total_score}</span>
           <span class="text-3xl text-gray-600">/10</span>
         </div>
       </div>
@@ -182,12 +258,12 @@ function displayResults(result, essayId) {
       <!-- Summary Evaluation -->
       <div class="mb-8">
         <h3 class="text-xl font-bold text-gray-900 mb-3 flex items-center">
-          <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-2">
-            <i class="fas fa-clipboard-check text-purple-600"></i>
+          <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-2">
+            <i class="fas fa-clipboard-check text-green-600"></i>
           </div>
-          Summary Evaluation
+          종합 평가
         </h3>
-        <p class="text-gray-700 leading-relaxed bg-gradient-to-r from-purple-50 to-blue-50 p-5 rounded-lg border-l-4 border-purple-500">
+        <p class="text-gray-700 leading-relaxed bg-gradient-to-r from-green-50 to-blue-50 p-5 rounded-lg border-l-4 border-green-500">
           ${result.summary_evaluation}
         </p>
       </div>
@@ -195,14 +271,14 @@ function displayResults(result, essayId) {
       <!-- Criterion Scores -->
       <div class="mb-8">
         <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
-          <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-2">
-            <i class="fas fa-chart-bar text-green-600"></i>
+          <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-2">
+            <i class="fas fa-chart-bar text-blue-600"></i>
           </div>
-          Detailed Rubric Scores
+          상세 루브릭 점수
         </h3>
         <div class="space-y-4">
           ${result.criterion_scores.map(score => `
-            <div class="criterion-card border border-gray-200 rounded-xl p-6 bg-white hover:border-purple-300">
+            <div class="criterion-card border border-gray-200 rounded-xl p-6 bg-white hover:border-green-300">
               <div class="flex items-start justify-between mb-4">
                 <h4 class="font-bold text-gray-900 flex-1 text-lg">${score.criterion_name}</h4>
                 <div class="score-badge ${getScoreColor(score.score)}">
@@ -212,13 +288,13 @@ function displayResults(result, essayId) {
               <div class="grid md:grid-cols-2 gap-6 mt-4">
                 <div class="bg-green-50 p-4 rounded-lg">
                   <p class="text-sm font-bold text-green-800 mb-2 flex items-center">
-                    <i class="fas fa-check-circle mr-2"></i>Strengths
+                    <i class="fas fa-check-circle mr-2"></i>강점
                   </p>
                   <p class="text-sm text-gray-700 leading-relaxed">${score.strengths}</p>
                 </div>
                 <div class="bg-orange-50 p-4 rounded-lg">
                   <p class="text-sm font-bold text-orange-800 mb-2 flex items-center">
-                    <i class="fas fa-arrow-up mr-2"></i>Areas for Improvement
+                    <i class="fas fa-arrow-up mr-2"></i>개선할 점
                   </p>
                   <p class="text-sm text-gray-700 leading-relaxed">${score.areas_for_improvement}</p>
                 </div>
@@ -231,12 +307,12 @@ function displayResults(result, essayId) {
       <!-- Overall Comment -->
       <div class="mb-8">
         <h3 class="text-xl font-bold text-gray-900 mb-3 flex items-center">
-          <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-2">
-            <i class="fas fa-comment-alt text-blue-600"></i>
+          <div class="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center mr-2">
+            <i class="fas fa-comment-alt text-indigo-600"></i>
           </div>
-          Overall Assessment
+          전체 평가
         </h3>
-        <div class="text-gray-700 leading-relaxed bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-xl border-l-4 border-blue-500">
+        <div class="text-gray-700 leading-relaxed bg-gradient-to-r from-indigo-50 to-purple-50 p-6 rounded-xl border-l-4 border-indigo-500">
           ${formatText(result.overall_comment)}
         </div>
       </div>
@@ -247,7 +323,7 @@ function displayResults(result, essayId) {
           <div class="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center mr-2">
             <i class="fas fa-edit text-yellow-600"></i>
           </div>
-          Specific Revision Suggestions
+          구체적 수정 제안
         </h3>
         <div class="text-gray-700 leading-relaxed bg-yellow-50 p-6 rounded-xl border-l-4 border-yellow-500">
           ${formatText(result.revision_suggestions)}
@@ -257,12 +333,12 @@ function displayResults(result, essayId) {
       <!-- Next Steps Advice -->
       <div class="mb-8">
         <h3 class="text-xl font-bold text-gray-900 mb-3 flex items-center">
-          <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-2">
-            <i class="fas fa-lightbulb text-green-600"></i>
+          <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-2">
+            <i class="fas fa-lightbulb text-purple-600"></i>
           </div>
-          Next Steps for Improvement
+          향상을 위한 다음 단계
         </h3>
-        <div class="text-gray-700 leading-relaxed bg-green-50 p-6 rounded-xl border-l-4 border-green-500">
+        <div class="text-gray-700 leading-relaxed bg-purple-50 p-6 rounded-xl border-l-4 border-purple-500">
           ${formatText(result.next_steps_advice)}
         </div>
       </div>
@@ -271,15 +347,15 @@ function displayResults(result, essayId) {
       <div class="flex flex-col sm:flex-row justify-center gap-4 pt-6 border-t-2 border-gray-100">
         <button 
           onclick="resetForm()" 
-          class="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-500 text-white font-bold rounded-lg hover:shadow-xl transition transform hover:scale-105"
+          class="px-8 py-4 bg-gradient-to-r from-green-500 to-blue-500 text-white font-bold rounded-lg hover:shadow-xl transition transform hover:scale-105"
         >
-          <i class="fas fa-redo mr-2"></i>Grade Another Essay
+          <i class="fas fa-redo mr-2"></i>다른 논술 채점하기
         </button>
         <button 
           onclick="printResults()" 
           class="px-8 py-4 bg-gray-700 text-white font-bold rounded-lg hover:bg-gray-800 transition"
         >
-          <i class="fas fa-print mr-2"></i>Print Results
+          <i class="fas fa-print mr-2"></i>결과 인쇄하기
         </button>
       </div>
     </div>
