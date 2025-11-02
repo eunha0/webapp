@@ -1,27 +1,28 @@
-# EssayGrader AI - AI-Powered Essay Grading for Teachers
+# AI 논술 평가 - 교사를 위한 AI 기반 논술 채점 시스템
 
-## Project Overview
+## 프로젝트 개요
 
-**EssayGrader AI** is an advanced automated essay grading (AEG) system powered by state-of-the-art Large Language Models (LLMs). It helps teachers grade essays 10x faster while providing detailed, actionable feedback that promotes student learning and growth.
+**AI 논술 평가**는 최첨단 대규모 언어 모델(LLM)을 기반으로 한 고급 자동화 논술 채점(AEG) 시스템입니다. 교사가 논술을 10배 빠르게 채점하고, 학생의 학습과 성장을 촉진하는 상세하고 실행 가능한 피드백을 제공합니다.
 
-### Inspired By
+### 영감의 원천
 
-This project is designed to match the style and functionality of **[EssayGrader.ai](https://www.essaygrader.ai/)**, featuring a modern SaaS landing page with clean design, trust indicators, and a user-friendly grading interface.
+이 프로젝트는 **[EssayGrader.ai](https://www.essaygrader.ai/)**의 스타일과 기능을 참고하여 설계되었으며, 깔끔한 디자인, 신뢰 지표, 사용자 친화적인 채점 인터페이스를 갖춘 현대적인 SaaS 랜딩 페이지를 제공합니다.
 
-### Key Objectives
+### 주요 목표
 
-1. **Consistent Grading (AES)**: Achieve substantial agreement (QWK 0.61+) with human graders
-2. **Detailed Feedback (AWE)**: Provide timely, specific, detailed, and supportive feedback
-3. **Time Savings**: Grade entire classes in minutes, not hours
+1. **일관된 채점 (AES)**: 인간 채점자와 실질적 일치(QWK 0.61+) 달성
+2. **상세한 피드백 (AWE)**: 시의적절하고 구체적이며 상세한 지원 피드백 제공
+3. **시간 절약**: 전체 학급을 몇 시간이 아닌 몇 분 안에 채점
 
-### Core Features
+### 핵심 기능
 
-✅ **Custom Rubric Support**: Create your own rubrics or use pre-built templates  
-✅ **AI-Powered Analysis**: 1-4 scale scoring for each criterion  
-✅ **Detailed Feedback**: Strengths, areas for improvement, and specific revision suggestions  
-✅ **Grading History**: Save and review past grading sessions and results  
-✅ **Multiple Languages**: Support for various languages and writing styles  
-✅ **Fast Processing**: Get results in seconds with immediate feedback
+✅ **맞춤형 루브릭 지원**: 직접 루브릭을 만들거나 사전 제작 템플릿 사용  
+✅ **AI 기반 분석**: 각 기준에 대한 1-4점 척도 채점  
+✅ **상세한 피드백**: 강점, 개선할 점, 구체적인 수정 제안 제공  
+✅ **참고 자료 첨부**: 과제 프롬프트에 최대 11개의 참고 자료 첨부 가능 (4개 기본 + 7개 추가)  
+✅ **채점 기록**: 과거 채점 세션 및 결과 저장 및 검토  
+✅ **다국어 지원**: 다양한 언어 및 작문 스타일 지원  
+✅ **빠른 처리**: 즉각적인 피드백으로 몇 초 안에 결과 확인
 
 ## URLs
 
@@ -105,23 +106,25 @@ After grading completes, you'll see:
 - **Build Tool**: Vite
 - **Deployment**: Cloudflare Pages
 
-## Completed Features
+## 완료된 기능
 
-✅ Project structure setup and Git repository initialization  
-✅ Cloudflare D1 database setup and migrations  
-✅ AI grading API endpoints implementation  
-✅ Modern SaaS landing page with hero section  
-✅ 3-step workflow visualization (Upload rubric → Upload essays → Download results)  
-✅ Features section with icons and benefits  
-✅ Privacy and compliance section  
-✅ FAQ section  
-✅ Rubric input frontend UI  
-✅ Detailed feedback display screen  
-✅ Grading history and archive functionality  
-✅ Local development server and testing  
-✅ **NEW: EssayGrader.ai-inspired design**  
-✅ **NEW: Trust indicators and social proof elements**  
-✅ **NEW: Modern gradient styling and animations**
+✅ 프로젝트 구조 설정 및 Git 저장소 초기화  
+✅ Cloudflare D1 데이터베이스 설정 및 마이그레이션  
+✅ AI 채점 API 엔드포인트 구현  
+✅ 히어로 섹션이 있는 현대적인 SaaS 랜딩 페이지  
+✅ 3단계 워크플로우 시각화 (루브릭 업로드 → 논술 업로드 → 결과 다운로드)  
+✅ 아이콘과 이점이 포함된 기능 섹션  
+✅ 프라이버시 및 규정 준수 섹션  
+✅ FAQ 섹션  
+✅ 루브릭 입력 프론트엔드 UI  
+✅ 상세한 피드백 표시 화면  
+✅ 채점 기록 및 아카이브 기능  
+✅ 로컬 개발 서버 및 테스트  
+✅ **NEW: 완전한 한글화 (모든 UI 텍스트)**  
+✅ **NEW: Green-to-blue 그라디언트 테마**  
+✅ **NEW: 참고 자료 첨부 기능 (4개 기본 + 7개 추가 가능)**  
+✅ **NEW: "AI 논술 평가" 브랜딩**  
+✅ **NEW: 한글 메시징: "AI로 논술 답안지를 10배 빠르게 채점"**
 
 ## Features Not Yet Implemented
 
@@ -134,33 +137,39 @@ After grading completes, you'll see:
 ⏳ LMS integrations (Google Classroom, Canvas)  
 ⏳ Production Cloudflare Pages deployment
 
-## Design Highlights
+## 디자인 하이라이트
 
-### EssayGrader.ai-Inspired Features
+### 주요 기능 업데이트
 
-1. **Hero Section**: 
-   - Gradient background (purple to blue)
-   - Trust indicator: "Trusted by teachers at 1,000+ schools & colleges"
-   - Clear CTAs: "Start Grading Free" and "See How It Works"
+1. **히어로 섹션**: 
+   - 그라디언트 배경 (green to blue)
+   - 신뢰 지표: "1,000개 이상의 학교와 대학에서 신뢰하는 서비스"
+   - 명확한 CTA: "무료로 채점 시작하기" 및 "작동 방식 보기"
 
-2. **Trust Bar**:
-   - Key metrics: 10x Faster Grading, 1,000+ Schools, <4% Variance, 100% Privacy
+2. **신뢰 바**:
+   - 주요 메트릭: 10배 빠른 채점, 1,000+ 신뢰하는 학교, <4% 점수 편차, 100% 프라이버시 우선
 
-3. **How It Works**:
-   - 3-step process with numbered circles
-   - Simple workflow visualization
+3. **작동 방식**:
+   - 번호가 매겨진 원이 있는 3단계 프로세스
+   - 간단한 워크플로우 시각화
 
-4. **Features Section**:
-   - 6 feature cards with icon badges
-   - Hover animations for engagement
+4. **기능 섹션**:
+   - 아이콘 배지가 있는 6개의 기능 카드
+   - 참여를 위한 호버 애니메이션
 
-5. **Privacy Section**:
-   - FERPA, AES-256 Encryption, Data Ownership, SOC 2 badges
-   - Emphasizes security and compliance
+5. **참고 자료 첨부**:
+   - 과제 프롬프트 아래 자료 첨부 영역
+   - 4개 기본 슬롯 + 7개 추가 가능 (최대 11개)
+   - "+" 버튼으로 동적 추가
+   - 남은 슬롯 수 실시간 표시
 
-6. **FAQ Section**:
-   - Collapsible details elements
-   - Common teacher questions answered
+6. **프라이버시 섹션**:
+   - 개인정보 보호법, AES-256 암호화, 데이터 소유권, SOC 2 배지
+   - 보안 및 규정 준수 강조
+
+7. **FAQ 섹션**:
+   - 접을 수 있는 details 요소
+   - 교사들의 일반적인 질문에 대한 답변
 
 ## Recommended Next Steps
 
