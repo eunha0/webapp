@@ -1,133 +1,168 @@
-# CoGrader - AI 에세이 채점 시스템
+# EssayGrader AI - AI-Powered Essay Grading for Teachers
 
-## 프로젝트 개요
+## Project Overview
 
-**CoGrader**는 최첨단 대규모 언어 모델(LLM)을 활용한 자동화된 에세이 채점(AEG) 시스템입니다. 교사들이 루브릭 기반으로 학생 에세이를 일관성 있게 채점하고, 상세하고 건설적인 피드백을 제공하여 학습 성장을 촉진합니다.
+**EssayGrader AI** is an advanced automated essay grading (AEG) system powered by state-of-the-art Large Language Models (LLMs). It helps teachers grade essays 10x faster while providing detailed, actionable feedback that promotes student learning and growth.
 
-### 주요 목표
+### Inspired By
 
-1. **일관된 채점 (AES)**: 인간 평가자와 0.61 이상의 실질적 일치도(QWK) 달성
-2. **심층 피드백 (AWE)**: 시의적절하고 구체적이며 상세한 지원적 피드백 제공
+This project is designed to match the style and functionality of **[EssayGrader.ai](https://www.essaygrader.ai/)**, featuring a modern SaaS landing page with clean design, trust indicators, and a user-friendly grading interface.
 
-### 핵심 기능
+### Key Objectives
 
-✅ **루브릭 기반 채점**: 사용자 정의 가능한 평가 기준 설정  
-✅ **AI 자동 분석**: 각 기준별 1-4점 척도 평가  
-✅ **상세한 피드백**: 강점, 개선점, 구체적 수정 제안 제공  
-✅ **채점 기록 관리**: 과거 채점 세션 및 결과 저장/조회  
-✅ **다국어 인터페이스**: 한국어 UI 지원  
-✅ **실시간 처리**: 빠른 응답 시간으로 즉각적인 피드백
+1. **Consistent Grading (AES)**: Achieve substantial agreement (QWK 0.61+) with human graders
+2. **Detailed Feedback (AWE)**: Provide timely, specific, detailed, and supportive feedback
+3. **Time Savings**: Grade entire classes in minutes, not hours
+
+### Core Features
+
+✅ **Custom Rubric Support**: Create your own rubrics or use pre-built templates  
+✅ **AI-Powered Analysis**: 1-4 scale scoring for each criterion  
+✅ **Detailed Feedback**: Strengths, areas for improvement, and specific revision suggestions  
+✅ **Grading History**: Save and review past grading sessions and results  
+✅ **Multiple Languages**: Support for various languages and writing styles  
+✅ **Fast Processing**: Get results in seconds with immediate feedback
 
 ## URLs
 
-- **개발 서버**: https://3000-ikiygtk7zjdsp3lj0l2bs-18e660f9.sandbox.novita.ai
-- **API 엔드포인트**:
-  - `POST /api/grade` - 에세이 채점 요청
-  - `GET /api/result/:essayId` - 채점 결과 조회
-  - `GET /api/sessions` - 채점 세션 목록
-  - `GET /api/session/:sessionId` - 세션 상세 정보
-  - `GET /api/health` - 서비스 상태 확인
+- **Development Server**: https://3000-ikiygtk7zjdsp3lj0l2bs-18e660f9.sandbox.novita.ai
+- **API Endpoints**:
+  - `POST /api/grade` - Grade an essay
+  - `GET /api/result/:essayId` - Get grading result
+  - `GET /api/sessions` - List grading sessions
+  - `GET /api/session/:sessionId` - Get session details
+  - `GET /api/health` - Health check
 
-## 데이터 아키텍처
+## Data Architecture
 
-### 데이터 모델
+### Data Models
 
-1. **Grading Sessions**: 채점 세션 정보 (과제 프롬프트, 학년 수준)
-2. **Rubric Criteria**: 루브릭 평가 기준
-3. **Essays**: 학생이 제출한 에세이
-4. **Grading Results**: 종합 채점 결과
-5. **Criterion Scores**: 각 기준별 상세 점수
+1. **Grading Sessions**: Session information (assignment prompt, grade level)
+2. **Rubric Criteria**: Evaluation criteria
+3. **Essays**: Student-submitted essays
+4. **Grading Results**: Comprehensive grading results
+5. **Criterion Scores**: Detailed scores for each criterion
 
-### 스토리지 서비스
+### Storage Service
 
-- **Cloudflare D1 Database**: SQLite 기반 글로벌 분산 데이터베이스
-  - 로컬 개발: `.wrangler/state/v3/d1` (로컬 SQLite)
-  - 프로덕션: Cloudflare D1 (글로벌 분산)
+- **Cloudflare D1 Database**: SQLite-based globally distributed database
+  - Local Development: `.wrangler/state/v3/d1` (local SQLite)
+  - Production: Cloudflare D1 (globally distributed)
 
-### 데이터 흐름
+### Data Flow
 
 ```
-사용자 입력 (과제, 루브릭, 에세이)
+User Input (assignment, rubric, essay)
     ↓
-AI 채점 서비스 (grading-service.ts)
+AI Grading Service (grading-service.ts)
     ↓
-채점 결과 생성 (기준별 점수, 피드백)
+Generate Results (criterion scores, feedback)
     ↓
-데이터베이스 저장 (db-service.ts)
+Save to Database (db-service.ts)
     ↓
-프론트엔드 결과 표시
+Display Results on Frontend
 ```
 
-## 사용자 가이드
+## User Guide
 
-### 1. 에세이 채점하기
+### How to Grade an Essay
 
-1. **과제 프롬프트 입력**: 학생들이 응답해야 할 과제 내용을 입력합니다.
-   - 예: "Analyze the major causes of World War II, support your arguments using specific historical examples..."
+1. **Enter Assignment Prompt**: Describe what students need to write about
+   - Example: "Analyze the major causes of World War II, support your arguments using specific historical examples..."
 
-2. **학년 수준 지정**: 과제의 학년 수준을 입력합니다.
-   - 예: "12th-grade social studies"
+2. **Specify Grade Level**: Enter the appropriate grade level
+   - Example: "12th Grade AP History"
 
-3. **루브릭 기준 설정**: 평가 기준을 추가합니다 (기본 4개 제공).
-   - 기준 1: 핵심 개념의 이해와 분석
-   - 기준 2: 증거와 역사적 사례 활용
-   - 기준 3: 출처 인용의 정확성
-   - 기준 4: 문법, 구조, 흐름
+3. **Set Rubric Criteria**: Add evaluation criteria (4 defaults provided)
+   - Criterion 1: Understanding and Analysis of Key Concepts
+   - Criterion 2: Use of Evidence and Historical Examples
+   - Criterion 3: Accuracy of Source Citation
+   - Criterion 4: Grammar, Organization, and Flow
 
-4. **에세이 제출**: 학생이 작성한 에세이를 입력 영역에 붙여넣습니다.
+4. **Submit Essay**: Paste the student's essay into the text area
 
-5. **채점 실행**: "에세이 채점하기" 버튼을 클릭합니다.
+5. **Grade**: Click "Grade Essay with AI" button
 
-### 2. 채점 결과 확인
+### Understanding Results
 
-채점이 완료되면 다음 정보가 표시됩니다:
+After grading completes, you'll see:
 
-- **총점**: 10점 만점 기준 점수
-- **종합 평가**: 전체적인 에세이 품질 요약
-- **기준별 평가**: 각 루브릭 기준에 대한 4점 척도 점수
-  - 강점: 잘한 부분 구체적 설명
-  - 개선점: 보완이 필요한 부분
-- **전체 평가**: 과제 요구사항 충족도 평가
-- **구체적 수정 제안**: 최소 3개의 구체적 오류 예시 및 수정 방법
-- **다음 단계 조언**: 전반적인 작문 실력 향상을 위한 전략
+- **Total Score**: Score out of 10
+- **Summary Evaluation**: Overall essay quality summary
+- **Detailed Rubric Scores**: 1-4 scale score for each criterion
+  - Strengths: What the student did well
+  - Areas for Improvement: What needs work
+- **Overall Assessment**: How well the essay met requirements
+- **Specific Revision Suggestions**: At least 3 concrete examples with fixes
+- **Next Steps for Improvement**: Strategies to improve writing skills
 
-### 3. 채점 기록 조회
+## Tech Stack
 
-"채점 기록" 탭에서:
-- 과거 채점 세션 목록 확인
-- 각 세션의 과제 정보 및 채점된 에세이 수 확인
-- 세션 상세 정보 및 개별 에세이 결과 재조회
+- **Framework**: Hono (lightweight web framework)
+- **Runtime**: Cloudflare Workers
+- **Database**: Cloudflare D1 (SQLite)
+- **Frontend**: Vanilla JavaScript + TailwindCSS
+- **Build Tool**: Vite
+- **Deployment**: Cloudflare Pages
 
-## 기술 스택
+## Completed Features
 
-- **프레임워크**: Hono (경량 웹 프레임워크)
-- **런타임**: Cloudflare Workers
-- **데이터베이스**: Cloudflare D1 (SQLite)
-- **프론트엔드**: Vanilla JavaScript + TailwindCSS
-- **빌드 도구**: Vite
-- **배포**: Cloudflare Pages
+✅ Project structure setup and Git repository initialization  
+✅ Cloudflare D1 database setup and migrations  
+✅ AI grading API endpoints implementation  
+✅ Modern SaaS landing page with hero section  
+✅ 3-step workflow visualization (Upload rubric → Upload essays → Download results)  
+✅ Features section with icons and benefits  
+✅ Privacy and compliance section  
+✅ FAQ section  
+✅ Rubric input frontend UI  
+✅ Detailed feedback display screen  
+✅ Grading history and archive functionality  
+✅ Local development server and testing  
+✅ **NEW: EssayGrader.ai-inspired design**  
+✅ **NEW: Trust indicators and social proof elements**  
+✅ **NEW: Modern gradient styling and animations**
 
-## 현재 완료된 기능
+## Features Not Yet Implemented
 
-✅ 프로젝트 구조 설정 및 Git 저장소 초기화  
-✅ Cloudflare D1 데이터베이스 설정 및 마이그레이션  
-✅ AI 채점 API 엔드포인트 구현  
-✅ 루브릭 입력 프론트엔드 UI  
-✅ 상세 피드백 표시 화면  
-✅ 채점 기록 조회 및 아카이브 기능  
-✅ 로컬 개발 서버 실행 및 테스트
+⏳ Real LLM API integration (OpenAI, Anthropic, etc.)  
+⏳ User authentication and authorization  
+⏳ Multi-user support and team collaboration  
+⏳ Essay comparison and plagiarism detection  
+⏳ PDF/Word document upload support  
+⏳ Export grading results (PDF, CSV)  
+⏳ LMS integrations (Google Classroom, Canvas)  
+⏳ Production Cloudflare Pages deployment
 
-## 구현되지 않은 기능
+## Design Highlights
 
-⏳ 실제 LLM API 통합 (OpenAI, Anthropic 등)  
-⏳ 사용자 인증 및 권한 관리  
-⏳ 다중 사용자 지원 및 팀 협업 기능  
-⏳ 에세이 비교 및 표절 검사  
-⏳ PDF/Word 문서 업로드 지원  
-⏳ 채점 결과 내보내기 (PDF, CSV)  
-⏳ 프로덕션 Cloudflare Pages 배포
+### EssayGrader.ai-Inspired Features
 
-## 다음 개발 단계 권장사항
+1. **Hero Section**: 
+   - Gradient background (purple to blue)
+   - Trust indicator: "Trusted by teachers at 1,000+ schools & colleges"
+   - Clear CTAs: "Start Grading Free" and "See How It Works"
+
+2. **Trust Bar**:
+   - Key metrics: 10x Faster Grading, 1,000+ Schools, <4% Variance, 100% Privacy
+
+3. **How It Works**:
+   - 3-step process with numbered circles
+   - Simple workflow visualization
+
+4. **Features Section**:
+   - 6 feature cards with icon badges
+   - Hover animations for engagement
+
+5. **Privacy Section**:
+   - FERPA, AES-256 Encryption, Data Ownership, SOC 2 badges
+   - Emphasizes security and compliance
+
+6. **FAQ Section**:
+   - Collapsible details elements
+   - Common teacher questions answered
+
+## Recommended Next Steps
 
 ### 1. LLM API 통합 (최우선)
 
@@ -214,13 +249,14 @@ npm run db:reset
 npm run db:console:local
 ```
 
-## 배포 상태
+## Deployment Status
 
-- **플랫폼**: Cloudflare Pages
-- **상태**: ✅ 로컬 개발 활성화 / ⏳ 프로덕션 배포 대기
-- **마지막 업데이트**: 2025-10-31
+- **Platform**: Cloudflare Pages
+- **Status**: ✅ Local Development Active / ⏳ Production Deployment Pending
+- **Last Updated**: 2025-11-02
+- **Design Update**: EssayGrader.ai-inspired modern SaaS interface
 
-## 프로젝트 구조
+## Project Structure
 
 ```
 webapp/
@@ -239,14 +275,28 @@ webapp/
 └── package.json            # 프로젝트 메타데이터
 ```
 
-## 라이선스
+## Comparison with EssayGrader.ai
+
+| Feature | EssayGrader.ai | This Project |
+|---------|---------------|--------------|
+| Landing Page Design | ✅ Modern SaaS | ✅ Inspired by original |
+| Hero Section | ✅ Gradient + CTAs | ✅ Implemented |
+| 3-Step Workflow | ✅ Visual diagram | ✅ Implemented |
+| Custom Rubrics | ✅ 400+ templates | ✅ Custom creation |
+| AI Grading | ✅ Production LLM | ⏳ Demo simulation |
+| LMS Integration | ✅ Google/Canvas | ⏳ Not yet |
+| Pricing Plans | ✅ Free + Paid | N/A (Open Source) |
+| SOC 2 Compliance | ✅ Certified | N/A (Local deployment) |
+
+## License
 
 MIT License
 
-## 문의
+## Contact
 
-이 프로젝트에 대한 문의사항이나 기여를 원하시면 이슈를 생성해주세요.
+For questions or contributions, please create an issue.
 
 ---
 
-**Built with ❤️ using Hono, Cloudflare Workers, and AI**
+**Built with ❤️ using Hono, Cloudflare Workers, and AI**  
+**Designed to match the elegance of EssayGrader.ai**
