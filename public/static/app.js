@@ -24,15 +24,12 @@ const defaultCriteria = [
   }
 ];
 
-// Initialize default prompt and criteria
+// Initialize page
 window.addEventListener('DOMContentLoaded', () => {
-  // Set default assignment prompt
-  document.getElementById('assignmentPrompt').value = 
-    '제2차 세계대전의 주요 원인을 분석하고, 구체적인 역사적 사례를 사용하여 논거를 뒷받침하고, 베르사유 조약이 전쟁 발발에 미친 영향을 설명하세요.';
+  // Leave assignment prompt blank (removed default value)
+  // Grade level remains unselected (user selects)
   
-  document.getElementById('gradeLevel').value = '고등학교 3학년 세계사';
-  
-  // Add default criteria
+  // Add 4 default criteria for custom rubric
   defaultCriteria.forEach(criterion => {
     addCriterion(criterion.name, criterion.description);
   });
@@ -50,6 +47,96 @@ function scrollToGrader() {
 
 function scrollToDemo() {
   document.getElementById('how-it-works').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Switch between platform and custom rubric
+function switchRubricType(type) {
+  const platformBtn = document.getElementById('platformRubricBtn');
+  const customBtn = document.getElementById('customRubricBtn');
+  const platformContainer = document.getElementById('platformRubricContainer');
+  const customContainer = document.getElementById('customRubricContainer');
+  
+  if (type === 'platform') {
+    platformBtn.classList.add('active');
+    customBtn.classList.remove('active');
+    platformContainer.classList.remove('hidden');
+    customContainer.classList.add('hidden');
+  } else {
+    customBtn.classList.add('active');
+    platformBtn.classList.remove('active');
+    customContainer.classList.remove('hidden');
+    platformContainer.classList.add('hidden');
+  }
+}
+
+// Switch between text input and file upload for essay
+function switchEssayInputType(type) {
+  const textInputBtn = document.getElementById('textInputBtn');
+  const fileInputBtn = document.getElementById('fileInputBtn');
+  const textInputContainer = document.getElementById('textInputContainer');
+  const fileInputContainer = document.getElementById('fileInputContainer');
+  
+  if (type === 'text') {
+    textInputBtn.classList.add('active');
+    fileInputBtn.classList.remove('active');
+    textInputContainer.classList.remove('hidden');
+    fileInputContainer.classList.add('hidden');
+  } else {
+    fileInputBtn.classList.add('active');
+    textInputBtn.classList.remove('active');
+    fileInputContainer.classList.remove('hidden');
+    textInputContainer.classList.add('hidden');
+  }
+}
+
+// Handle file selection
+let selectedFile = null;
+
+function handleFileSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  selectedFile = file;
+  
+  // Show file preview
+  const filePreview = document.getElementById('filePreview');
+  const fileName = document.getElementById('fileName');
+  const fileSize = document.getElementById('fileSize');
+  const imagePreview = document.getElementById('imagePreview');
+  const previewImg = document.getElementById('previewImg');
+  
+  fileName.textContent = file.name;
+  fileSize.textContent = formatFileSize(file.size);
+  filePreview.classList.remove('hidden');
+  
+  // If image, show preview
+  if (file.type.startsWith('image/')) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      previewImg.src = e.target.result;
+      imagePreview.classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+  } else {
+    imagePreview.classList.add('hidden');
+  }
+}
+
+// Clear selected file
+function clearFile() {
+  selectedFile = null;
+  document.getElementById('essayFile').value = '';
+  document.getElementById('filePreview').classList.add('hidden');
+  document.getElementById('imagePreview').classList.add('hidden');
+}
+
+// Format file size
+function formatFileSize(bytes) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
 // Add reference material
@@ -170,20 +257,58 @@ function removeCriterion(id) {
 // Get all rubric criteria from the form
 function getRubricCriteria() {
   const criteria = [];
-  const criterionItems = document.querySelectorAll('.criterion-item');
   
-  criterionItems.forEach((item, index) => {
-    const name = item.querySelector('.criterion-name').value.trim();
-    const description = item.querySelector('.criterion-description').value.trim();
+  // Check which rubric type is active
+  const platformBtn = document.getElementById('platformRubricBtn');
+  const isPlatformRubric = platformBtn.classList.contains('active');
+  
+  if (isPlatformRubric) {
+    // Use platform rubric - return predefined criteria based on selection
+    const platformSelect = document.getElementById('platformRubric');
+    const rubricType = platformSelect.value;
     
-    if (name && description) {
-      criteria.push({
-        criterion_name: name,
-        criterion_description: description,
+    // Define platform rubric criteria
+    if (rubricType === 'standard') {
+      return defaultCriteria.map((criterion, index) => ({
+        criterion_name: criterion.name,
+        criterion_description: criterion.description,
         criterion_order: index + 1
-      });
+      }));
+    } else if (rubricType === 'detailed') {
+      // 6 criteria for detailed rubric
+      return [
+        { criterion_name: '논제의 명확성', criterion_description: '논제가 명확하고 구체적으로 제시되었습니다.', criterion_order: 1 },
+        { criterion_name: '논거의 타당성', criterion_description: '논거가 논리적이고 설득력 있게 제시되었습니다.', criterion_order: 2 },
+        { criterion_name: '증거 활용', criterion_description: '적절한 증거와 사례를 효과적으로 활용했습니다.', criterion_order: 3 },
+        { criterion_name: '구조와 조직', criterion_description: '글의 구조가 체계적이고 논리적으로 조직되었습니다.', criterion_order: 4 },
+        { criterion_name: '언어 사용', criterion_description: '문법, 어휘, 문장 구조가 정확하고 적절합니다.', criterion_order: 5 },
+        { criterion_name: '창의성과 통찰', criterion_description: '독창적인 관점과 깊이 있는 통찰을 보여줍니다.', criterion_order: 6 }
+      ];
+    } else if (rubricType === 'simple') {
+      // 3 criteria for simple rubric
+      return [
+        { criterion_name: '내용의 이해', criterion_description: '주제에 대한 이해가 정확하고 충분합니다.', criterion_order: 1 },
+        { criterion_name: '논리적 전개', criterion_description: '논리적으로 일관되게 전개되었습니다.', criterion_order: 2 },
+        { criterion_name: '표현의 적절성', criterion_description: '문법과 어휘가 적절하게 사용되었습니다.', criterion_order: 3 }
+      ];
     }
-  });
+  } else {
+    // Use custom rubric - collect from form
+    const criterionItems = document.querySelectorAll('.criterion-item');
+    
+    criterionItems.forEach((item, index) => {
+      const name = item.querySelector('.criterion-name').value.trim();
+      const description = item.querySelector('.criterion-description').value.trim();
+      
+      if (name && description) {
+        criteria.push({
+          criterion_name: name,
+          criterion_description: description,
+          criterion_order: index + 1
+        });
+      }
+    });
+  }
   
   return criteria;
 }
@@ -195,8 +320,39 @@ document.getElementById('gradingForm').addEventListener('submit', async (e) => {
   // Get form values
   const assignmentPrompt = document.getElementById('assignmentPrompt').value.trim();
   const gradeLevel = document.getElementById('gradeLevel').value.trim();
-  const essayText = document.getElementById('essayText').value.trim();
   const rubricCriteria = getRubricCriteria();
+  
+  // Check which input type is active
+  const textInputBtn = document.getElementById('textInputBtn');
+  const isTextInput = textInputBtn.classList.contains('active');
+  
+  let essayText = '';
+  
+  if (isTextInput) {
+    // Get text from textarea
+    essayText = document.getElementById('essayText').value.trim();
+    
+    if (!essayText) {
+      alert('학생 논술 내용을 입력해주세요.');
+      return;
+    }
+  } else {
+    // Handle file upload
+    if (!selectedFile) {
+      alert('파일을 선택해주세요.');
+      return;
+    }
+    
+    // For now, we'll show a message that file processing will be implemented
+    // In production, you would:
+    // 1. Upload file to R2 storage
+    // 2. If image, use OCR to extract text
+    // 3. If PDF, extract text from PDF
+    // 4. If Word doc, extract text
+    
+    alert('파일 업로드 기능은 현재 구현 중입니다. 임시로 텍스트 입력을 사용해주세요.');
+    return;
+  }
   
   // Validate
   if (!assignmentPrompt || !gradeLevel || !essayText || rubricCriteria.length === 0) {
@@ -242,15 +398,15 @@ function displayResults(result, essayId) {
   const html = `
     <div class="bg-white rounded-xl shadow-2xl p-8 border border-gray-200 result-section mt-8">
       <!-- Header -->
-      <div class="text-center mb-8 pb-6 border-b-2 border-green-100">
-        <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-green-500 to-blue-500 rounded-full mb-4">
+      <div class="text-center mb-8 pb-6 border-b-2 border-navy-100">
+        <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-navy-700 to-navy-900 rounded-full mb-4">
           <i class="fas fa-award text-3xl text-white"></i>
         </div>
         <h2 class="text-3xl font-bold text-gray-900 mb-4">
           채점 완료!
         </h2>
-        <div class="inline-block bg-gradient-to-r from-green-100 to-blue-100 rounded-2xl px-10 py-6">
-          <span class="text-6xl font-bold bg-gradient-to-r from-green-500 to-blue-500 bg-clip-text text-transparent">${result.total_score}</span>
+        <div class="inline-block bg-gradient-to-r from-navy-100 to-blue-100 rounded-2xl px-10 py-6">
+          <span class="text-6xl font-bold bg-gradient-to-r from-navy-700 to-navy-900 bg-clip-text text-transparent">${result.total_score}</span>
           <span class="text-3xl text-gray-600">/10</span>
         </div>
       </div>
@@ -258,12 +414,12 @@ function displayResults(result, essayId) {
       <!-- Summary Evaluation -->
       <div class="mb-8">
         <h3 class="text-xl font-bold text-gray-900 mb-3 flex items-center">
-          <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-2">
-            <i class="fas fa-clipboard-check text-green-600"></i>
+          <div class="w-8 h-8 bg-navy-100 rounded-lg flex items-center justify-center mr-2">
+            <i class="fas fa-clipboard-check text-navy-700"></i>
           </div>
           종합 평가
         </h3>
-        <p class="text-gray-700 leading-relaxed bg-gradient-to-r from-green-50 to-blue-50 p-5 rounded-lg border-l-4 border-green-500">
+        <p class="text-gray-700 leading-relaxed bg-gradient-to-r from-navy-50 to-blue-50 p-5 rounded-lg border-l-4 border-navy-700">
           ${result.summary_evaluation}
         </p>
       </div>
@@ -278,7 +434,7 @@ function displayResults(result, essayId) {
         </h3>
         <div class="space-y-4">
           ${result.criterion_scores.map(score => `
-            <div class="criterion-card border border-gray-200 rounded-xl p-6 bg-white hover:border-green-300">
+            <div class="criterion-card border border-gray-200 rounded-xl p-6 bg-white hover:border-navy-300">
               <div class="flex items-start justify-between mb-4">
                 <h4 class="font-bold text-gray-900 flex-1 text-lg">${score.criterion_name}</h4>
                 <div class="score-badge ${getScoreColor(score.score)}">
@@ -286,8 +442,8 @@ function displayResults(result, essayId) {
                 </div>
               </div>
               <div class="grid md:grid-cols-2 gap-6 mt-4">
-                <div class="bg-green-50 p-4 rounded-lg">
-                  <p class="text-sm font-bold text-green-800 mb-2 flex items-center">
+                <div class="bg-navy-50 p-4 rounded-lg">
+                  <p class="text-sm font-bold text-navy-800 mb-2 flex items-center">
                     <i class="fas fa-check-circle mr-2"></i>강점
                   </p>
                   <p class="text-sm text-gray-700 leading-relaxed">${score.strengths}</p>
@@ -347,7 +503,7 @@ function displayResults(result, essayId) {
       <div class="flex flex-col sm:flex-row justify-center gap-4 pt-6 border-t-2 border-gray-100">
         <button 
           onclick="resetForm()" 
-          class="px-8 py-4 bg-gradient-to-r from-green-500 to-blue-500 text-white font-bold rounded-lg hover:shadow-xl transition transform hover:scale-105"
+          class="px-8 py-4 bg-gradient-to-r from-navy-700 to-navy-900 text-white font-bold rounded-lg hover:shadow-xl transition transform hover:scale-105"
         >
           <i class="fas fa-redo mr-2"></i>다른 논술 채점하기
         </button>
@@ -370,7 +526,7 @@ function displayResults(result, essayId) {
 
 // Get color class based on score
 function getScoreColor(score) {
-  if (score === 4) return 'bg-gradient-to-r from-green-500 to-emerald-500 text-white';
+  if (score === 4) return 'bg-gradient-to-r from-navy-600 to-navy-800 text-white';
   if (score === 3) return 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white';
   if (score === 2) return 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white';
   return 'bg-gradient-to-r from-red-500 to-pink-500 text-white';
