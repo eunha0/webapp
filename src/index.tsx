@@ -2217,6 +2217,10 @@ app.get('/my-page', (c) => {
             background-color: #1e3a8a;
             color: white;
           }
+          .assignment-rubric-tab.active {
+            background-color: #1e3a8a;
+            color: white;
+          }
         </style>
     </head>
     <body class="bg-gray-50">
@@ -2358,12 +2362,48 @@ app.get('/my-page', (c) => {
 
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">평가 루브릭</label>
-                            <div id="rubricCriteriaList" class="space-y-2 mb-2">
-                                <!-- Criteria will be added here -->
+                            
+                            <!-- Rubric Type Selection -->
+                            <div class="flex gap-2 mb-4">
+                                <button 
+                                    type="button" 
+                                    id="assignmentPlatformRubricBtn"
+                                    onclick="switchAssignmentRubricType('platform')" 
+                                    class="assignment-rubric-tab flex-1 px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold transition active"
+                                >
+                                    플랫폼 루브릭
+                                </button>
+                                <button 
+                                    type="button" 
+                                    id="assignmentCustomRubricBtn"
+                                    onclick="switchAssignmentRubricType('custom')" 
+                                    class="assignment-rubric-tab flex-1 px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold transition"
+                                >
+                                    나의 루브릭
+                                </button>
                             </div>
-                            <button type="button" onclick="addRubricCriterion()" class="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm">
-                                <i class="fas fa-plus mr-2"></i>평가 기준 추가
-                            </button>
+                            
+                            <!-- Platform Rubric Container -->
+                            <div id="assignmentPlatformRubricContainer">
+                                <select 
+                                    id="assignmentPlatformRubric" 
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-700 focus:border-transparent"
+                                >
+                                    <option value="standard">표준 논술 루브릭 (4개 기준)</option>
+                                    <option value="detailed">상세 논술 루브릭 (6개 기준)</option>
+                                    <option value="simple">간단 논술 루브릭 (3개 기준)</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Custom Rubric Container -->
+                            <div id="assignmentCustomRubricContainer" class="hidden">
+                                <div id="rubricCriteriaList" class="space-y-2 mb-2">
+                                    <!-- Criteria will be added here -->
+                                </div>
+                                <button type="button" onclick="addRubricCriterion()" class="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm">
+                                    <i class="fas fa-plus mr-2"></i>평가 기준 추가
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -2595,13 +2635,57 @@ app.get('/my-page', (c) => {
             }
           }
 
+          // Platform rubric definitions
+          function getPlatformRubricCriteria(type) {
+            const rubrics = {
+              standard: [
+                { name: '핵심 개념의 이해와 분석', description: '주요 주제를 정확하게 파악하고 깊이 있게 분석했습니다.', order: 1 },
+                { name: '증거와 사례 활용', description: '논거를 뒷받침하기 위해 구체적이고 적절한 사례를 사용했습니다.', order: 2 },
+                { name: '출처 인용의 정확성', description: '참고 자료에서 정보를 정확하게 인용했습니다.', order: 3 },
+                { name: '문법 정확성, 구성 및 흐름', description: '최소한의 문법 오류, 논리적 흐름, 다양한 문장 구조를 보여줍니다.', order: 4 }
+              ],
+              detailed: [
+                { name: '주제 이해도', description: '논술 주제에 대한 깊이 있는 이해를 보여줍니다.', order: 1 },
+                { name: '논리적 구성', description: '논술이 체계적이고 논리적으로 구성되어 있습니다.', order: 2 },
+                { name: '근거 제시', description: '주장을 뒷받침하는 충분한 근거를 제시했습니다.', order: 3 },
+                { name: '비판적 사고', description: '다양한 관점을 고려하고 비판적으로 사고했습니다.', order: 4 },
+                { name: '언어 표현력', description: '적절하고 풍부한 어휘를 사용하여 표현했습니다.', order: 5 },
+                { name: '맞춤법과 문법', description: '맞춤법과 문법이 정확합니다.', order: 6 }
+              ],
+              simple: [
+                { name: '내용 충실성', description: '논술 주제에 맞는 내용을 충실히 작성했습니다.', order: 1 },
+                { name: '논리성', description: '논리적으로 일관성 있게 작성했습니다.', order: 2 },
+                { name: '표현력', description: '생각을 명확하게 표현했습니다.', order: 3 }
+              ]
+            };
+            return rubrics[type] || rubrics.standard;
+          }
+
+          // Rubric type switching for assignment creation
+          function switchAssignmentRubricType(type) {
+            const platformBtn = document.getElementById('assignmentPlatformRubricBtn');
+            const customBtn = document.getElementById('assignmentCustomRubricBtn');
+            const platformContainer = document.getElementById('assignmentPlatformRubricContainer');
+            const customContainer = document.getElementById('assignmentCustomRubricContainer');
+
+            if (type === 'platform') {
+              platformBtn.classList.add('active');
+              customBtn.classList.remove('active');
+              platformContainer.classList.remove('hidden');
+              customContainer.classList.add('hidden');
+            } else {
+              customBtn.classList.add('active');
+              platformBtn.classList.remove('active');
+              customContainer.classList.remove('hidden');
+              platformContainer.classList.add('hidden');
+            }
+          }
+
           // Show/hide modals
           function showCreateAssignmentModal() {
             document.getElementById('createAssignmentModal').classList.remove('hidden');
-            // Add 4 default criteria
-            for (let i = 0; i < 4; i++) {
-              addRubricCriterion();
-            }
+            // Default to platform rubric
+            switchAssignmentRubricType('platform');
           }
 
           function closeCreateAssignmentModal() {
@@ -2609,6 +2693,9 @@ app.get('/my-page', (c) => {
             document.getElementById('createAssignmentForm').reset();
             document.getElementById('rubricCriteriaList').innerHTML = '';
             criterionCounter = 0;
+            
+            // Reset rubric type to platform
+            switchAssignmentRubricType('platform');
             
             // Reset reference materials to 4 default slots
             const container = document.getElementById('assignmentReferenceMaterials');
@@ -2720,12 +2807,28 @@ app.get('/my-page', (c) => {
             const grade_level = document.getElementById('assignmentGradeLevel').value;
             const due_date = document.getElementById('assignmentDueDate').value;
 
-            const criteriaElements = document.querySelectorAll('#rubricCriteriaList > div');
-            const rubric_criteria = Array.from(criteriaElements).map((el, idx) => ({
-              name: el.querySelector('.criterion-name').value,
-              description: el.querySelector('.criterion-description').value,
-              order: idx + 1
-            }));
+            // Check which rubric type is selected
+            const isCustomRubric = !document.getElementById('assignmentCustomRubricContainer').classList.contains('hidden');
+            
+            let rubric_criteria = [];
+            
+            if (isCustomRubric) {
+              // Custom rubric
+              const criteriaElements = document.querySelectorAll('#rubricCriteriaList > div');
+              if (criteriaElements.length === 0) {
+                alert('최소 1개의 평가 기준을 추가해주세요.');
+                return;
+              }
+              rubric_criteria = Array.from(criteriaElements).map((el, idx) => ({
+                name: el.querySelector('.criterion-name').value,
+                description: el.querySelector('.criterion-description').value,
+                order: idx + 1
+              }));
+            } else {
+              // Platform rubric
+              const platformRubricType = document.getElementById('assignmentPlatformRubric').value;
+              rubric_criteria = getPlatformRubricCriteria(platformRubricType);
+            }
 
             try {
               await axios.post('/api/assignments', {
