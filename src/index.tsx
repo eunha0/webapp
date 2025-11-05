@@ -961,7 +961,7 @@ app.get('/', (c) => {
                             <div class="grid md:grid-cols-2 gap-6">
                                 <div>
                                     <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                        <i class="fas fa-file-alt mr-2 text-navy-700"></i>과제 프롬프트
+                                        <i class="fas fa-file-alt mr-2 text-navy-700"></i>과제 지시문
                                     </label>
                                     <textarea 
                                         id="assignmentPrompt" 
@@ -2297,6 +2297,44 @@ app.get('/my-page', (c) => {
                             <textarea id="assignmentDescription" rows="4" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-700" placeholder="학생들에게 요구하는 논술 주제와 요구사항을 입력하세요" required></textarea>
                         </div>
 
+                        <!-- Reference Materials -->
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">참고 자료 첨부</label>
+                            <div id="assignmentReferenceMaterials" class="space-y-2 mb-2">
+                                <!-- Initial 4 reference slots -->
+                                <div class="reference-item flex gap-2">
+                                    <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
+                                    <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div class="reference-item flex gap-2">
+                                    <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
+                                    <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div class="reference-item flex gap-2">
+                                    <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
+                                    <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div class="reference-item flex gap-2">
+                                    <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
+                                    <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <button type="button" onclick="addReferenceMaterial()" id="addReferenceBtn" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm">
+                                    <i class="fas fa-plus mr-2"></i>참고 자료 추가
+                                </button>
+                                <span id="referenceCount" class="text-sm text-gray-600">4 / 11</span>
+                            </div>
+                        </div>
+
                         <div class="grid md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-semibold text-gray-700 mb-2">학년 수준</label>
@@ -2571,6 +2609,36 @@ app.get('/my-page', (c) => {
             document.getElementById('createAssignmentForm').reset();
             document.getElementById('rubricCriteriaList').innerHTML = '';
             criterionCounter = 0;
+            
+            // Reset reference materials to 4 default slots
+            const container = document.getElementById('assignmentReferenceMaterials');
+            container.innerHTML = \`
+              <div class="reference-item flex gap-2">
+                <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
+                <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+              <div class="reference-item flex gap-2">
+                <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
+                <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+              <div class="reference-item flex gap-2">
+                <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
+                <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+              <div class="reference-item flex gap-2">
+                <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
+                <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            \`;
+            updateReferenceCount();
           }
 
           function closeAssignmentDetailModal() {
@@ -2600,6 +2668,47 @@ app.get('/my-page', (c) => {
 
           function removeCriterion(id) {
             document.getElementById(\`criterion-\${id}\`).remove();
+          }
+
+          // Reference materials management
+          function updateReferenceCount() {
+            const count = document.querySelectorAll('#assignmentReferenceMaterials .reference-item').length;
+            document.getElementById('referenceCount').textContent = \`\${count} / 11\`;
+            const addBtn = document.getElementById('addReferenceBtn');
+            if (count >= 11) {
+              addBtn.disabled = true;
+              addBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+              addBtn.disabled = false;
+              addBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+          }
+
+          function addReferenceMaterial() {
+            const container = document.getElementById('assignmentReferenceMaterials');
+            const count = container.querySelectorAll('.reference-item').length;
+            if (count >= 11) return;
+
+            const div = document.createElement('div');
+            div.className = 'reference-item flex gap-2';
+            div.innerHTML = \`
+              <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
+              <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
+                <i class="fas fa-times"></i>
+              </button>
+            \`;
+            container.appendChild(div);
+            updateReferenceCount();
+          }
+
+          function removeReferenceMaterial(btn) {
+            const container = document.getElementById('assignmentReferenceMaterials');
+            if (container.querySelectorAll('.reference-item').length <= 1) {
+              alert('최소 1개의 참고 자료 슬롯은 유지해야 합니다.');
+              return;
+            }
+            btn.closest('.reference-item').remove();
+            updateReferenceCount();
           }
 
           // Handle create assignment
