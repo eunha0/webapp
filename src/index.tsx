@@ -1041,6 +1041,7 @@ app.get('/', (c) => {
                                             <option value="standard">표준 논술 루브릭 (4개 기준)</option>
                                             <option value="detailed">상세 논술 루브릭 (6개 기준)</option>
                                             <option value="simple">간단 논술 루브릭 (3개 기준)</option>
+                                            <option value="nyregents">뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)</option>
                                         </select>
                                     </div>
                                     
@@ -2392,6 +2393,7 @@ app.get('/my-page', (c) => {
                                     <option value="standard">표준 논술 루브릭 (4개 기준)</option>
                                     <option value="detailed">상세 논술 루브릭 (6개 기준)</option>
                                     <option value="simple">간단 논술 루브릭 (3개 기준)</option>
+                                    <option value="nyregents">뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)</option>
                                 </select>
                             </div>
                             
@@ -2656,6 +2658,12 @@ app.get('/my-page', (c) => {
                 { name: '내용 충실성', description: '논술 주제에 맞는 내용을 충실히 작성했습니다.', order: 1 },
                 { name: '논리성', description: '논리적으로 일관성 있게 작성했습니다.', order: 2 },
                 { name: '표현력', description: '생각을 명확하게 표현했습니다.', order: 3 }
+              ],
+              nyregents: [
+                { name: '내용과 분석 (주장 제시)', description: '구체적인 주장을 제시하고, 자료와 주제를 적절히 분석하며, 반론을 평가합니다.', order: 1 },
+                { name: '증거 활용 능력', description: '관련 증거를 활용하여 충분하고 적절한 근거를 제시하며, 표절을 피하고 허용 가능한 인용 형식을 사용합니다.', order: 2 },
+                { name: '일관성과 구성', description: '과제에 대한 수용 가능한 집중도를 유지하고, 체계적이고 논리적인 구조로 글을 구성합니다.', order: 3 },
+                { name: '언어 사용과 규칙', description: '적절한 어휘와 문장 구조를 사용하며, 문법과 맞춤법 규칙을 준수합니다.', order: 4 }
               ]
             };
             return rubrics[type] || rubrics.standard;

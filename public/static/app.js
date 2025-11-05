@@ -291,6 +291,14 @@ function getRubricCriteria() {
         { criterion_name: '논리적 전개', criterion_description: '논리적으로 일관되게 전개되었습니다.', criterion_order: 2 },
         { criterion_name: '표현의 적절성', criterion_description: '문법과 어휘가 적절하게 사용되었습니다.', criterion_order: 3 }
       ];
+    } else if (rubricType === 'nyregents') {
+      // NY Regents Argumentative Writing Rubric - 4 criteria
+      return [
+        { criterion_name: '내용과 분석 (주장 제시)', criterion_description: '구체적인 주장을 제시하고, 자료와 주제를 적절히 분석하며, 반론을 평가합니다.', criterion_order: 1 },
+        { criterion_name: '증거 활용 능력', criterion_description: '관련 증거를 활용하여 충분하고 적절한 근거를 제시하며, 표절을 피하고 허용 가능한 인용 형식을 사용합니다.', criterion_order: 2 },
+        { criterion_name: '일관성과 구성', criterion_description: '과제에 대한 수용 가능한 집중도를 유지하고, 체계적이고 논리적인 구조로 글을 구성합니다.', criterion_order: 3 },
+        { criterion_name: '언어 사용과 규칙', criterion_description: '적절한 어휘와 문장 구조를 사용하며, 문법과 맞춤법 규칙을 준수합니다.', criterion_order: 4 }
+      ];
     }
   } else {
     // Use custom rubric - collect from form
