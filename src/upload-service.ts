@@ -311,3 +311,53 @@ export async function logProcessingStep(
     console.error('Failed to log processing step:', error);
   }
 }
+
+/**
+ * Upload file to R2 storage
+ */
+export async function uploadToR2(
+  r2Bucket: R2Bucket,
+  storageKey: string,
+  fileData: ArrayBuffer,
+  contentType: string
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  try {
+    // Upload file to R2
+    await r2Bucket.put(storageKey, fileData, {
+      httpMetadata: {
+        contentType: contentType,
+      },
+    });
+
+    // R2 files are accessible via custom domain or R2.dev subdomain
+    // For now, we'll just return the storage key
+    // In production, you would configure a custom domain
+    return {
+      success: true,
+      url: storageKey, // Or construct full URL if custom domain is configured
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `R2 upload failed: ${String(error)}`,
+    };
+  }
+}
+
+/**
+ * Delete file from R2 storage
+ */
+export async function deleteFromR2(
+  r2Bucket: R2Bucket,
+  storageKey: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await r2Bucket.delete(storageKey);
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: `R2 delete failed: ${String(error)}`,
+    };
+  }
+}

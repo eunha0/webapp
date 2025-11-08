@@ -12,5 +12,11 @@
       "database_name": "webapp-production",
       "database_id": "local-db-id"
     }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "R2_BUCKET",
+      "bucket_name": "webapp-files"
+    }
   ]
 }

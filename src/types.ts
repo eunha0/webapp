@@ -2,6 +2,12 @@
 
 export type Bindings = {
   DB: D1Database;
+  R2_BUCKET: R2Bucket;
+  GOOGLE_VISION_API_KEY: string;
+  MAX_FILE_SIZE: string;
+  ALLOWED_IMAGE_TYPES: string;
+  ALLOWED_PDF_TYPES: string;
+  R2_PUBLIC_URL: string;
 }
 
 export interface RubricCriterion {

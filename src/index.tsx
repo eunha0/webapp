@@ -18,7 +18,9 @@ import {
   processImageOCR,
   processPDFExtraction,
   processImagePDFOCR,
-  logProcessingStep
+  logProcessingStep,
+  uploadToR2,
+  deleteFromR2
 } from './upload-service'
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -208,11 +210,19 @@ app.post('/api/upload/image', async (c) => {
     // Read file as ArrayBuffer
     const fileBuffer = await file.arrayBuffer()
     
+    // Upload to R2 storage
+    const r2Bucket = c.env.R2_BUCKET
+    const r2Result = await uploadToR2(r2Bucket, storageKey, fileBuffer, file.type)
+    
+    if (!r2Result.success) {
+      return c.json({ error: r2Result.error || 'R2 업로드 실패' }, 500)
+    }
+    
     // Store file metadata in database
     const result = await db.prepare(
       `INSERT INTO uploaded_files 
-       (user_id, student_user_id, submission_id, file_name, file_type, mime_type, file_size, storage_key, processing_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (user_id, student_user_id, submission_id, file_name, file_type, mime_type, file_size, storage_key, storage_url, processing_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       user?.id || null,
       student?.id || null,
@@ -222,13 +232,14 @@ app.post('/api/upload/image', async (c) => {
       file.type,
       file.size,
       storageKey,
+      r2Result.url || null,
       'processing'
     ).run()
     
     const uploadedFileId = result.meta.last_row_id as number
     
     // Log upload step
-    await logProcessingStep(db, uploadedFileId, 'upload', 'completed', '파일 업로드 완료', null)
+    await logProcessingStep(db, uploadedFileId, 'upload', 'completed', 'R2 업로드 및 메타데이터 저장 완료', null)
     
     // Process image with OCR
     try {
@@ -343,11 +354,19 @@ app.post('/api/upload/pdf', async (c) => {
     // Read file as ArrayBuffer
     const fileBuffer = await file.arrayBuffer()
     
+    // Upload to R2 storage
+    const r2Bucket = c.env.R2_BUCKET
+    const r2Result = await uploadToR2(r2Bucket, storageKey, fileBuffer, file.type)
+    
+    if (!r2Result.success) {
+      return c.json({ error: r2Result.error || 'R2 업로드 실패' }, 500)
+    }
+    
     // Store file metadata in database
     const result = await db.prepare(
       `INSERT INTO uploaded_files 
-       (user_id, student_user_id, submission_id, file_name, file_type, mime_type, file_size, storage_key, processing_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (user_id, student_user_id, submission_id, file_name, file_type, mime_type, file_size, storage_key, storage_url, processing_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       user?.id || null,
       student?.id || null,
@@ -357,13 +376,14 @@ app.post('/api/upload/pdf', async (c) => {
       file.type,
       file.size,
       storageKey,
+      r2Result.url || null,
       'processing'
     ).run()
     
     const uploadedFileId = result.meta.last_row_id as number
     
     // Log upload step
-    await logProcessingStep(db, uploadedFileId, 'upload', 'completed', '파일 업로드 완료', null)
+    await logProcessingStep(db, uploadedFileId, 'upload', 'completed', 'R2 업로드 및 메타데이터 저장 완료', null)
     
     // Try PDF text extraction first
     try {
@@ -513,11 +533,29 @@ app.delete('/api/upload/:id', async (c) => {
     
     const fileId = parseInt(c.req.param('id'))
     const db = c.env.DB
+    const r2Bucket = c.env.R2_BUCKET
     
-    // Verify ownership before deleting
+    // Get file info first
+    const file = await db.prepare(
+      'SELECT storage_key FROM uploaded_files WHERE id = ? AND (user_id = ? OR student_user_id = ?)'
+    ).bind(fileId, user?.id || null, student?.id || null).first()
+    
+    if (!file) {
+      return c.json({ error: '파일을 찾을 수 없습니다' }, 404)
+    }
+    
+    // Delete from R2
+    const r2Result = await deleteFromR2(r2Bucket, file.storage_key as string)
+    
+    if (!r2Result.success) {
+      console.error('R2 delete failed:', r2Result.error)
+      // Continue to delete from database even if R2 delete fails
+    }
+    
+    // Delete from database
     await db.prepare(
-      'DELETE FROM uploaded_files WHERE id = ? AND (user_id = ? OR student_user_id = ?)'
-    ).bind(fileId, user?.id || null, student?.id || null).run()
+      'DELETE FROM uploaded_files WHERE id = ?'
+    ).bind(fileId).run()
     
     return c.json({ success: true })
   } catch (error) {
