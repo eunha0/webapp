@@ -176,9 +176,12 @@
   - Page-by-page text parsing
   - Compatible with Cloudflare Workers environment
 
-- **Cloudflare R2 Storage** (계획 중):
+- **Cloudflare R2 Storage** (NEW! 🎉):
   - S3-compatible object storage for file uploads
-  - Currently using in-memory storage for development
+  - Persistent file storage with automatic cleanup
+  - Bucket name: `webapp-files`
+  - Storage key format: `user_<id>/<timestamp>_<hash>_<filename>`
+  - HTTP metadata preservation (content-type)
 
 ### Data Flow
 
@@ -534,10 +537,12 @@ Extract Text          Yes ↓    No ↓
 
 ✅ **파일 처리 인프라**
   - 파일 메타데이터 DB 저장
+  - **Cloudflare R2 Storage 영구 저장** (NEW!)
   - 처리 로그 시스템 (단계별 기록)
   - 파일 크기 검증 (최대 10MB)
   - 파일 타입 검증 (MIME type)
   - 에러 핸들링 및 사용자 피드백
+  - 자동 파일 정리 (삭제 시 R2에서도 제거)
 
 ✅ **프론트엔드 UI**
   - 파일 선택 / 텍스트 입력 탭 전환
@@ -549,8 +554,8 @@ Extract Text          Yes ↓    No ↓
 
 ## Features Not Yet Implemented
 
-⏳ Cloudflare R2 Storage 통합 (파일 영구 저장)  
 ⏳ Word 문서 처리 (.doc, .docx)  
+⏳ R2 Public URL 설정 (custom domain for public file access)  
 ⏳ 프로덕션용 비밀번호 암호화 (bcrypt)  
 ⏳ 팀 협업 기능 (교사 그룹)  
 ⏳ 논술 비교 및 표절 검사  
@@ -678,6 +683,15 @@ R2_PUBLIC_URL=https://your-r2-bucket.r2.dev
 5. "사용자 인증 정보" → "API 키 만들기" 클릭
 6. 생성된 API 키를 `.dev.vars`의 `GOOGLE_VISION_API_KEY`에 입력
 
+**Cloudflare R2 Bucket 생성**:
+1. [Cloudflare Dashboard](https://dash.cloudflare.com/) 접속
+2. 왼쪽 사이드바에서 "R2" 선택
+3. "Create bucket" 클릭
+4. Bucket 이름: `webapp-files` 입력
+5. Region: Automatic 선택
+6. "Create bucket" 클릭
+7. `wrangler.jsonc`의 `r2_buckets` 섹션이 올바르게 설정되었는지 확인
+
 ### 설치 및 실행
 
 ```bash
@@ -740,6 +754,7 @@ npm run db:console:local
     - PDF.js 텍스트 추출 통합
     - 파일 처리 로그 시스템
     - 프론트엔드 파일 업로드 UI
+    - **Cloudflare R2 Storage 통합** (영구 저장)
 
 ## Test Accounts
 
