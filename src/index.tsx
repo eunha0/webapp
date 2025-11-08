@@ -3,6 +3,7 @@ import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 import type { Bindings, GradingRequest } from './types'
 import { gradeEssay } from './grading-service'
+import { generateDetailedFeedback } from './feedback-service'
 import {
   createGradingSession,
   createEssay,
@@ -11,6 +12,14 @@ import {
   listGradingSessions,
   getSessionDetails
 } from './db-service'
+import {
+  validateFile,
+  generateStorageKey,
+  processImageOCR,
+  processPDFExtraction,
+  processImagePDFOCR,
+  logProcessingStep
+} from './upload-service'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -155,6 +164,369 @@ app.get('/api/health', (c) => {
 })
 
 /**
+ * POST /api/upload/image - Upload and process image file
+ */
+app.post('/api/upload/image', async (c) => {
+  try {
+    const user = await getUserFromSession(c)
+    const student = await getStudentFromSession(c)
+    
+    // Either teacher or student must be logged in
+    if (!user && !student) {
+      return c.json({ error: '로그인이 필요합니다' }, 401)
+    }
+    
+    const db = c.env.DB
+    const apiKey = c.env.GOOGLE_VISION_API_KEY
+    
+    if (!apiKey) {
+      return c.json({ error: 'Google Vision API key not configured' }, 500)
+    }
+    
+    // Parse multipart form data
+    const formData = await c.req.formData()
+    const file = formData.get('file') as File
+    const submissionId = formData.get('submission_id') as string | null
+    
+    if (!file) {
+      return c.json({ error: '파일이 제공되지 않았습니다' }, 400)
+    }
+    
+    // Get allowed types and max size from environment
+    const maxSize = parseInt(c.env.MAX_FILE_SIZE || '10485760') // 10MB default
+    const allowedTypes = (c.env.ALLOWED_IMAGE_TYPES || 'image/jpeg,image/png,image/jpg,image/webp').split(',')
+    
+    // Validate file
+    const validation = validateFile(file, allowedTypes, maxSize)
+    if (!validation.valid) {
+      return c.json({ error: validation.error }, 400)
+    }
+    
+    // Generate storage key
+    const storageKey = generateStorageKey(user?.id || student?.id || null, file.name)
+    
+    // Read file as ArrayBuffer
+    const fileBuffer = await file.arrayBuffer()
+    
+    // Store file metadata in database
+    const result = await db.prepare(
+      `INSERT INTO uploaded_files 
+       (user_id, student_user_id, submission_id, file_name, file_type, mime_type, file_size, storage_key, processing_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      user?.id || null,
+      student?.id || null,
+      submissionId || null,
+      file.name,
+      'image',
+      file.type,
+      file.size,
+      storageKey,
+      'processing'
+    ).run()
+    
+    const uploadedFileId = result.meta.last_row_id as number
+    
+    // Log upload step
+    await logProcessingStep(db, uploadedFileId, 'upload', 'completed', '파일 업로드 완료', null)
+    
+    // Process image with OCR
+    try {
+      const ocrResult = await processImageOCR(
+        { name: file.name, data: fileBuffer, type: file.type },
+        apiKey
+      )
+      
+      if (ocrResult.success && ocrResult.text) {
+        // Update database with extracted text
+        await db.prepare(
+          `UPDATE uploaded_files 
+           SET extracted_text = ?, processing_status = ?, processed_at = CURRENT_TIMESTAMP
+           WHERE id = ?`
+        ).bind(ocrResult.text, 'completed', uploadedFileId).run()
+        
+        // Log OCR step
+        await logProcessingStep(
+          db,
+          uploadedFileId,
+          'ocr',
+          'completed',
+          `추출된 텍스트: ${ocrResult.text.length} characters`,
+          ocrResult.processingTime
+        )
+        
+        return c.json({
+          success: true,
+          file_id: uploadedFileId,
+          file_name: file.name,
+          extracted_text: ocrResult.text,
+          processing_time_ms: ocrResult.processingTime
+        })
+      } else {
+        // OCR failed
+        await db.prepare(
+          `UPDATE uploaded_files 
+           SET processing_status = ?, error_message = ?, processed_at = CURRENT_TIMESTAMP
+           WHERE id = ?`
+        ).bind('failed', ocrResult.error || 'OCR failed', uploadedFileId).run()
+        
+        await logProcessingStep(
+          db,
+          uploadedFileId,
+          'ocr',
+          'failed',
+          ocrResult.error || 'OCR failed',
+          ocrResult.processingTime
+        )
+        
+        return c.json({
+          success: false,
+          error: ocrResult.error || 'OCR processing failed'
+        }, 500)
+      }
+    } catch (error) {
+      // Log error
+      await db.prepare(
+        `UPDATE uploaded_files 
+         SET processing_status = ?, error_message = ?, processed_at = CURRENT_TIMESTAMP
+         WHERE id = ?`
+      ).bind('failed', String(error), uploadedFileId).run()
+      
+      await logProcessingStep(db, uploadedFileId, 'ocr', 'failed', String(error), null)
+      
+      throw error
+    }
+  } catch (error) {
+    console.error('Image upload error:', error)
+    return c.json({ error: '이미지 업로드 처리 실패', details: String(error) }, 500)
+  }
+})
+
+/**
+ * POST /api/upload/pdf - Upload and process PDF file
+ */
+app.post('/api/upload/pdf', async (c) => {
+  try {
+    const user = await getUserFromSession(c)
+    const student = await getStudentFromSession(c)
+    
+    // Either teacher or student must be logged in
+    if (!user && !student) {
+      return c.json({ error: '로그인이 필요합니다' }, 401)
+    }
+    
+    const db = c.env.DB
+    const apiKey = c.env.GOOGLE_VISION_API_KEY
+    
+    // Parse multipart form data
+    const formData = await c.req.formData()
+    const file = formData.get('file') as File
+    const submissionId = formData.get('submission_id') as string | null
+    
+    if (!file) {
+      return c.json({ error: '파일이 제공되지 않았습니다' }, 400)
+    }
+    
+    // Get allowed types and max size from environment
+    const maxSize = parseInt(c.env.MAX_FILE_SIZE || '10485760') // 10MB default
+    const allowedTypes = (c.env.ALLOWED_PDF_TYPES || 'application/pdf').split(',')
+    
+    // Validate file
+    const validation = validateFile(file, allowedTypes, maxSize)
+    if (!validation.valid) {
+      return c.json({ error: validation.error }, 400)
+    }
+    
+    // Generate storage key
+    const storageKey = generateStorageKey(user?.id || student?.id || null, file.name)
+    
+    // Read file as ArrayBuffer
+    const fileBuffer = await file.arrayBuffer()
+    
+    // Store file metadata in database
+    const result = await db.prepare(
+      `INSERT INTO uploaded_files 
+       (user_id, student_user_id, submission_id, file_name, file_type, mime_type, file_size, storage_key, processing_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      user?.id || null,
+      student?.id || null,
+      submissionId || null,
+      file.name,
+      'pdf',
+      file.type,
+      file.size,
+      storageKey,
+      'processing'
+    ).run()
+    
+    const uploadedFileId = result.meta.last_row_id as number
+    
+    // Log upload step
+    await logProcessingStep(db, uploadedFileId, 'upload', 'completed', '파일 업로드 완료', null)
+    
+    // Try PDF text extraction first
+    try {
+      const textResult = await processPDFExtraction({ name: file.name, data: fileBuffer, type: file.type })
+      
+      if (textResult.success && textResult.text && textResult.text.trim().length > 100) {
+        // Text extraction successful
+        await db.prepare(
+          `UPDATE uploaded_files 
+           SET extracted_text = ?, processing_status = ?, processed_at = CURRENT_TIMESTAMP
+           WHERE id = ?`
+        ).bind(textResult.text, 'completed', uploadedFileId).run()
+        
+        await logProcessingStep(
+          db,
+          uploadedFileId,
+          'pdf_text_extraction',
+          'completed',
+          `추출된 텍스트: ${textResult.text.length} characters`,
+          textResult.processingTime
+        )
+        
+        return c.json({
+          success: true,
+          file_id: uploadedFileId,
+          file_name: file.name,
+          extracted_text: textResult.text,
+          method: 'text_extraction',
+          processing_time_ms: textResult.processingTime
+        })
+      }
+      
+      // Text extraction failed or insufficient text, try OCR
+      if (!apiKey) {
+        throw new Error('PDF has no extractable text and Google Vision API key not configured')
+      }
+      
+      await logProcessingStep(
+        db,
+        uploadedFileId,
+        'pdf_text_extraction',
+        'insufficient',
+        '텍스트 추출 부족, OCR 시도 중...',
+        textResult.processingTime
+      )
+      
+      const ocrResult = await processImagePDFOCR(
+        { name: file.name, data: fileBuffer, type: file.type },
+        apiKey
+      )
+      
+      if (ocrResult.success && ocrResult.text) {
+        await db.prepare(
+          `UPDATE uploaded_files 
+           SET extracted_text = ?, processing_status = ?, processed_at = CURRENT_TIMESTAMP
+           WHERE id = ?`
+        ).bind(ocrResult.text, 'completed', uploadedFileId).run()
+        
+        await logProcessingStep(
+          db,
+          uploadedFileId,
+          'pdf_ocr',
+          'completed',
+          `추출된 텍스트 (OCR): ${ocrResult.text.length} characters`,
+          ocrResult.processingTime
+        )
+        
+        return c.json({
+          success: true,
+          file_id: uploadedFileId,
+          file_name: file.name,
+          extracted_text: ocrResult.text,
+          method: 'ocr',
+          processing_time_ms: ocrResult.processingTime
+        })
+      } else {
+        throw new Error(ocrResult.error || 'PDF OCR failed')
+      }
+    } catch (error) {
+      // Log error
+      await db.prepare(
+        `UPDATE uploaded_files 
+         SET processing_status = ?, error_message = ?, processed_at = CURRENT_TIMESTAMP
+         WHERE id = ?`
+      ).bind('failed', String(error), uploadedFileId).run()
+      
+      await logProcessingStep(db, uploadedFileId, 'pdf_processing', 'failed', String(error), null)
+      
+      throw error
+    }
+  } catch (error) {
+    console.error('PDF upload error:', error)
+    return c.json({ error: 'PDF 업로드 처리 실패', details: String(error) }, 500)
+  }
+})
+
+/**
+ * GET /api/upload/:id - Get uploaded file details
+ */
+app.get('/api/upload/:id', async (c) => {
+  try {
+    const user = await getUserFromSession(c)
+    const student = await getStudentFromSession(c)
+    
+    if (!user && !student) {
+      return c.json({ error: '로그인이 필요합니다' }, 401)
+    }
+    
+    const fileId = parseInt(c.req.param('id'))
+    const db = c.env.DB
+    
+    // Get file details
+    const file = await db.prepare(
+      `SELECT * FROM uploaded_files WHERE id = ? AND (user_id = ? OR student_user_id = ?)`
+    ).bind(fileId, user?.id || null, student?.id || null).first()
+    
+    if (!file) {
+      return c.json({ error: '파일을 찾을 수 없습니다' }, 404)
+    }
+    
+    // Get processing logs
+    const logs = await db.prepare(
+      `SELECT * FROM file_processing_log WHERE uploaded_file_id = ? ORDER BY created_at`
+    ).bind(fileId).all()
+    
+    return c.json({
+      file,
+      processing_logs: logs.results || []
+    })
+  } catch (error) {
+    console.error('Get file error:', error)
+    return c.json({ error: '파일 정보를 가져오는데 실패했습니다' }, 500)
+  }
+})
+
+/**
+ * DELETE /api/upload/:id - Delete uploaded file
+ */
+app.delete('/api/upload/:id', async (c) => {
+  try {
+    const user = await getUserFromSession(c)
+    const student = await getStudentFromSession(c)
+    
+    if (!user && !student) {
+      return c.json({ error: '로그인이 필요합니다' }, 401)
+    }
+    
+    const fileId = parseInt(c.req.param('id'))
+    const db = c.env.DB
+    
+    // Verify ownership before deleting
+    await db.prepare(
+      'DELETE FROM uploaded_files WHERE id = ? AND (user_id = ? OR student_user_id = ?)'
+    ).bind(fileId, user?.id || null, student?.id || null).run()
+    
+    return c.json({ success: true })
+  } catch (error) {
+    console.error('Delete file error:', error)
+    return c.json({ error: '파일 삭제에 실패했습니다' }, 500)
+  }
+})
+
+/**
  * POST /api/auth/signup - User signup
  */
 app.post('/api/auth/signup', async (c) => {
@@ -256,6 +628,118 @@ app.post('/api/auth/logout', async (c) => {
     return c.json({ error: 'Failed to logout' }, 500)
   }
 })
+
+/**
+ * POST /api/student/auth/signup - Student signup
+ */
+app.post('/api/student/auth/signup', async (c) => {
+  try {
+    const { name, email, password, grade_level } = await c.req.json()
+    const db = c.env.DB
+    
+    // Check if student already exists
+    const existingStudent = await db.prepare(
+      'SELECT id FROM student_users WHERE email = ?'
+    ).bind(email).first()
+    
+    if (existingStudent) {
+      return c.json({ error: '이미 등록된 이메일입니다' }, 400)
+    }
+    
+    // Simple password hashing (use bcrypt in production)
+    const passwordHash = btoa(password)
+    
+    // Insert new student
+    const result = await db.prepare(
+      'INSERT INTO student_users (name, email, password_hash, grade_level) VALUES (?, ?, ?, ?)'
+    ).bind(name, email, passwordHash, grade_level).run()
+    
+    return c.json({ success: true, student_id: result.meta.last_row_id })
+  } catch (error) {
+    console.error('Student signup error:', error)
+    return c.json({ error: '회원가입에 실패했습니다' }, 500)
+  }
+})
+
+/**
+ * POST /api/student/auth/login - Student login
+ */
+app.post('/api/student/auth/login', async (c) => {
+  try {
+    const { email, password } = await c.req.json()
+    const db = c.env.DB
+    
+    // Find student
+    const student = await db.prepare(
+      'SELECT id, name, email, password_hash, grade_level FROM student_users WHERE email = ?'
+    ).bind(email).first()
+    
+    if (!student) {
+      return c.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' }, 401)
+    }
+    
+    // Verify password
+    const passwordHash = btoa(password)
+    if (passwordHash !== student.password_hash) {
+      return c.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' }, 401)
+    }
+    
+    // Create session
+    const sessionId = crypto.randomUUID()
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+    
+    await db.prepare(
+      'INSERT INTO student_sessions (id, student_id, expires_at) VALUES (?, ?, ?)'
+    ).bind(sessionId, student.id, expiresAt.toISOString()).run()
+    
+    return c.json({
+      success: true,
+      session_id: sessionId,
+      student: {
+        id: student.id,
+        name: student.name,
+        email: student.email,
+        grade_level: student.grade_level
+      }
+    })
+  } catch (error) {
+    console.error('Student login error:', error)
+    return c.json({ error: '로그인에 실패했습니다' }, 500)
+  }
+})
+
+/**
+ * Helper function to get student from session
+ */
+async function getStudentFromSession(c: any) {
+  const sessionId = c.req.header('X-Student-Session-ID')
+  if (!sessionId) return null
+  
+  const db = c.env.DB
+  const session = await db.prepare(
+    'SELECT s.*, u.id as student_id, u.name, u.email, u.grade_level FROM student_sessions s JOIN student_users u ON s.student_id = u.id WHERE s.id = ? AND s.expires_at > datetime("now")'
+  ).bind(sessionId).first()
+  
+  if (!session) return null
+  
+  return {
+    id: session.student_id as number,
+    name: session.name as string,
+    email: session.email as string,
+    grade_level: session.grade_level as string
+  }
+}
+
+/**
+ * Helper function to require student authentication
+ */
+async function requireStudentAuth(c: any) {
+  const student = await getStudentFromSession(c)
+  if (!student) {
+    return c.json({ error: '로그인이 필요합니다' }, 401)
+  }
+  return student
+}
 
 /**
  * GET /api/assignments - Get user's assignments
@@ -411,6 +895,143 @@ app.delete('/api/assignment/:id', async (c) => {
 })
 
 /**
+ * POST /api/assignment/:id/access-code - Generate access code for assignment
+ */
+app.post('/api/assignment/:id/access-code', async (c) => {
+  try {
+    const user = await requireAuth(c)
+    if (!user.id) return user
+    
+    const assignmentId = parseInt(c.req.param('id'))
+    const db = c.env.DB
+    
+    // Verify ownership
+    const assignment = await db.prepare(
+      'SELECT id FROM assignments WHERE id = ? AND user_id = ?'
+    ).bind(assignmentId, user.id).first()
+    
+    if (!assignment) {
+      return c.json({ error: 'Assignment not found' }, 404)
+    }
+    
+    // Check if access code already exists
+    const existing = await db.prepare(
+      'SELECT access_code FROM assignment_access_codes WHERE assignment_id = ?'
+    ).bind(assignmentId).first()
+    
+    if (existing) {
+      return c.json({ access_code: existing.access_code })
+    }
+    
+    // Generate 6-digit access code
+    const accessCode = Math.floor(100000 + Math.random() * 900000).toString()
+    
+    await db.prepare(
+      'INSERT INTO assignment_access_codes (assignment_id, access_code) VALUES (?, ?)'
+    ).bind(assignmentId, accessCode).run()
+    
+    return c.json({ access_code: accessCode })
+  } catch (error) {
+    console.error('Error generating access code:', error)
+    return c.json({ error: 'Failed to generate access code' }, 500)
+  }
+})
+
+/**
+ * GET /api/student/assignment/:code - Get assignment by access code
+ */
+app.get('/api/student/assignment/:code', async (c) => {
+  try {
+    const student = await requireStudentAuth(c)
+    if (!student.id) return student
+    
+    const accessCode = c.req.param('code')
+    const db = c.env.DB
+    
+    // Find assignment by access code
+    const result = await db.prepare(
+      `SELECT a.id, a.title, a.description, a.grade_level, a.due_date
+       FROM assignments a
+       JOIN assignment_access_codes ac ON a.id = ac.assignment_id
+       WHERE ac.access_code = ?`
+    ).bind(accessCode).first()
+    
+    if (!result) {
+      return c.json({ error: '유효하지 않은 액세스 코드입니다' }, 404)
+    }
+    
+    // Get rubrics
+    const rubrics = await db.prepare(
+      'SELECT criterion_name, criterion_description FROM assignment_rubrics WHERE assignment_id = ? ORDER BY criterion_order'
+    ).bind(result.id).all()
+    
+    return c.json({
+      ...result,
+      rubrics: rubrics.results || []
+    })
+  } catch (error) {
+    console.error('Error fetching assignment:', error)
+    return c.json({ error: 'Failed to fetch assignment' }, 500)
+  }
+})
+
+/**
+ * POST /api/student/submit - Submit student essay
+ */
+app.post('/api/student/submit', async (c) => {
+  try {
+    const student = await requireStudentAuth(c)
+    if (!student.id) return student
+    
+    const { access_code, essay_text } = await c.req.json()
+    const db = c.env.DB
+    
+    // Find assignment by access code
+    const assignment = await db.prepare(
+      `SELECT a.id FROM assignments a
+       JOIN assignment_access_codes ac ON a.id = ac.assignment_id
+       WHERE ac.access_code = ?`
+    ).bind(access_code).first()
+    
+    if (!assignment) {
+      return c.json({ error: '유효하지 않은 액세스 코드입니다' }, 404)
+    }
+    
+    // Check if student already submitted
+    const existing = await db.prepare(
+      'SELECT id, submission_version FROM student_submissions WHERE assignment_id = ? AND student_user_id = ? ORDER BY submission_version DESC LIMIT 1'
+    ).bind(assignment.id, student.id).first()
+    
+    let submissionVersion = 1
+    let isResubmission = false
+    let previousSubmissionId = null
+    
+    if (existing) {
+      submissionVersion = (existing.submission_version as number) + 1
+      isResubmission = true
+      previousSubmissionId = existing.id as number
+    }
+    
+    // Insert submission
+    const result = await db.prepare(
+      `INSERT INTO student_submissions 
+       (assignment_id, student_name, student_user_id, essay_text, submission_version, is_resubmission, previous_submission_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).bind(assignment.id, student.name, student.id, essay_text, submissionVersion, isResubmission ? 1 : 0, previousSubmissionId).run()
+    
+    return c.json({ 
+      success: true, 
+      submission_id: result.meta.last_row_id,
+      is_resubmission: isResubmission,
+      version: submissionVersion
+    })
+  } catch (error) {
+    console.error('Error submitting essay:', error)
+    return c.json({ error: 'Failed to submit essay' }, 500)
+  }
+})
+
+/**
  * POST /api/submission/:id/grade - Grade a student submission
  */
 app.post('/api/submission/:id/grade', async (c) => {
@@ -439,7 +1060,7 @@ app.post('/api/submission/:id/grade', async (c) => {
     
     // Get rubric criteria for this assignment
     const rubrics = await db.prepare(
-      'SELECT criterion_name, criterion_description FROM assignment_rubrics WHERE assignment_id = ? ORDER BY criterion_order'
+      'SELECT id, criterion_name, criterion_description FROM assignment_rubrics WHERE assignment_id = ? ORDER BY criterion_order'
     ).bind(submission.assignment_id).all()
     
     if (!rubrics.results || rubrics.results.length === 0) {
@@ -470,16 +1091,107 @@ app.post('/api/submission/:id/grade', async (c) => {
     // Store grading result
     const resultId = await storeGradingResult(db, essayId, sessionId, gradingResult)
     
+    // Generate detailed feedback with grade-level tone adjustment
+    const detailedFeedback = await generateDetailedFeedback({
+      essay_text: submission.essay_text as string,
+      grade_level: submission.grade_level as string,
+      rubric_criteria: rubrics.results.map((r: any) => ({
+        criterion_name: r.criterion_name,
+        criterion_description: r.criterion_description
+      })),
+      criterion_scores: gradingResult.criterion_scores.map((cs: any) => ({
+        criterion_name: cs.criterion_name,
+        score: cs.score,
+        strengths: cs.strengths,
+        areas_for_improvement: cs.areas_for_improvement
+      }))
+    })
+    
+    // Store detailed feedback for each criterion
+    for (let i = 0; i < detailedFeedback.criterion_feedbacks.length; i++) {
+      const feedback = detailedFeedback.criterion_feedbacks[i]
+      const rubric = rubrics.results.find((r: any) => r.criterion_name === feedback.criterion_name)
+      
+      if (rubric) {
+        await db.prepare(
+          `INSERT INTO submission_feedback 
+           (submission_id, criterion_id, score, positive_feedback, improvement_areas, specific_suggestions)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        ).bind(
+          submissionId,
+          rubric.id,
+          feedback.score,
+          feedback.positive_feedback,
+          feedback.improvement_areas,
+          feedback.specific_suggestions
+        ).run()
+      }
+    }
+    
+    // Store overall summary
+    await db.prepare(
+      `INSERT INTO submission_summary 
+       (submission_id, total_score, strengths, weaknesses, overall_comment, improvement_priority)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(
+      submissionId,
+      detailedFeedback.overall_summary.total_score,
+      detailedFeedback.overall_summary.strengths,
+      detailedFeedback.overall_summary.weaknesses,
+      detailedFeedback.overall_summary.overall_comment,
+      detailedFeedback.overall_summary.improvement_priority
+    ).run()
+    
     // Update submission with grading result
     await db.prepare(
       'UPDATE student_submissions SET graded = 1, grade_result_id = ? WHERE id = ?'
     ).bind(resultId, submissionId).run()
     
+    // Update student progress tracking
+    const studentUserId = submission.student_user_id
+    if (studentUserId) {
+      const assignmentId = submission.assignment_id
+      
+      // Get previous submissions count and scores
+      const progressData = await db.prepare(
+        `SELECT COUNT(*) as count, MAX(ss.total_score) as best_score
+         FROM student_submissions s
+         LEFT JOIN submission_summary ss ON s.id = ss.submission_id
+         WHERE s.assignment_id = ? AND s.student_user_id = ?`
+      ).bind(assignmentId, studentUserId).first()
+      
+      const submissionCount = (progressData?.count as number) || 0
+      const bestScore = (progressData?.best_score as number) || detailedFeedback.overall_summary.total_score
+      const latestScore = detailedFeedback.overall_summary.total_score
+      
+      // Calculate improvement rate (if there's a previous submission)
+      let improvementRate = 0
+      if (submissionCount > 1 && bestScore) {
+        improvementRate = ((latestScore - bestScore) / bestScore) * 100
+      }
+      
+      // Update or insert progress record
+      await db.prepare(
+        `INSERT INTO student_progress (student_user_id, assignment_id, submission_count, best_score, latest_score, improvement_rate)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(student_user_id, assignment_id) DO UPDATE SET
+         submission_count = ?,
+         best_score = MAX(best_score, ?),
+         latest_score = ?,
+         improvement_rate = ?,
+         tracked_at = CURRENT_TIMESTAMP`
+      ).bind(
+        studentUserId, assignmentId, submissionCount, bestScore, latestScore, improvementRate,
+        submissionCount, latestScore, latestScore, improvementRate
+      ).run()
+    }
+    
     return c.json({
       success: true,
       submission_id: submissionId,
       result_id: resultId,
-      grading_result: gradingResult
+      grading_result: gradingResult,
+      detailed_feedback: detailedFeedback
     })
   } catch (error) {
     console.error('Error grading submission:', error)
@@ -519,6 +1231,277 @@ app.get('/api/grading-history', async (c) => {
   } catch (error) {
     console.error('Error fetching grading history:', error)
     return c.json({ error: 'Failed to fetch grading history' }, 500)
+  }
+})
+
+/**
+ * GET /api/admin/stats - Get system-wide statistics (Admin only)
+ */
+app.get('/api/admin/stats', async (c) => {
+  try {
+    const db = c.env.DB
+    
+    // Total users (teachers)
+    const teacherCount = await db.prepare('SELECT COUNT(*) as count FROM users').first()
+    
+    // Total students
+    const studentCount = await db.prepare('SELECT COUNT(*) as count FROM student_users').first()
+    
+    // Total assignments
+    const assignmentCount = await db.prepare('SELECT COUNT(*) as count FROM assignments').first()
+    
+    // Total submissions
+    const submissionCount = await db.prepare('SELECT COUNT(*) as count FROM student_submissions').first()
+    
+    // Graded submissions
+    const gradedCount = await db.prepare('SELECT COUNT(*) as count FROM student_submissions WHERE graded = 1').first()
+    
+    // Average scores
+    const avgScores = await db.prepare(
+      'SELECT AVG(total_score) as avg_score FROM submission_summary'
+    ).first()
+    
+    // Recent activity (last 7 days)
+    const recentSubmissions = await db.prepare(
+      `SELECT COUNT(*) as count FROM student_submissions 
+       WHERE submitted_at > datetime('now', '-7 days')`
+    ).first()
+    
+    const recentGrading = await db.prepare(
+      `SELECT COUNT(*) as count FROM student_submissions 
+       WHERE graded = 1 AND submitted_at > datetime('now', '-7 days')`
+    ).first()
+    
+    // Top teachers by submissions
+    const topTeachers = await db.prepare(
+      `SELECT u.name, u.email, COUNT(s.id) as submission_count
+       FROM users u
+       JOIN assignments a ON u.id = a.user_id
+       JOIN student_submissions s ON a.id = s.assignment_id
+       GROUP BY u.id
+       ORDER BY submission_count DESC
+       LIMIT 10`
+    ).all()
+    
+    // Most active students
+    const activeStudents = await db.prepare(
+      `SELECT su.name, su.email, su.grade_level, COUNT(s.id) as submission_count
+       FROM student_users su
+       JOIN student_submissions s ON su.id = s.student_user_id
+       GROUP BY su.id
+       ORDER BY submission_count DESC
+       LIMIT 10`
+    ).all()
+    
+    return c.json({
+      overview: {
+        total_teachers: teacherCount?.count || 0,
+        total_students: studentCount?.count || 0,
+        total_assignments: assignmentCount?.count || 0,
+        total_submissions: submissionCount?.count || 0,
+        graded_submissions: gradedCount?.count || 0,
+        pending_submissions: (submissionCount?.count || 0) - (gradedCount?.count || 0),
+        average_score: avgScores?.avg_score || 0
+      },
+      recent_activity: {
+        submissions_last_7_days: recentSubmissions?.count || 0,
+        graded_last_7_days: recentGrading?.count || 0
+      },
+      top_teachers: topTeachers.results || [],
+      active_students: activeStudents.results || []
+    })
+  } catch (error) {
+    console.error('Error fetching admin stats:', error)
+    return c.json({ error: 'Failed to fetch statistics' }, 500)
+  }
+})
+
+/**
+ * GET /api/admin/recent-activity - Get recent system activity
+ */
+app.get('/api/admin/recent-activity', async (c) => {
+  try {
+    const db = c.env.DB
+    
+    const activities = await db.prepare(
+      `SELECT 
+        'submission' as type,
+        s.id,
+        s.submitted_at as timestamp,
+        s.student_name,
+        a.title as assignment_title,
+        u.name as teacher_name,
+        s.graded
+       FROM student_submissions s
+       JOIN assignments a ON s.assignment_id = a.id
+       JOIN users u ON a.user_id = u.id
+       ORDER BY s.submitted_at DESC
+       LIMIT 50`
+    ).all()
+    
+    return c.json(activities.results || [])
+  } catch (error) {
+    console.error('Error fetching recent activity:', error)
+    return c.json({ error: 'Failed to fetch activity' }, 500)
+  }
+})
+
+/**
+ * GET /api/admin/users - Get all users with details
+ */
+app.get('/api/admin/users', async (c) => {
+  try {
+    const db = c.env.DB
+    
+    // Teachers
+    const teachers = await db.prepare(
+      `SELECT 
+        u.id,
+        u.name,
+        u.email,
+        u.created_at,
+        COUNT(DISTINCT a.id) as assignment_count,
+        COUNT(DISTINCT s.id) as submission_count
+       FROM users u
+       LEFT JOIN assignments a ON u.id = a.user_id
+       LEFT JOIN student_submissions s ON a.id = s.assignment_id
+       GROUP BY u.id
+       ORDER BY u.created_at DESC`
+    ).all()
+    
+    // Students
+    const students = await db.prepare(
+      `SELECT 
+        su.id,
+        su.name,
+        su.email,
+        su.grade_level,
+        su.created_at,
+        COUNT(s.id) as submission_count
+       FROM student_users su
+       LEFT JOIN student_submissions s ON su.id = s.student_user_id
+       GROUP BY su.id
+       ORDER BY su.created_at DESC`
+    ).all()
+    
+    return c.json({
+      teachers: teachers.results || [],
+      students: students.results || []
+    })
+  } catch (error) {
+    console.error('Error fetching users:', error)
+    return c.json({ error: 'Failed to fetch users' }, 500)
+  }
+})
+
+/**
+ * GET /api/student/my-submissions - Get student's own submissions
+ */
+app.get('/api/student/my-submissions', async (c) => {
+  try {
+    const student = await requireStudentAuth(c)
+    if (!student.id) return student
+    
+    const db = c.env.DB
+    
+    const submissions = await db.prepare(
+      `SELECT 
+        s.id,
+        s.assignment_id,
+        s.submitted_at,
+        s.graded,
+        s.submission_version,
+        s.is_resubmission,
+        a.title as assignment_title,
+        a.grade_level,
+        ss.total_score,
+        ss.strengths,
+        ss.weaknesses
+       FROM student_submissions s
+       JOIN assignments a ON s.assignment_id = a.id
+       LEFT JOIN submission_summary ss ON s.id = ss.submission_id
+       WHERE s.student_user_id = ?
+       ORDER BY s.submitted_at DESC`
+    ).bind(student.id).all()
+    
+    return c.json(submissions.results || [])
+  } catch (error) {
+    console.error('Error fetching student submissions:', error)
+    return c.json({ error: '제출물을 불러오는데 실패했습니다' }, 500)
+  }
+})
+
+/**
+ * GET /api/student/submission/:id/feedback - Get detailed feedback for submission
+ */
+app.get('/api/student/submission/:id/feedback', async (c) => {
+  try {
+    const student = await requireStudentAuth(c)
+    if (!student.id) return student
+    
+    const submissionId = parseInt(c.req.param('id'))
+    const db = c.env.DB
+    
+    // Verify ownership
+    const submission = await db.prepare(
+      'SELECT id FROM student_submissions WHERE id = ? AND student_user_id = ?'
+    ).bind(submissionId, student.id).first()
+    
+    if (!submission) {
+      return c.json({ error: '제출물을 찾을 수 없습니다' }, 404)
+    }
+    
+    // Get criterion feedbacks
+    const feedbacks = await db.prepare(
+      `SELECT 
+        sf.*,
+        ar.criterion_name,
+        ar.criterion_description
+       FROM submission_feedback sf
+       JOIN assignment_rubrics ar ON sf.criterion_id = ar.id
+       WHERE sf.submission_id = ?
+       ORDER BY sf.id`
+    ).bind(submissionId).all()
+    
+    // Get overall summary
+    const summary = await db.prepare(
+      'SELECT * FROM submission_summary WHERE submission_id = ?'
+    ).bind(submissionId).first()
+    
+    return c.json({
+      criterion_feedbacks: feedbacks.results || [],
+      summary: summary || null
+    })
+  } catch (error) {
+    console.error('Error fetching feedback:', error)
+    return c.json({ error: '피드백을 불러오는데 실패했습니다' }, 500)
+  }
+})
+
+/**
+ * GET /api/student/progress - Get student's progress across all assignments
+ */
+app.get('/api/student/progress', async (c) => {
+  try {
+    const student = await requireStudentAuth(c)
+    if (!student.id) return student
+    
+    const db = c.env.DB
+    
+    const progress = await db.prepare(
+      `SELECT 
+        sp.*,
+        a.title as assignment_title
+       FROM student_progress sp
+       JOIN assignments a ON sp.assignment_id = a.id
+       WHERE sp.student_user_id = ?
+       ORDER BY sp.tracked_at DESC`
+    ).bind(student.id).all()
+    
+    return c.json(progress.results || [])
+  } catch (error) {
+    console.error('Error fetching progress:', error)
+    return c.json({ error: '성장 기록을 불러오는데 실패했습니다' }, 500)
   }
 })
 
@@ -1536,7 +2519,225 @@ app.get('/resource/:id', async (c) => {
   `)
 })
 
-// Login Page
+// Student Login Page
+app.get('/student/login', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>학생 로그인 | AI 논술 평가</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    </head>
+    <body class="bg-gray-50">
+        <nav class="bg-white border-b border-gray-200">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <a href="/" class="flex items-center">
+                        <span class="text-2xl font-bold text-navy-900">
+                            <i class="fas fa-graduation-cap mr-2"></i>AI 논술 평가
+                        </span>
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-md w-full space-y-8">
+                <div>
+                    <h2 class="mt-6 text-center text-3xl font-bold text-gray-900">
+                        학생 로그인
+                    </h2>
+                    <p class="mt-2 text-center text-sm text-gray-600">
+                        또는
+                        <a href="/student/signup" class="font-medium text-blue-600 hover:text-blue-700">
+                            새 계정 만들기
+                        </a>
+                    </p>
+                </div>
+                <form class="mt-8 space-y-6" onsubmit="handleLogin(event)">
+                    <div class="rounded-md shadow-sm space-y-4">
+                        <div>
+                            <label for="email" class="block text-sm font-medium text-gray-700 mb-1">이메일</label>
+                            <input id="email" name="email" type="email" required 
+                                   class="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
+                                   placeholder="이메일 주소">
+                        </div>
+                        <div>
+                            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">비밀번호</label>
+                            <input id="password" name="password" type="password" required 
+                                   class="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
+                                   placeholder="비밀번호">
+                        </div>
+                    </div>
+
+                    <div>
+                        <button type="submit" 
+                                class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            로그인
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script>
+          async function handleLogin(event) {
+            event.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+              const response = await axios.post('/api/student/auth/login', {
+                email,
+                password
+              });
+              
+              if (response.data.success) {
+                localStorage.setItem('student_session_id', response.data.session_id);
+                localStorage.setItem('student_name', response.data.student.name);
+                localStorage.setItem('student_email', response.data.student.email);
+                localStorage.setItem('student_grade_level', response.data.student.grade_level);
+                
+                alert(\`환영합니다, \${response.data.student.name}님!\`);
+                window.location.href = '/student/dashboard';
+              }
+            } catch (error) {
+              alert('로그인 실패: ' + (error.response?.data?.error || error.message));
+            }
+          }
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+// Student Signup Page
+app.get('/student/signup', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>학생 회원가입 | AI 논술 평가</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    </head>
+    <body class="bg-gray-50">
+        <nav class="bg-white border-b border-gray-200">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <a href="/" class="flex items-center">
+                        <span class="text-2xl font-bold text-navy-900">
+                            <i class="fas fa-graduation-cap mr-2"></i>AI 논술 평가
+                        </span>
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-md w-full space-y-8">
+                <div>
+                    <h2 class="mt-6 text-center text-3xl font-bold text-gray-900">
+                        학생 회원가입
+                    </h2>
+                    <p class="mt-2 text-center text-sm text-gray-600">
+                        이미 계정이 있으신가요?
+                        <a href="/student/login" class="font-medium text-blue-600 hover:text-blue-700">
+                            로그인하기
+                        </a>
+                    </p>
+                </div>
+                <form class="mt-8 space-y-6" onsubmit="handleSignup(event)">
+                    <div class="rounded-md shadow-sm space-y-4">
+                        <div>
+                            <label for="name" class="block text-sm font-medium text-gray-700 mb-1">이름</label>
+                            <input id="name" name="name" type="text" required 
+                                   class="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
+                                   placeholder="이름">
+                        </div>
+                        <div>
+                            <label for="email" class="block text-sm font-medium text-gray-700 mb-1">이메일</label>
+                            <input id="email" name="email" type="email" required 
+                                   class="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
+                                   placeholder="이메일 주소">
+                        </div>
+                        <div>
+                            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">비밀번호</label>
+                            <input id="password" name="password" type="password" required 
+                                   class="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
+                                   placeholder="비밀번호 (8자 이상)">
+                        </div>
+                        <div>
+                            <label for="grade_level" class="block text-sm font-medium text-gray-700 mb-1">학년</label>
+                            <select id="grade_level" name="grade_level" required
+                                   class="appearance-none relative block w-full px-3 py-3 border border-gray-300 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                                <option value="">학년을 선택하세요</option>
+                                <option value="초등학교">초등학교</option>
+                                <option value="중학교 1학년">중학교 1학년</option>
+                                <option value="중학교 2학년">중학교 2학년</option>
+                                <option value="중학교 3학년">중학교 3학년</option>
+                                <option value="고등학교 1학년">고등학교 1학년</option>
+                                <option value="고등학교 2학년">고등학교 2학년</option>
+                                <option value="고등학교 3학년">고등학교 3학년</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <button type="submit" 
+                                class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            회원가입
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script>
+          async function handleSignup(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const grade_level = document.getElementById('grade_level').value;
+            
+            if (password.length < 8) {
+              alert('비밀번호는 8자 이상이어야 합니다');
+              return;
+            }
+            
+            try {
+              const response = await axios.post('/api/student/auth/signup', {
+                name,
+                email,
+                password,
+                grade_level
+              });
+              
+              if (response.data.success) {
+                alert('회원가입이 완료되었습니다! 로그인해주세요.');
+                window.location.href = '/student/login';
+              }
+            } catch (error) {
+              alert('회원가입 실패: ' + (error.response?.data?.error || error.message));
+            }
+          }
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+// Teacher Login Page
 app.get('/login', (c) => {
   return c.html(`
     <!DOCTYPE html>
@@ -2998,8 +4199,564 @@ app.get('/my-page', (c) => {
   `)
 })
 
-// Admin Page - Resource Management
+// Admin Dashboard - System Management
 app.get('/admin', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>관리자 대시보드 | AI 논술 평가</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+          .stat-card {
+            transition: all 0.3s ease;
+          }
+          .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.15);
+          }
+          .tab-button {
+            transition: all 0.3s ease;
+          }
+          .tab-button.active {
+            background-color: #1e3a8a;
+            color: white;
+          }
+        </style>
+    </head>
+    <body class="bg-gray-50">
+        <!-- Navigation -->
+        <nav class="bg-gradient-to-r from-blue-900 to-purple-900 shadow-lg sticky top-0 z-50">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <div class="flex items-center">
+                        <i class="fas fa-shield-alt text-3xl text-white mr-3"></i>
+                        <span class="text-2xl font-bold text-white">관리자 대시보드</span>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <a href="/" class="text-white hover:text-blue-200 font-medium">
+                            <i class="fas fa-home mr-1"></i>홈
+                        </a>
+                        <a href="/admin/cms" class="text-white hover:text-blue-200 font-medium">
+                            <i class="fas fa-book mr-1"></i>CMS
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Header -->
+            <div class="mb-8">
+                <h1 class="text-3xl font-bold text-gray-900 mb-2">시스템 관리</h1>
+                <p class="text-gray-600">AI 논술 평가 시스템의 전체 현황을 확인하고 관리하세요</p>
+            </div>
+
+            <!-- Stats Overview -->
+            <div id="statsOverview" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="text-center py-8">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                    <p class="text-gray-500 mt-4">통계를 불러오는 중...</p>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="bg-white rounded-lg shadow-md mb-8">
+                <div class="border-b border-gray-200">
+                    <nav class="flex space-x-4 px-6" aria-label="Tabs">
+                        <button onclick="switchTab('overview')" id="tab-overview" class="tab-button active px-4 py-4 text-sm font-semibold rounded-t-lg">
+                            <i class="fas fa-chart-line mr-2"></i>개요
+                        </button>
+                        <button onclick="switchTab('activity')" id="tab-activity" class="tab-button px-4 py-4 text-sm font-semibold rounded-t-lg text-gray-600 hover:text-gray-900">
+                            <i class="fas fa-history mr-2"></i>최근 활동
+                        </button>
+                        <button onclick="switchTab('users')" id="tab-users" class="tab-button px-4 py-4 text-sm font-semibold rounded-t-lg text-gray-600 hover:text-gray-900">
+                            <i class="fas fa-users mr-2"></i>사용자 관리
+                        </button>
+                        <button onclick="switchTab('analytics')" id="tab-analytics" class="tab-button px-4 py-4 text-sm font-semibold rounded-t-lg text-gray-600 hover:text-gray-900">
+                            <i class="fas fa-chart-bar mr-2"></i>분석
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Tab Contents -->
+                <div class="p-6">
+                    <!-- Overview Tab -->
+                    <div id="content-overview" class="tab-content">
+                        <h2 class="text-xl font-bold text-gray-900 mb-6">시스템 개요</h2>
+                        
+                        <!-- Top Teachers -->
+                        <div class="mb-8">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                                <i class="fas fa-trophy text-yellow-500 mr-2"></i>최다 활동 교사
+                            </h3>
+                            <div id="topTeachers" class="space-y-3">
+                                <p class="text-gray-500">로딩 중...</p>
+                            </div>
+                        </div>
+
+                        <!-- Active Students -->
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                                <i class="fas fa-star text-blue-500 mr-2"></i>최다 제출 학생
+                            </h3>
+                            <div id="activeStudents" class="space-y-3">
+                                <p class="text-gray-500">로딩 중...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Activity Tab -->
+                    <div id="content-activity" class="tab-content hidden">
+                        <h2 class="text-xl font-bold text-gray-900 mb-6">최근 활동 (최근 50개)</h2>
+                        <div id="recentActivity">
+                            <p class="text-gray-500">로딩 중...</p>
+                        </div>
+                    </div>
+
+                    <!-- Users Tab -->
+                    <div id="content-users" class="tab-content hidden">
+                        <h2 class="text-xl font-bold text-gray-900 mb-6">사용자 관리</h2>
+                        
+                        <!-- Teachers List -->
+                        <div class="mb-8">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                                <i class="fas fa-chalkboard-teacher text-green-600 mr-2"></i>교사 목록
+                            </h3>
+                            <div id="teachersList" class="overflow-x-auto">
+                                <p class="text-gray-500">로딩 중...</p>
+                            </div>
+                        </div>
+
+                        <!-- Students List -->
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                                <i class="fas fa-user-graduate text-blue-600 mr-2"></i>학생 목록
+                            </h3>
+                            <div id="studentsList" class="overflow-x-auto">
+                                <p class="text-gray-500">로딩 중...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Analytics Tab -->
+                    <div id="content-analytics" class="tab-content hidden">
+                        <h2 class="text-xl font-bold text-gray-900 mb-6">시스템 분석</h2>
+                        <div class="grid md:grid-cols-2 gap-6">
+                            <div class="bg-white p-6 rounded-lg border border-gray-200">
+                                <h3 class="text-lg font-semibold mb-4">제출 현황</h3>
+                                <canvas id="submissionChart"></canvas>
+                            </div>
+                            <div class="bg-white p-6 rounded-lg border border-gray-200">
+                                <h3 class="text-lg font-semibold mb-4">평균 점수 분포</h3>
+                                <canvas id="scoreChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script>
+          let statsData = null;
+
+          async function loadStats() {
+            try {
+              const response = await axios.get('/api/admin/stats');
+              statsData = response.data;
+              displayStats(statsData);
+            } catch (error) {
+              console.error('Error loading stats:', error);
+              document.getElementById('statsOverview').innerHTML = \`
+                <div class="col-span-4 text-center py-8 text-red-600">
+                  <i class="fas fa-exclamation-triangle text-3xl mb-3"></i>
+                  <p>통계를 불러오는데 실패했습니다</p>
+                </div>
+              \`;
+            }
+          }
+
+          function displayStats(data) {
+            const overview = data.overview;
+            const recent = data.recent_activity;
+
+            document.getElementById('statsOverview').innerHTML = \`
+              <div class="stat-card bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="bg-white/20 rounded-lg p-3">
+                    <i class="fas fa-chalkboard-teacher text-3xl"></i>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-3xl font-bold">\${overview.total_teachers}</div>
+                    <div class="text-sm opacity-90">명</div>
+                  </div>
+                </div>
+                <div class="text-lg font-semibold">전체 교사</div>
+              </div>
+
+              <div class="stat-card bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="bg-white/20 rounded-lg p-3">
+                    <i class="fas fa-user-graduate text-3xl"></i>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-3xl font-bold">\${overview.total_students}</div>
+                    <div class="text-sm opacity-90">명</div>
+                  </div>
+                </div>
+                <div class="text-lg font-semibold">전체 학생</div>
+              </div>
+
+              <div class="stat-card bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="bg-white/20 rounded-lg p-3">
+                    <i class="fas fa-file-alt text-3xl"></i>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-3xl font-bold">\${overview.total_submissions}</div>
+                    <div class="text-sm opacity-90">건</div>
+                  </div>
+                </div>
+                <div class="text-lg font-semibold">전체 제출물</div>
+              </div>
+
+              <div class="stat-card bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg p-6 text-white">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="bg-white/20 rounded-lg p-3">
+                    <i class="fas fa-check-circle text-3xl"></i>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-3xl font-bold">\${overview.graded_submissions}</div>
+                    <div class="text-sm opacity-90">건</div>
+                  </div>
+                </div>
+                <div class="text-lg font-semibold">채점 완료</div>
+              </div>
+
+              <div class="stat-card bg-white rounded-xl shadow-lg p-6 border-2 border-blue-200">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="bg-blue-100 rounded-lg p-3">
+                    <i class="fas fa-clock text-3xl text-blue-600"></i>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-3xl font-bold text-blue-900">\${overview.pending_submissions}</div>
+                    <div class="text-sm text-gray-600">건</div>
+                  </div>
+                </div>
+                <div class="text-lg font-semibold text-gray-800">채점 대기</div>
+              </div>
+
+              <div class="stat-card bg-white rounded-xl shadow-lg p-6 border-2 border-green-200">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="bg-green-100 rounded-lg p-3">
+                    <i class="fas fa-chart-line text-3xl text-green-600"></i>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-3xl font-bold text-green-900">\${overview.average_score.toFixed(1)}</div>
+                    <div class="text-sm text-gray-600">점</div>
+                  </div>
+                </div>
+                <div class="text-lg font-semibold text-gray-800">평균 점수</div>
+              </div>
+
+              <div class="stat-card bg-white rounded-xl shadow-lg p-6 border-2 border-purple-200">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="bg-purple-100 rounded-lg p-3">
+                    <i class="fas fa-calendar-week text-3xl text-purple-600"></i>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-3xl font-bold text-purple-900">\${recent.submissions_last_7_days}</div>
+                    <div class="text-sm text-gray-600">건</div>
+                  </div>
+                </div>
+                <div class="text-lg font-semibold text-gray-800">최근 7일 제출</div>
+              </div>
+
+              <div class="stat-card bg-white rounded-xl shadow-lg p-6 border-2 border-orange-200">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="bg-orange-100 rounded-lg p-3">
+                    <i class="fas fa-tasks text-3xl text-orange-600"></i>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-3xl font-bold text-orange-900">\${overview.total_assignments}</div>
+                    <div class="text-sm text-gray-600">개</div>
+                  </div>
+                </div>
+                <div class="text-lg font-semibold text-gray-800">전체 과제</div>
+              </div>
+            \`;
+
+            // Display top teachers
+            if (data.top_teachers.length > 0) {
+              document.getElementById('topTeachers').innerHTML = data.top_teachers.map((t, idx) => \`
+                <div class="flex items-center justify-between bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition">
+                  <div class="flex items-center space-x-4">
+                    <div class="bg-yellow-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold">
+                      \${idx + 1}
+                    </div>
+                    <div>
+                      <div class="font-semibold text-gray-900">\${t.name}</div>
+                      <div class="text-sm text-gray-600">\${t.email}</div>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-xl font-bold text-blue-600">\${t.submission_count}</div>
+                    <div class="text-xs text-gray-500">제출물</div>
+                  </div>
+                </div>
+              \`).join('');
+            } else {
+              document.getElementById('topTeachers').innerHTML = '<p class="text-gray-500">데이터가 없습니다</p>';
+            }
+
+            // Display active students
+            if (data.active_students.length > 0) {
+              document.getElementById('activeStudents').innerHTML = data.active_students.map((s, idx) => \`
+                <div class="flex items-center justify-between bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition">
+                  <div class="flex items-center space-x-4">
+                    <div class="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold">
+                      \${idx + 1}
+                    </div>
+                    <div>
+                      <div class="font-semibold text-gray-900">\${s.name}</div>
+                      <div class="text-sm text-gray-600">\${s.email} • \${s.grade_level}</div>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-xl font-bold text-green-600">\${s.submission_count}</div>
+                    <div class="text-xs text-gray-500">제출물</div>
+                  </div>
+                </div>
+              \`).join('');
+            } else {
+              document.getElementById('activeStudents').innerHTML = '<p class="text-gray-500">데이터가 없습니다</p>';
+            }
+          }
+
+          async function loadRecentActivity() {
+            try {
+              const response = await axios.get('/api/admin/recent-activity');
+              const activities = response.data;
+
+              if (activities.length === 0) {
+                document.getElementById('recentActivity').innerHTML = \`
+                  <div class="text-center py-12">
+                    <i class="fas fa-inbox text-6xl text-gray-300 mb-4"></i>
+                    <p class="text-gray-500">최근 활동이 없습니다</p>
+                  </div>
+                \`;
+                return;
+              }
+
+              document.getElementById('recentActivity').innerHTML = \`
+                <div class="space-y-3">
+                  \${activities.map(act => \`
+                    <div class="flex items-center justify-between bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition">
+                      <div class="flex items-center space-x-4">
+                        <div class="\${act.graded ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'} rounded-lg p-3">
+                          <i class="fas \${act.graded ? 'fa-check-circle' : 'fa-clock'} text-xl"></i>
+                        </div>
+                        <div>
+                          <div class="font-semibold text-gray-900">\${act.student_name}의 제출물</div>
+                          <div class="text-sm text-gray-600">
+                            <span class="font-medium">\${act.assignment_title}</span> • 
+                            교사: \${act.teacher_name}
+                          </div>
+                        </div>
+                      </div>
+                      <div class="text-right">
+                        <div class="text-sm font-medium \${act.graded ? 'text-green-600' : 'text-yellow-600'}">
+                          \${act.graded ? '채점 완료' : '채점 대기'}
+                        </div>
+                        <div class="text-xs text-gray-500">
+                          \${new Date(act.timestamp).toLocaleString('ko-KR')}
+                        </div>
+                      </div>
+                    </div>
+                  \`).join('')}
+                </div>
+              \`;
+            } catch (error) {
+              console.error('Error loading activity:', error);
+              document.getElementById('recentActivity').innerHTML = \`
+                <p class="text-red-600">활동 내역을 불러오는데 실패했습니다</p>
+              \`;
+            }
+          }
+
+          async function loadUsers() {
+            try {
+              const response = await axios.get('/api/admin/users');
+              const { teachers, students } = response.data;
+
+              // Display teachers
+              if (teachers.length > 0) {
+                document.getElementById('teachersList').innerHTML = \`
+                  <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">이름</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">이메일</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">과제</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">제출물</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">가입일</th>
+                      </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      \${teachers.map(t => \`
+                        <tr class="hover:bg-gray-50">
+                          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">\${t.name}</td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">\${t.email}</td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${t.assignment_count || 0}</td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${t.submission_count || 0}</td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            \${new Date(t.created_at).toLocaleDateString('ko-KR')}
+                          </td>
+                        </tr>
+                      \`).join('')}
+                    </tbody>
+                  </table>
+                \`;
+              } else {
+                document.getElementById('teachersList').innerHTML = '<p class="text-gray-500">교사가 없습니다</p>';
+              }
+
+              // Display students
+              if (students.length > 0) {
+                document.getElementById('studentsList').innerHTML = \`
+                  <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">이름</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">이메일</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">학년</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">제출물</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">가입일</th>
+                      </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      \${students.map(s => \`
+                        <tr class="hover:bg-gray-50">
+                          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">\${s.name}</td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">\${s.email}</td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${s.grade_level || '-'}</td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${s.submission_count || 0}</td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            \${new Date(s.created_at).toLocaleDateString('ko-KR')}
+                          </td>
+                        </tr>
+                      \`).join('')}
+                    </tbody>
+                  </table>
+                \`;
+              } else {
+                document.getElementById('studentsList').innerHTML = '<p class="text-gray-500">학생이 없습니다</p>';
+              }
+            } catch (error) {
+              console.error('Error loading users:', error);
+              document.getElementById('teachersList').innerHTML = '<p class="text-red-600">사용자 정보를 불러오는데 실패했습니다</p>';
+              document.getElementById('studentsList').innerHTML = '<p class="text-red-600">사용자 정보를 불러오는데 실패했습니다</p>';
+            }
+          }
+
+          function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+              tab.classList.add('hidden');
+            });
+
+            // Remove active class from all buttons
+            document.querySelectorAll('.tab-button').forEach(btn => {
+              btn.classList.remove('active');
+              btn.classList.add('text-gray-600');
+            });
+
+            // Show selected tab
+            document.getElementById(\`content-\${tabName}\`).classList.remove('hidden');
+            const activeBtn = document.getElementById(\`tab-\${tabName}\`);
+            activeBtn.classList.add('active');
+            activeBtn.classList.remove('text-gray-600');
+
+            // Load data if needed
+            if (tabName === 'activity' && document.getElementById('recentActivity').innerHTML.includes('로딩')) {
+              loadRecentActivity();
+            } else if (tabName === 'users' && document.getElementById('teachersList').innerHTML.includes('로딩')) {
+              loadUsers();
+            } else if (tabName === 'analytics') {
+              loadAnalytics();
+            }
+          }
+
+          function loadAnalytics() {
+            if (!statsData) return;
+
+            const overview = statsData.overview;
+
+            // Submission Status Chart
+            const submissionCtx = document.getElementById('submissionChart').getContext('2d');
+            new Chart(submissionCtx, {
+              type: 'doughnut',
+              data: {
+                labels: ['채점 완료', '채점 대기'],
+                datasets: [{
+                  data: [overview.graded_submissions, overview.pending_submissions],
+                  backgroundColor: ['#10b981', '#f59e0b']
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: {
+                  legend: {
+                    position: 'bottom'
+                  }
+                }
+              }
+            });
+
+            // Score Distribution Chart (dummy data for now)
+            const scoreCtx = document.getElementById('scoreChart').getContext('2d');
+            new Chart(scoreCtx, {
+              type: 'bar',
+              data: {
+                labels: ['0-25%', '26-50%', '51-75%', '76-100%'],
+                datasets: [{
+                  label: '학생 수',
+                  data: [12, 35, 68, 45],
+                  backgroundColor: '#3b82f6'
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: {
+                  legend: {
+                    display: false
+                  }
+                },
+                scales: {
+                  y: {
+                    beginAtZero: true
+                  }
+                }
+              }
+            });
+          }
+
+          // Initial load
+          loadStats();
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+// Admin CMS Page - Resource Management
+app.get('/admin/cms', (c) => {
   return c.html(`
     <!DOCTYPE html>
     <html lang="ko">
@@ -3239,6 +4996,475 @@ app.get('/admin', (c) => {
           }
           
           loadAllPosts();
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+// Student Dashboard Page
+app.get('/student/dashboard', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>학생 대시보드 | AI 논술 평가</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    </head>
+    <body class="bg-gray-50">
+        <!-- Navigation -->
+        <nav class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <div class="flex items-center">
+                        <span class="text-2xl font-bold text-blue-900">
+                            <i class="fas fa-graduation-cap mr-2"></i>AI 논술 평가 - 학생
+                        </span>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <span id="studentName" class="text-gray-700 font-medium"></span>
+                        <button onclick="handleLogout()" class="text-gray-700 hover:text-blue-700 font-medium">
+                            <i class="fas fa-sign-out-alt mr-1"></i>로그아웃
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Access Code Input Section -->
+            <div class="bg-white rounded-xl shadow-lg p-8 mb-8">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">
+                    <i class="fas fa-key text-blue-600 mr-2"></i>과제 액세스 코드 입력
+                </h2>
+                <p class="text-gray-600 mb-6">선생님께서 제공한 6자리 액세스 코드를 입력하세요</p>
+                <form onsubmit="handleAccessCode(event)" class="flex gap-4">
+                    <input 
+                        id="accessCode" 
+                        type="text" 
+                        maxlength="6" 
+                        pattern="[0-9]{6}" 
+                        required
+                        class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-mono"
+                        placeholder="예: 123456"
+                    />
+                    <button 
+                        type="submit" 
+                        class="px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition">
+                        과제 확인
+                    </button>
+                </form>
+            </div>
+
+            <!-- Assignment Details (hidden by default) -->
+            <div id="assignmentDetails" class="hidden bg-white rounded-xl shadow-lg p-8 mb-8">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4" id="assignmentTitle"></h2>
+                <p class="text-gray-700 mb-4" id="assignmentDescription"></p>
+                <div class="mb-6">
+                    <h3 class="font-semibold text-gray-800 mb-2">평가 기준:</h3>
+                    <div id="rubricsList" class="space-y-2"></div>
+                </div>
+                
+                <!-- Essay Input -->
+                <div class="mb-6">
+                    <label class="block text-lg font-semibold text-gray-800 mb-2">
+                        답안 작성
+                    </label>
+                    <textarea 
+                        id="essayText" 
+                        rows="12" 
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="여기에 답안을 작성하세요..."
+                    ></textarea>
+                </div>
+                
+                <button 
+                    onclick="handleSubmit()" 
+                    class="w-full px-8 py-4 bg-green-600 text-white rounded-lg font-bold text-lg hover:bg-green-700 transition">
+                    <i class="fas fa-paper-plane mr-2"></i>답안 제출하기
+                </button>
+            </div>
+
+            <!-- My Submissions Section -->
+            <div class="bg-white rounded-xl shadow-lg p-8">
+                <h2 class="text-2xl font-bold text-gray-900 mb-6">
+                    <i class="fas fa-history text-blue-600 mr-2"></i>나의 제출물
+                </h2>
+                <div id="submissionsList">
+                    <p class="text-gray-500 text-center py-8">제출물을 불러오는 중...</p>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script>
+          let currentAccessCode = null;
+          let currentAssignment = null;
+          
+          // Check if logged in
+          window.addEventListener('DOMContentLoaded', () => {
+            const sessionId = localStorage.getItem('student_session_id');
+            const studentName = localStorage.getItem('student_name');
+            
+            if (!sessionId || !studentName) {
+              alert('로그인이 필요합니다');
+              window.location.href = '/student/login';
+              return;
+            }
+            
+            document.getElementById('studentName').textContent = studentName + ' 학생';
+            loadSubmissions();
+          });
+          
+          async function handleAccessCode(event) {
+            event.preventDefault();
+            
+            const accessCode = document.getElementById('accessCode').value;
+            const sessionId = localStorage.getItem('student_session_id');
+            
+            try {
+              const response = await axios.get(\`/api/student/assignment/\${accessCode}\`, {
+                headers: { 'X-Student-Session-ID': sessionId }
+              });
+              
+              currentAccessCode = accessCode;
+              currentAssignment = response.data;
+              
+              displayAssignment(response.data);
+            } catch (error) {
+              alert('과제를 찾을 수 없습니다: ' + (error.response?.data?.error || error.message));
+            }
+          }
+          
+          function displayAssignment(assignment) {
+            document.getElementById('assignmentTitle').textContent = assignment.title;
+            document.getElementById('assignmentDescription').textContent = assignment.description;
+            
+            const rubricsList = document.getElementById('rubricsList');
+            rubricsList.innerHTML = assignment.rubrics.map((r, idx) => \`
+              <div class="bg-gray-50 p-3 rounded-lg">
+                <span class="font-semibold text-blue-700">\${idx + 1}. \${r.criterion_name}</span>
+                <p class="text-sm text-gray-600 mt-1">\${r.criterion_description}</p>
+              </div>
+            \`).join('');
+            
+            document.getElementById('assignmentDetails').classList.remove('hidden');
+            document.getElementById('essayText').focus();
+          }
+          
+          async function handleSubmit() {
+            const essayText = document.getElementById('essayText').value.trim();
+            
+            if (!essayText) {
+              alert('답안을 작성해주세요');
+              return;
+            }
+            
+            if (!currentAccessCode) {
+              alert('과제 액세스 코드를 먼저 입력해주세요');
+              return;
+            }
+            
+            const sessionId = localStorage.getItem('student_session_id');
+            
+            try {
+              const response = await axios.post('/api/student/submit', {
+                access_code: currentAccessCode,
+                essay_text: essayText
+              }, {
+                headers: { 'X-Student-Session-ID': sessionId }
+              });
+              
+              if (response.data.success) {
+                const version = response.data.version;
+                const isResubmission = response.data.is_resubmission;
+                
+                alert(isResubmission 
+                  ? \`답안이 재제출되었습니다! (버전 \${version})\`
+                  : '답안이 제출되었습니다! 선생님의 채점을 기다려주세요.');
+                
+                document.getElementById('essayText').value = '';
+                document.getElementById('assignmentDetails').classList.add('hidden');
+                document.getElementById('accessCode').value = '';
+                currentAccessCode = null;
+                currentAssignment = null;
+                
+                loadSubmissions();
+              }
+            } catch (error) {
+              alert('제출 실패: ' + (error.response?.data?.error || error.message));
+            }
+          }
+          
+          async function loadSubmissions() {
+            const sessionId = localStorage.getItem('student_session_id');
+            
+            try {
+              const response = await axios.get('/api/student/my-submissions', {
+                headers: { 'X-Student-Session-ID': sessionId }
+              });
+              
+              const submissions = response.data;
+              const container = document.getElementById('submissionsList');
+              
+              if (submissions.length === 0) {
+                container.innerHTML = \`
+                  <div class="text-center py-8">
+                    <i class="fas fa-inbox text-6xl text-gray-300 mb-4"></i>
+                    <p class="text-gray-500">아직 제출한 답안이 없습니다</p>
+                  </div>
+                \`;
+                return;
+              }
+              
+              container.innerHTML = submissions.map(sub => \`
+                <div class="border-b border-gray-200 pb-4 mb-4 last:border-0">
+                  <div class="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 class="font-semibold text-gray-900">\${sub.assignment_title}</h3>
+                      <p class="text-sm text-gray-500">
+                        제출일: \${new Date(sub.submitted_at).toLocaleString('ko-KR')}
+                        \${sub.is_resubmission ? \` • 버전 \${sub.submission_version}\` : ''}
+                      </p>
+                    </div>
+                    <div class="text-right">
+                      \${sub.graded 
+                        ? \`<div class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold mb-2">
+                             채점 완료
+                           </div>
+                           \${sub.total_score ? \`<div class="text-2xl font-bold text-blue-600">\${sub.total_score}점</div>\` : ''}
+                          \`
+                        : '<div class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-semibold">채점 대기중</div>'
+                      }
+                    </div>
+                  </div>
+                  \${sub.graded 
+                    ? \`<button onclick="viewFeedback(\${sub.id})" 
+                              class="mt-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-semibold hover:bg-blue-200 transition">
+                          <i class="fas fa-eye mr-1"></i>상세 피드백 보기
+                        </button>\`
+                    : ''
+                  }
+                </div>
+              \`).join('');
+            } catch (error) {
+              console.error('Error loading submissions:', error);
+              document.getElementById('submissionsList').innerHTML = \`
+                <p class="text-red-600 text-center py-8">제출물을 불러오는데 실패했습니다</p>
+              \`;
+            }
+          }
+          
+          function viewFeedback(submissionId) {
+            window.location.href = \`/student/feedback/\${submissionId}\`;
+          }
+          
+          function handleLogout() {
+            localStorage.removeItem('student_session_id');
+            localStorage.removeItem('student_name');
+            localStorage.removeItem('student_email');
+            localStorage.removeItem('student_grade_level');
+            window.location.href = '/student/login';
+          }
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+// Student Feedback View Page
+app.get('/student/feedback/:id', (c) => {
+  const submissionId = c.req.param('id')
+  
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>피드백 상세 | AI 논술 평가</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <style>
+          .score-circle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+          }
+          .score-1 { background-color: #ef4444; }
+          .score-2 { background-color: #f59e0b; }
+          .score-3 { background-color: #3b82f6; }
+          .score-4 { background-color: #10b981; }
+        </style>
+    </head>
+    <body class="bg-gray-50">
+        <!-- Navigation -->
+        <nav class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <div class="flex items-center">
+                        <span class="text-2xl font-bold text-blue-900">
+                            <i class="fas fa-graduation-cap mr-2"></i>AI 논술 평가 - 학생
+                        </span>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <a href="/student/dashboard" class="text-gray-700 hover:text-blue-700 font-medium">
+                            <i class="fas fa-arrow-left mr-1"></i>대시보드로
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div id="feedbackContent">
+                <p class="text-gray-500 text-center py-8">피드백을 불러오는 중...</p>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script>
+          const submissionId = ${submissionId};
+          
+          window.addEventListener('DOMContentLoaded', () => {
+            const sessionId = localStorage.getItem('student_session_id');
+            if (!sessionId) {
+              alert('로그인이 필요합니다');
+              window.location.href = '/student/login';
+              return;
+            }
+            
+            loadFeedback();
+          });
+          
+          async function loadFeedback() {
+            const sessionId = localStorage.getItem('student_session_id');
+            
+            try {
+              const response = await axios.get(\`/api/student/submission/\${submissionId}/feedback\`, {
+                headers: { 'X-Student-Session-ID': sessionId }
+              });
+              
+              const { criterion_feedbacks, summary } = response.data;
+              displayFeedback(criterion_feedbacks, summary);
+            } catch (error) {
+              console.error('Error loading feedback:', error);
+              document.getElementById('feedbackContent').innerHTML = \`
+                <div class="text-center py-8 text-red-600">
+                  <i class="fas fa-exclamation-triangle text-3xl mb-3"></i>
+                  <p>피드백을 불러오는데 실패했습니다</p>
+                </div>
+              \`;
+            }
+          }
+          
+          function displayFeedback(feedbacks, summary) {
+            const container = document.getElementById('feedbackContent');
+            
+            container.innerHTML = \`
+              <!-- Overall Summary Card -->
+              <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl shadow-lg p-8 mb-8 text-white">
+                <div class="flex items-center justify-between mb-6">
+                  <h1 class="text-3xl font-bold">전체 평가 결과</h1>
+                  <div class="text-6xl font-bold">\${summary.total_score}점</div>
+                </div>
+                <p class="text-lg mb-4">\${summary.overall_comment}</p>
+                
+                <div class="grid md:grid-cols-2 gap-4 mt-6">
+                  <div class="bg-white/20 backdrop-blur rounded-lg p-4">
+                    <div class="flex items-center mb-2">
+                      <i class="fas fa-thumbs-up text-2xl mr-2"></i>
+                      <h3 class="font-bold text-lg">강점</h3>
+                    </div>
+                    <p>\${summary.strengths}</p>
+                  </div>
+                  
+                  <div class="bg-white/20 backdrop-blur rounded-lg p-4">
+                    <div class="flex items-center mb-2">
+                      <i class="fas fa-lightbulb text-2xl mr-2"></i>
+                      <h3 class="font-bold text-lg">보완할 점</h3>
+                    </div>
+                    <p>\${summary.weaknesses}</p>
+                  </div>
+                </div>
+                
+                <div class="mt-4 bg-yellow-400/30 rounded-lg p-4">
+                  <h3 class="font-bold mb-2"><i class="fas fa-star mr-2"></i>우선 개선 사항</h3>
+                  <p>\${summary.improvement_priority}</p>
+                </div>
+              </div>
+              
+              <!-- Criterion-by-Criterion Feedback -->
+              <div class="space-y-6">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">
+                  <i class="fas fa-clipboard-list text-blue-600 mr-2"></i>기준별 상세 피드백
+                </h2>
+                
+                \${feedbacks.map((fb, idx) => \`
+                  <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="flex items-start justify-between mb-4">
+                      <div class="flex-1">
+                        <h3 class="text-xl font-bold text-gray-900 mb-1">\${fb.criterion_name}</h3>
+                        <p class="text-sm text-gray-600">\${fb.criterion_description}</p>
+                      </div>
+                      <div class="score-circle score-\${fb.score} ml-4">
+                        \${fb.score}
+                      </div>
+                    </div>
+                    
+                    <div class="space-y-4">
+                      <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded">
+                        <div class="flex items-center mb-2">
+                          <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                          <h4 class="font-semibold text-green-800">잘한 점</h4>
+                        </div>
+                        <p class="text-gray-700">\${fb.positive_feedback}</p>
+                      </div>
+                      
+                      <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
+                        <div class="flex items-center mb-2">
+                          <i class="fas fa-exclamation-circle text-yellow-600 mr-2"></i>
+                          <h4 class="font-semibold text-yellow-800">개선이 필요한 부분</h4>
+                        </div>
+                        <p class="text-gray-700">\${fb.improvement_areas}</p>
+                      </div>
+                      
+                      <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+                        <div class="flex items-center mb-2">
+                          <i class="fas fa-lightbulb text-blue-600 mr-2"></i>
+                          <h4 class="font-semibold text-blue-800">구체적인 개선 방법</h4>
+                        </div>
+                        <div class="text-gray-700 whitespace-pre-line">\${fb.specific_suggestions}</div>
+                      </div>
+                    </div>
+                  </div>
+                \`).join('')}
+              </div>
+              
+              <!-- Action Buttons -->
+              <div class="mt-8 flex gap-4">
+                <a href="/student/dashboard" 
+                   class="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold text-center hover:bg-gray-300 transition">
+                  <i class="fas fa-arrow-left mr-2"></i>대시보드로
+                </a>
+                <button onclick="window.print()" 
+                        class="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition">
+                  <i class="fas fa-print mr-2"></i>인쇄하기
+                </button>
+              </div>
+            \`;
+          }
         </script>
     </body>
     </html>

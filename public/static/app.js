@@ -130,6 +130,117 @@ function clearFile() {
   document.getElementById('imagePreview').classList.add('hidden');
 }
 
+// Upload file and extract text (for images and PDFs)
+async function uploadFileAndExtractText(file) {
+  // Determine endpoint based on file type
+  let endpoint = '/api/upload/image';
+  if (file.type === 'application/pdf') {
+    endpoint = '/api/upload/pdf';
+  }
+  
+  // Create FormData
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  try {
+    // Show loading state
+    const loadingMessage = document.createElement('div');
+    loadingMessage.id = 'file-upload-loading';
+    loadingMessage.className = 'mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg';
+    loadingMessage.innerHTML = `
+      <div class="flex items-center">
+        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+        <div>
+          <p class="font-semibold text-blue-900">파일 처리 중...</p>
+          <p class="text-sm text-blue-700">텍스트를 추출하고 있습니다. 잠시만 기다려주세요.</p>
+        </div>
+      </div>
+    `;
+    
+    const filePreview = document.getElementById('filePreview');
+    if (!document.getElementById('file-upload-loading')) {
+      filePreview.insertAdjacentElement('afterend', loadingMessage);
+    }
+    
+    // Make API request
+    const response = await axios.post(endpoint, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    
+    // Remove loading message
+    const loadingEl = document.getElementById('file-upload-loading');
+    if (loadingEl) {
+      loadingEl.remove();
+    }
+    
+    if (response.data.success && response.data.extracted_text) {
+      // Show success message
+      const successMessage = document.createElement('div');
+      successMessage.className = 'mt-4 p-4 bg-green-50 border border-green-200 rounded-lg';
+      successMessage.innerHTML = `
+        <div class="flex items-center justify-between">
+          <div class="flex items-center">
+            <i class="fas fa-check-circle text-green-600 text-2xl mr-3"></i>
+            <div>
+              <p class="font-semibold text-green-900">텍스트 추출 완료!</p>
+              <p class="text-sm text-green-700">
+                ${response.data.extracted_text.length}자 추출 
+                (처리 시간: ${response.data.processing_time_ms}ms)
+              </p>
+            </div>
+          </div>
+          <button onclick="this.parentElement.parentElement.remove()" class="text-green-700 hover:text-green-900">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      `;
+      filePreview.insertAdjacentElement('afterend', successMessage);
+      
+      // Auto-remove success message after 5 seconds
+      setTimeout(() => {
+        if (successMessage && successMessage.parentElement) {
+          successMessage.remove();
+        }
+      }, 5000);
+      
+      return response.data.extracted_text;
+    } else {
+      throw new Error(response.data.error || '텍스트 추출에 실패했습니다');
+    }
+  } catch (error) {
+    // Remove loading message
+    const loadingEl = document.getElementById('file-upload-loading');
+    if (loadingEl) {
+      loadingEl.remove();
+    }
+    
+    // Show error message
+    const errorMessage = document.createElement('div');
+    errorMessage.className = 'mt-4 p-4 bg-red-50 border border-red-200 rounded-lg';
+    errorMessage.innerHTML = `
+      <div class="flex items-center justify-between">
+        <div class="flex items-center">
+          <i class="fas fa-exclamation-circle text-red-600 text-2xl mr-3"></i>
+          <div>
+            <p class="font-semibold text-red-900">파일 처리 실패</p>
+            <p class="text-sm text-red-700">${error.response?.data?.error || error.message}</p>
+          </div>
+        </div>
+        <button onclick="this.parentElement.parentElement.remove()" class="text-red-700 hover:text-red-900">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    `;
+    
+    const filePreview = document.getElementById('filePreview');
+    filePreview.insertAdjacentElement('afterend', errorMessage);
+    
+    throw error;
+  }
+}
+
 // Format file size
 function formatFileSize(bytes) {
   if (bytes === 0) return '0 Bytes';
@@ -351,15 +462,39 @@ document.getElementById('gradingForm').addEventListener('submit', async (e) => {
       return;
     }
     
-    // For now, we'll show a message that file processing will be implemented
-    // In production, you would:
-    // 1. Upload file to R2 storage
-    // 2. If image, use OCR to extract text
-    // 3. If PDF, extract text from PDF
-    // 4. If Word doc, extract text
+    // Check file type
+    const fileType = selectedFile.type;
+    const supportedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'application/pdf'];
     
-    alert('파일 업로드 기능은 현재 구현 중입니다. 임시로 텍스트 입력을 사용해주세요.');
-    return;
+    if (!supportedTypes.includes(fileType)) {
+      alert('지원하지 않는 파일 형식입니다. 이미지(JPG, PNG) 또는 PDF 파일을 선택해주세요.');
+      return;
+    }
+    
+    // Show loading state
+    document.getElementById('mainInterface').classList.add('hidden');
+    document.getElementById('loadingIndicator').classList.remove('hidden');
+    
+    try {
+      // Upload file and extract text
+      essayText = await uploadFileAndExtractText(selectedFile);
+      
+      if (!essayText || essayText.trim().length === 0) {
+        throw new Error('파일에서 텍스트를 추출할 수 없습니다.');
+      }
+      
+      // Show main interface again for form validation
+      document.getElementById('mainInterface').classList.remove('hidden');
+      document.getElementById('loadingIndicator').classList.add('hidden');
+    } catch (error) {
+      console.error('File upload error:', error);
+      alert('파일 처리 오류: ' + (error.response?.data?.error || error.message));
+      
+      // Show form again
+      document.getElementById('mainInterface').classList.remove('hidden');
+      document.getElementById('loadingIndicator').classList.add('hidden');
+      return;
+    }
   }
   
   // Validate
