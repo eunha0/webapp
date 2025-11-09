@@ -1238,6 +1238,40 @@ app.post('/api/submission/:id/grade', async (c) => {
 })
 
 /**
+ * GET /api/submission/:id - Get submission details
+ */
+app.get('/api/submission/:id', async (c) => {
+  try {
+    const user = await requireAuth(c)
+    if (!user.id) return user
+    
+    const submissionId = parseInt(c.req.param('id'))
+    const db = c.env.DB
+    
+    // Get submission with assignment info
+    const submission = await db.prepare(
+      `SELECT s.*, a.title as assignment_title, a.user_id
+       FROM student_submissions s
+       JOIN assignments a ON s.assignment_id = a.id
+       WHERE s.id = ?`
+    ).bind(submissionId).first()
+    
+    if (!submission) {
+      return c.json({ error: 'Submission not found' }, 404)
+    }
+    
+    if (submission.user_id !== user.id) {
+      return c.json({ error: 'Access denied' }, 403)
+    }
+    
+    return c.json(submission)
+  } catch (error) {
+    console.error('Error fetching submission:', error)
+    return c.json({ error: 'Failed to fetch submission', details: String(error) }, 500)
+  }
+})
+
+/**
  * PUT /api/submission/:id/feedback - Update grading feedback
  */
 app.put('/api/submission/:id/feedback', async (c) => {
@@ -4464,6 +4498,11 @@ app.get('/my-page', (c) => {
             }
 
             try {
+              // Get submission details
+              const submissionResponse = await axios.get(\`/api/submission/\${submissionId}\`);
+              const submissionData = submissionResponse.data;
+              
+              // Grade submission
               const response = await axios.post(\`/api/submission/\${submissionId}/grade\`);
               
               if (button) {
@@ -4475,6 +4514,7 @@ app.get('/my-page', (c) => {
                 // Store grading data for review
                 currentGradingData = {
                   submissionId: submissionId,
+                  submission: submissionData,
                   result: response.data.grading_result,
                   detailedFeedback: response.data.detailed_feedback
                 };
@@ -4500,12 +4540,14 @@ app.get('/my-page', (c) => {
             
             const result = currentGradingData.result;
             const feedback = currentGradingData.detailedFeedback;
+            const submission = currentGradingData.submission;
             
-            // Create modal HTML
+            // Create modal HTML with split-screen layout
             const modalHTML = \`
               <div id="gradingReviewModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                  <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] flex flex-col">
+                  <!-- Header -->
+                  <div class="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center rounded-t-xl">
                     <h2 class="text-2xl font-bold text-gray-900">
                       <i class="fas fa-clipboard-check text-navy-700 mr-2"></i>
                       채점 결과 검토
@@ -4515,7 +4557,33 @@ app.get('/my-page', (c) => {
                     </button>
                   </div>
                   
-                  <div class="p-6 space-y-6">
+                  <!-- Split Screen Content -->
+                  <div class="flex-1 overflow-hidden flex">
+                    <!-- Left Panel: Student Essay -->
+                    <div class="w-1/2 border-r border-gray-200 flex flex-col">
+                      <div class="bg-gray-50 px-6 py-3 border-b border-gray-200">
+                        <h3 class="text-lg font-bold text-gray-900">
+                          <i class="fas fa-file-alt text-blue-600 mr-2"></i>
+                          학생 답안
+                        </h3>
+                        <p class="text-sm text-gray-600 mt-1">\${submission.student_name} - \${submission.assignment_title}</p>
+                      </div>
+                      <div class="flex-1 overflow-y-auto p-6">
+                        <div class="prose max-w-none">
+                          <div class="whitespace-pre-wrap text-gray-800 leading-relaxed">\${submission.essay_text}</div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Right Panel: Feedback -->
+                    <div class="w-1/2 flex flex-col">
+                      <div class="bg-gray-50 px-6 py-3 border-b border-gray-200">
+                        <h3 class="text-lg font-bold text-gray-900">
+                          <i class="fas fa-comment-dots text-green-600 mr-2"></i>
+                          피드백 및 평가
+                        </h3>
+                      </div>
+                      <div class="flex-1 overflow-y-auto p-6 space-y-6">
                     <!-- Overall Score -->
                     <div class="bg-gradient-to-r from-navy-50 to-blue-50 rounded-lg p-6 border-l-4 border-navy-700">
                       <div class="flex items-center justify-between mb-3">
@@ -4596,20 +4664,26 @@ app.get('/my-page', (c) => {
                       >\${result.revision_suggestions}</textarea>
                     </div>
 
-                    <!-- Next Steps -->
-                    <div>
-                      <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        <i class="fas fa-forward text-blue-600 mr-1"></i>
-                        다음 단계 조언
-                      </label>
-                      <textarea id="editNextSteps" rows="4" 
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                      >\${result.next_steps_advice}</textarea>
+                        <!-- Next Steps -->
+                        <div>
+                          <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            <i class="fas fa-forward text-blue-600 mr-1"></i>
+                            다음 단계 조언
+                          </label>
+                          <textarea id="editNextSteps" rows="4" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                          >\${result.next_steps_advice}</textarea>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
                   <!-- Action Buttons -->
-                  <div class="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex gap-3">
+                  <div class="bg-gray-50 border-t border-gray-200 px-6 py-4 flex gap-3 rounded-b-xl">
+                    <button onclick="printFeedback()" 
+                      class="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition">
+                      <i class="fas fa-print mr-2"></i>출력
+                    </button>
                     <button onclick="saveFeedback()" 
                       class="flex-1 px-6 py-3 bg-navy-900 text-white rounded-lg font-semibold hover:bg-navy-800 transition">
                       <i class="fas fa-save mr-2"></i>저장하고 완료
@@ -4632,6 +4706,158 @@ app.get('/my-page', (c) => {
               modal.remove();
             }
             currentGradingData = null;
+          }
+
+          function printFeedback() {
+            if (!currentGradingData) return;
+            
+            const submission = currentGradingData.submission;
+            const result = currentGradingData.result;
+            
+            // Collect current edited values
+            const totalScore = document.getElementById('editTotalScore').value;
+            const summaryEvaluation = document.getElementById('editSummaryEvaluation').value;
+            const overallComment = document.getElementById('editOverallComment').value;
+            const revisionSuggestions = document.getElementById('editRevisionSuggestions').value;
+            const nextSteps = document.getElementById('editNextSteps').value;
+            
+            // Build criterion scores HTML
+            let criterionHTML = '';
+            result.criterion_scores.forEach((criterion, index) => {
+              const score = document.getElementById(\`editScore_\${index}\`).value;
+              const strengths = document.getElementById(\`editStrengths_\${index}\`).value;
+              const improvements = document.getElementById(\`editImprovements_\${index}\`).value;
+              
+              criterionHTML += \`
+                <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <strong>\${criterion.criterion_name}</strong>
+                    <span style="font-size: 18px; font-weight: bold; color: #1e3a8a;">\${score}/4</span>
+                  </div>
+                  <div style="margin-bottom: 8px;">
+                    <strong style="color: #059669;">강점:</strong>
+                    <p style="margin: 5px 0; white-space: pre-wrap;">\${strengths}</p>
+                  </div>
+                  <div>
+                    <strong style="color: #ea580c;">개선점:</strong>
+                    <p style="margin: 5px 0; white-space: pre-wrap;">\${improvements}</p>
+                  </div>
+                </div>
+              \`;
+            });
+            
+            // Create print window
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(\`
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="UTF-8">
+                <title>채점 결과 - \${submission.student_name}</title>
+                <style>
+                  body {
+                    font-family: 'Noto Sans KR', Arial, sans-serif;
+                    line-height: 1.6;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 20px;
+                  }
+                  h1, h2, h3 { color: #1e3a8a; }
+                  .header {
+                    border-bottom: 3px solid #1e3a8a;
+                    padding-bottom: 15px;
+                    margin-bottom: 20px;
+                  }
+                  .section {
+                    margin-bottom: 25px;
+                    padding: 15px;
+                    background: #f9fafb;
+                    border-radius: 8px;
+                  }
+                  .score-box {
+                    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+                    color: white;
+                    padding: 20px;
+                    border-radius: 10px;
+                    text-align: center;
+                    margin-bottom: 20px;
+                  }
+                  .score-box h2 {
+                    color: white;
+                    margin: 0 0 10px 0;
+                  }
+                  .score {
+                    font-size: 48px;
+                    font-weight: bold;
+                  }
+                  .essay-content {
+                    background: white;
+                    padding: 15px;
+                    border-left: 4px solid #3b82f6;
+                    margin-bottom: 20px;
+                    white-space: pre-wrap;
+                  }
+                  @media print {
+                    body { padding: 0; }
+                    .no-print { display: none; }
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="header">
+                  <h1>📝 AI 논술 채점 결과</h1>
+                  <p><strong>과제:</strong> \${submission.assignment_title}</p>
+                  <p><strong>학생:</strong> \${submission.student_name}</p>
+                  <p><strong>제출일:</strong> \${new Date(submission.submitted_at).toLocaleString('ko-KR')}</p>
+                </div>
+                
+                <div class="score-box">
+                  <h2>전체 점수</h2>
+                  <div class="score">\${totalScore} / 10</div>
+                </div>
+                
+                <div class="section">
+                  <h2>📄 학생 답안</h2>
+                  <div class="essay-content">\${submission.essay_text}</div>
+                </div>
+                
+                <div class="section">
+                  <h2>📊 종합 평가</h2>
+                  <p style="white-space: pre-wrap;">\${summaryEvaluation}</p>
+                </div>
+                
+                <div class="section">
+                  <h2>📋 평가 기준별 점수</h2>
+                  \${criterionHTML}
+                </div>
+                
+                <div class="section">
+                  <h2>💬 종합 의견</h2>
+                  <p style="white-space: pre-wrap;">\${overallComment}</p>
+                </div>
+                
+                <div class="section">
+                  <h2>💡 수정 제안</h2>
+                  <p style="white-space: pre-wrap;">\${revisionSuggestions}</p>
+                </div>
+                
+                <div class="section">
+                  <h2>🎯 다음 단계 조언</h2>
+                  <p style="white-space: pre-wrap;">\${nextSteps}</p>
+                </div>
+                
+                <div class="no-print" style="text-align: center; margin-top: 30px;">
+                  <button onclick="window.print()" style="padding: 10px 30px; background: #1e3a8a; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
+                    🖨️ 인쇄하기
+                  </button>
+                  <button onclick="window.close()" style="padding: 10px 30px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-left: 10px;">
+                    닫기
+                  </button>
+                </div>
+              </body>
+              </html>
+            \`);
+            printWindow.document.close();
           }
 
           async function saveFeedback() {
