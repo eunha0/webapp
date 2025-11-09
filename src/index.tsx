@@ -3803,13 +3803,20 @@ app.get('/my-page', (c) => {
           axios.defaults.headers.common['X-Session-ID'] = sessionId;
 
           // Handle authentication errors
+          let authErrorShown = false;
           axios.interceptors.response.use(
             response => response,
             error => {
               if (error.response && error.response.status === 401) {
-                alert('세션이 만료되었습니다. 다시 로그인해주세요.');
-                localStorage.removeItem('session_id');
-                window.location.href = '/login';
+                console.error('401 Unauthorized error:', error.response.data);
+                console.log('Session ID:', sessionId);
+                
+                if (!authErrorShown) {
+                  authErrorShown = true;
+                  alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+                  localStorage.removeItem('session_id');
+                  window.location.href = '/login';
+                }
               }
               return Promise.reject(error);
             }
@@ -5017,8 +5024,30 @@ app.get('/my-page', (c) => {
 
           async function reviewSubmissionFromHistory(submissionId) {
             try {
+              // Check session before making requests
+              const sessionId = localStorage.getItem('session_id');
+              console.log('Review submission - Session ID:', sessionId);
+              console.log('Review submission - Submission ID:', submissionId);
+              
+              if (!sessionId) {
+                alert('로그인이 필요합니다.');
+                window.location.href = '/login';
+                return;
+              }
+              
               // Fetch submission details
+              console.log('Fetching submission details...');
               const submissionResponse = await axios.get(\`/api/submission/\${submissionId}\`);
+              console.log('Submission response:', submissionResponse.status, submissionResponse.data);
+              
+              // Check if response indicates authentication error
+              if (submissionResponse.status === 401) {
+                alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+                localStorage.removeItem('session_id');
+                window.location.href = '/login';
+                return;
+              }
+              
               const submission = submissionResponse.data;
               
               // Fetch grading feedback
@@ -5049,6 +5078,12 @@ app.get('/my-page', (c) => {
               showGradingReviewModal();
             } catch (error) {
               console.error('Error loading submission for review:', error);
+              
+              // Don't show another alert if it's a 401 error (interceptor already handled it)
+              if (error.response?.status === 401) {
+                return;
+              }
+              
               alert('답안 정보를 불러오는데 실패했습니다: ' + (error.response?.data?.error || error.message));
             }
           }
