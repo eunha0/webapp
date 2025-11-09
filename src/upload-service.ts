@@ -23,13 +23,13 @@ interface ProcessingResult {
  */
 export async function processImageOCR(
   file: UploadedFile,
-  credentialsPath: string
+  credentialsJson: string
 ): Promise<ProcessingResult> {
   const startTime = Date.now();
 
   try {
-    // Load service account credentials
-    const credentials = await loadServiceAccountCredentials(credentialsPath);
+    // Load service account credentials from JSON string
+    const credentials = await loadServiceAccountCredentials(credentialsJson);
     
     // Get OAuth 2.0 access token
     const accessToken = await getAccessToken(credentials);
@@ -158,13 +158,13 @@ export async function processPDFExtraction(
  */
 export async function processImagePDFOCR(
   file: UploadedFile,
-  credentialsPath: string
+  credentialsJson: string
 ): Promise<ProcessingResult> {
   const startTime = Date.now();
 
   try {
-    // Load service account credentials
-    const credentials = await loadServiceAccountCredentials(credentialsPath);
+    // Load service account credentials from JSON string
+    const credentials = await loadServiceAccountCredentials(credentialsJson);
     
     // Get OAuth 2.0 access token
     const accessToken = await getAccessToken(credentials);

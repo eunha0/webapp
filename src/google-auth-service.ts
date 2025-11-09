@@ -8,27 +8,31 @@ interface ServiceAccountCredentials {
 }
 
 /**
- * Load service account credentials from environment or file
+ * Load service account credentials from environment variable
+ * credentialsJson parameter should be the raw JSON string from environment
  */
 export async function loadServiceAccountCredentials(
-  credentialsPath?: string
+  credentialsJson: string
 ): Promise<ServiceAccountCredentials> {
-  // In Cloudflare Workers, we need to read the file at build time
-  // For now, we'll parse it from the environment or a string
-  // In production, you would use Cloudflare Secrets
+  // In Cloudflare Workers, we cannot use fs.readFileSync
+  // Instead, we parse credentials directly from environment variable
   
-  if (credentialsPath) {
-    // Read from file system (only works in Node.js environment during build)
-    try {
-      const fs = await import('fs');
-      const fileContent = fs.readFileSync(credentialsPath, 'utf-8');
-      return JSON.parse(fileContent);
-    } catch (error) {
-      throw new Error(`Failed to load credentials from ${credentialsPath}: ${error}`);
-    }
+  if (!credentialsJson) {
+    throw new Error('Service account credentials JSON not provided');
   }
   
-  throw new Error('Service account credentials path not provided');
+  try {
+    const credentials = JSON.parse(credentialsJson);
+    
+    // Validate required fields
+    if (!credentials.client_email || !credentials.private_key || !credentials.project_id) {
+      throw new Error('Invalid credentials: missing required fields (client_email, private_key, project_id)');
+    }
+    
+    return credentials;
+  } catch (error) {
+    throw new Error(`Failed to parse service account credentials: ${error}`);
+  }
 }
 
 /**

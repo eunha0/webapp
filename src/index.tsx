@@ -179,9 +179,9 @@ app.post('/api/upload/image', async (c) => {
     }
     
     const db = c.env.DB
-    const credentialsPath = c.env.GOOGLE_APPLICATION_CREDENTIALS
+    const credentialsJson = c.env.GOOGLE_APPLICATION_CREDENTIALS
     
-    if (!credentialsPath) {
+    if (!credentialsJson) {
       return c.json({ error: 'Google Service Account credentials not configured' }, 500)
     }
     
@@ -245,7 +245,7 @@ app.post('/api/upload/image', async (c) => {
     try {
       const ocrResult = await processImageOCR(
         { name: file.name, buffer: fileBuffer, type: file.type, size: file.size },
-        credentialsPath
+        credentialsJson
       )
       
       if (ocrResult.success && ocrResult.extractedText) {
@@ -327,7 +327,7 @@ app.post('/api/upload/pdf', async (c) => {
     }
     
     const db = c.env.DB
-    const credentialsPath = c.env.GOOGLE_APPLICATION_CREDENTIALS
+    const credentialsJson = c.env.GOOGLE_APPLICATION_CREDENTIALS
     
     // Parse multipart form data
     const formData = await c.req.formData()
@@ -417,7 +417,7 @@ app.post('/api/upload/pdf', async (c) => {
       }
       
       // Text extraction failed or insufficient text, try OCR
-      if (!credentialsPath) {
+      if (!credentialsJson) {
         throw new Error('PDF has no extractable text and Google Service Account credentials not configured')
       }
       
@@ -432,7 +432,7 @@ app.post('/api/upload/pdf', async (c) => {
       
       const ocrResult = await processImagePDFOCR(
         { name: file.name, buffer: fileBuffer, type: file.type, size: file.size },
-        credentialsPath
+        credentialsJson
       )
       
       if (ocrResult.success && ocrResult.extractedText) {
