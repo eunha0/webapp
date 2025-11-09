@@ -248,13 +248,13 @@ app.post('/api/upload/image', async (c) => {
         credentialsPath
       )
       
-      if (ocrResult.success && ocrResult.text) {
+      if (ocrResult.success && ocrResult.extractedText) {
         // Update database with extracted text
         await db.prepare(
           `UPDATE uploaded_files 
            SET extracted_text = ?, processing_status = ?, processed_at = CURRENT_TIMESTAMP
            WHERE id = ?`
-        ).bind(ocrResult.text, 'completed', uploadedFileId).run()
+        ).bind(ocrResult.extractedText, 'completed', uploadedFileId).run()
         
         // Log OCR step
         await logProcessingStep(
@@ -262,16 +262,16 @@ app.post('/api/upload/image', async (c) => {
           uploadedFileId,
           'ocr',
           'completed',
-          `추출된 텍스트: ${ocrResult.text.length} characters`,
-          ocrResult.processingTime
+          `추출된 텍스트: ${ocrResult.extractedText.length} characters`,
+          ocrResult.processingTimeMs || null
         )
         
         return c.json({
           success: true,
           file_id: uploadedFileId,
           file_name: file.name,
-          extracted_text: ocrResult.text,
-          processing_time_ms: ocrResult.processingTime
+          extracted_text: ocrResult.extractedText,
+          processing_time_ms: ocrResult.processingTimeMs
         })
       } else {
         // OCR failed
@@ -287,7 +287,7 @@ app.post('/api/upload/image', async (c) => {
           'ocr',
           'failed',
           ocrResult.error || 'OCR failed',
-          ocrResult.processingTime
+          ocrResult.processingTimeMs || null
         )
         
         return c.json({
@@ -389,30 +389,30 @@ app.post('/api/upload/pdf', async (c) => {
     try {
       const textResult = await processPDFExtraction({ name: file.name, buffer: fileBuffer, type: file.type, size: file.size })
       
-      if (textResult.success && textResult.text && textResult.text.trim().length > 100) {
+      if (textResult.success && textResult.extractedText && textResult.extractedText.trim().length > 100) {
         // Text extraction successful
         await db.prepare(
           `UPDATE uploaded_files 
            SET extracted_text = ?, processing_status = ?, processed_at = CURRENT_TIMESTAMP
            WHERE id = ?`
-        ).bind(textResult.text, 'completed', uploadedFileId).run()
+        ).bind(textResult.extractedText, 'completed', uploadedFileId).run()
         
         await logProcessingStep(
           db,
           uploadedFileId,
           'pdf_text_extraction',
           'completed',
-          `추출된 텍스트: ${textResult.text.length} characters`,
-          textResult.processingTime
+          `추출된 텍스트: ${textResult.extractedText.length} characters`,
+          textResult.processingTimeMs || null
         )
         
         return c.json({
           success: true,
           file_id: uploadedFileId,
           file_name: file.name,
-          extracted_text: textResult.text,
+          extracted_text: textResult.extractedText,
           method: 'text_extraction',
-          processing_time_ms: textResult.processingTime
+          processing_time_ms: textResult.processingTimeMs
         })
       }
       
@@ -427,7 +427,7 @@ app.post('/api/upload/pdf', async (c) => {
         'pdf_text_extraction',
         'insufficient',
         '텍스트 추출 부족, OCR 시도 중...',
-        textResult.processingTime
+        textResult.processingTimeMs || null
       )
       
       const ocrResult = await processImagePDFOCR(
@@ -435,29 +435,29 @@ app.post('/api/upload/pdf', async (c) => {
         credentialsPath
       )
       
-      if (ocrResult.success && ocrResult.text) {
+      if (ocrResult.success && ocrResult.extractedText) {
         await db.prepare(
           `UPDATE uploaded_files 
            SET extracted_text = ?, processing_status = ?, processed_at = CURRENT_TIMESTAMP
            WHERE id = ?`
-        ).bind(ocrResult.text, 'completed', uploadedFileId).run()
+        ).bind(ocrResult.extractedText, 'completed', uploadedFileId).run()
         
         await logProcessingStep(
           db,
           uploadedFileId,
           'pdf_ocr',
           'completed',
-          `추출된 텍스트 (OCR): ${ocrResult.text.length} characters`,
-          ocrResult.processingTime
+          `추출된 텍스트 (OCR): ${ocrResult.extractedText.length} characters`,
+          ocrResult.processingTimeMs || null
         )
         
         return c.json({
           success: true,
           file_id: uploadedFileId,
           file_name: file.name,
-          extracted_text: ocrResult.text,
+          extracted_text: ocrResult.extractedText,
           method: 'ocr',
-          processing_time_ms: ocrResult.processingTime
+          processing_time_ms: ocrResult.processingTimeMs
         })
       } else {
         throw new Error(ocrResult.error || 'PDF OCR failed')
