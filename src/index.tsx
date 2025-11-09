@@ -3857,7 +3857,84 @@ app.get('/my-page', (c) => {
                       <form onsubmit="handleAddSubmission(event)">
                         <div class="space-y-3">
                           <input type="text" id="studentName" placeholder="학생 이름" class="w-full px-4 py-2 border border-gray-300 rounded-lg" required>
-                          <textarea id="studentEssay" rows="6" placeholder="학생 논술 내용을 입력하세요" class="w-full px-4 py-2 border border-gray-300 rounded-lg" required></textarea>
+                          
+                          <!-- Essay Input Type Tabs -->
+                          <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">답안 입력 방식</label>
+                            <div class="flex gap-2 mb-3">
+                              <button 
+                                type="button" 
+                                id="submissionTextInputBtn"
+                                onclick="switchSubmissionInputType('text')" 
+                                class="submission-input-tab flex-1 px-4 py-2 rounded-lg border-2 border-gray-300 text-sm font-semibold transition active bg-navy-900 text-white border-navy-900"
+                              >
+                                <i class="fas fa-keyboard mr-2"></i>텍스트 입력
+                              </button>
+                              <button 
+                                type="button" 
+                                id="submissionFileInputBtn"
+                                onclick="switchSubmissionInputType('file')" 
+                                class="submission-input-tab flex-1 px-4 py-2 rounded-lg border-2 border-gray-300 text-sm font-semibold transition"
+                              >
+                                <i class="fas fa-file-upload mr-2"></i>파일 선택
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <!-- Text Input Container -->
+                          <div id="submissionTextInputContainer">
+                            <textarea id="studentEssay" rows="6" placeholder="학생 논술 내용을 입력하세요" class="w-full px-4 py-2 border border-gray-300 rounded-lg" required></textarea>
+                          </div>
+                          
+                          <!-- File Input Container -->
+                          <div id="submissionFileInputContainer" class="hidden">
+                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-navy-500 transition">
+                              <input 
+                                type="file" 
+                                id="submissionEssayFile" 
+                                accept="image/*,.pdf"
+                                class="hidden"
+                                onchange="handleSubmissionFileSelect(event)"
+                              />
+                              <label for="submissionEssayFile" class="cursor-pointer">
+                                <div class="mb-3">
+                                  <i class="fas fa-cloud-upload-alt text-5xl text-navy-700"></i>
+                                </div>
+                                <p class="text-base font-semibold text-gray-700 mb-2">파일을 선택하거나 드래그하세요</p>
+                                <p class="text-sm text-gray-500 mb-3">
+                                  지원 형식: 이미지 (JPG, PNG), PDF (최대 10MB)
+                                </p>
+                                <span class="inline-block bg-navy-900 text-white px-6 py-2 rounded-lg font-semibold hover:bg-navy-800 transition">
+                                  <i class="fas fa-folder-open mr-2"></i>파일 찾기
+                                </span>
+                              </label>
+                            </div>
+                            
+                            <!-- File Preview -->
+                            <div id="submissionFilePreview" class="hidden mt-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                              <div class="flex items-center justify-between">
+                                <div class="flex items-center">
+                                  <i class="fas fa-file-alt text-3xl text-navy-700 mr-3"></i>
+                                  <div>
+                                    <p id="submissionFileName" class="font-semibold text-gray-800"></p>
+                                    <p id="submissionFileSize" class="text-sm text-gray-500"></p>
+                                  </div>
+                                </div>
+                                <button 
+                                  type="button" 
+                                  onclick="clearSubmissionFile()" 
+                                  class="text-red-500 hover:text-red-700"
+                                >
+                                  <i class="fas fa-times-circle text-2xl"></i>
+                                </button>
+                              </div>
+                              <!-- Image preview -->
+                              <div id="submissionImagePreview" class="hidden mt-3">
+                                <img id="submissionPreviewImg" src="" alt="Preview" class="max-w-full h-auto rounded-lg border border-gray-300" />
+                              </div>
+                            </div>
+                          </div>
+                          
                           <div class="flex gap-2">
                             <button type="submit" class="flex-1 px-4 py-2 bg-navy-900 text-white rounded-lg font-semibold hover:bg-navy-800 transition">추가</button>
                             <button type="button" onclick="hideAddSubmissionForm()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">취소</button>
@@ -4116,6 +4193,122 @@ app.get('/my-page', (c) => {
 
           function hideAddSubmissionForm() {
             document.getElementById('addSubmissionForm').classList.add('hidden');
+            // Reset form
+            document.getElementById('studentName').value = '';
+            document.getElementById('studentEssay').value = '';
+            clearSubmissionFile();
+            switchSubmissionInputType('text');
+          }
+
+          // Global variable for selected submission file
+          let selectedSubmissionFile = null;
+
+          // Switch between text and file input for submission
+          function switchSubmissionInputType(type) {
+            const textInputBtn = document.getElementById('submissionTextInputBtn');
+            const fileInputBtn = document.getElementById('submissionFileInputBtn');
+            const textInputContainer = document.getElementById('submissionTextInputContainer');
+            const fileInputContainer = document.getElementById('submissionFileInputContainer');
+            const essayTextarea = document.getElementById('studentEssay');
+            
+            if (type === 'text') {
+              textInputBtn.classList.add('active', 'bg-navy-900', 'text-white', 'border-navy-900');
+              fileInputBtn.classList.remove('active', 'bg-navy-900', 'text-white', 'border-navy-900');
+              textInputContainer.classList.remove('hidden');
+              fileInputContainer.classList.add('hidden');
+              essayTextarea.required = true;
+            } else {
+              fileInputBtn.classList.add('active', 'bg-navy-900', 'text-white', 'border-navy-900');
+              textInputBtn.classList.remove('active', 'bg-navy-900', 'text-white', 'border-navy-900');
+              fileInputContainer.classList.remove('hidden');
+              textInputContainer.classList.add('hidden');
+              essayTextarea.required = false;
+            }
+          }
+
+          // Handle file selection in submission form
+          function handleSubmissionFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // Validate file size (10MB)
+            if (file.size > 10 * 1024 * 1024) {
+              alert('파일 크기는 10MB 이하로 제한됩니다.');
+              event.target.value = '';
+              return;
+            }
+            
+            // Validate file type
+            const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp', 'image/webp', 'application/pdf'];
+            if (!validTypes.includes(file.type)) {
+              alert('지원하지 않는 파일 형식입니다. 이미지 또는 PDF 파일을 선택해주세요.');
+              event.target.value = '';
+              return;
+            }
+            
+            selectedSubmissionFile = file;
+            
+            // Show file preview
+            const filePreview = document.getElementById('submissionFilePreview');
+            const fileName = document.getElementById('submissionFileName');
+            const fileSize = document.getElementById('submissionFileSize');
+            const imagePreview = document.getElementById('submissionImagePreview');
+            const previewImg = document.getElementById('submissionPreviewImg');
+            
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+            filePreview.classList.remove('hidden');
+            
+            // If image, show preview
+            if (file.type.startsWith('image/')) {
+              const reader = new FileReader();
+              reader.onload = function(e) {
+                previewImg.src = e.target.result;
+                imagePreview.classList.remove('hidden');
+              };
+              reader.readAsDataURL(file);
+            } else {
+              imagePreview.classList.add('hidden');
+            }
+          }
+
+          // Clear selected file in submission form
+          function clearSubmissionFile() {
+            selectedSubmissionFile = null;
+            const fileInput = document.getElementById('submissionEssayFile');
+            if (fileInput) fileInput.value = '';
+            const filePreview = document.getElementById('submissionFilePreview');
+            if (filePreview) filePreview.classList.add('hidden');
+            const imagePreview = document.getElementById('submissionImagePreview');
+            if (imagePreview) imagePreview.classList.add('hidden');
+          }
+
+          // Upload submission file and extract text
+          async function uploadSubmissionFileAndExtractText(file) {
+            // Determine endpoint based on file type
+            let endpoint = '/api/upload/image';
+            if (file.type === 'application/pdf') {
+              endpoint = '/api/upload/pdf';
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+              // Show processing message
+              const response = await axios.post(endpoint, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+              });
+              
+              if (response.data && response.data.extracted_text) {
+                return response.data.extracted_text;
+              } else {
+                throw new Error('텍스트 추출에 실패했습니다.');
+              }
+            } catch (error) {
+              console.error('File upload error:', error);
+              throw error;
+            }
           }
 
           // Handle add submission
@@ -4123,9 +4316,46 @@ app.get('/my-page', (c) => {
             event.preventDefault();
 
             const student_name = document.getElementById('studentName').value;
-            const essay_text = document.getElementById('studentEssay').value;
-
+            const isFileInput = !document.getElementById('submissionFileInputContainer').classList.contains('hidden');
+            
+            let essay_text = '';
+            
             try {
+              if (isFileInput) {
+                // File input mode
+                if (!selectedSubmissionFile) {
+                  alert('파일을 선택해주세요.');
+                  return;
+                }
+                
+                // Show loading state
+                const submitButton = event.target.querySelector('button[type="submit"]');
+                const originalButtonText = submitButton.innerHTML;
+                submitButton.disabled = true;
+                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>파일 처리 중...';
+                
+                try {
+                  // Upload file and extract text
+                  essay_text = await uploadSubmissionFileAndExtractText(selectedSubmissionFile);
+                  
+                  if (!essay_text || essay_text.trim() === '') {
+                    throw new Error('파일에서 텍스트를 추출할 수 없습니다.');
+                  }
+                } catch (uploadError) {
+                  submitButton.disabled = false;
+                  submitButton.innerHTML = originalButtonText;
+                  alert('파일 처리 중 오류가 발생했습니다: ' + uploadError.message);
+                  return;
+                }
+                
+                submitButton.innerHTML = originalButtonText;
+                submitButton.disabled = false;
+              } else {
+                // Text input mode
+                essay_text = document.getElementById('studentEssay').value;
+              }
+              
+              // Submit the essay
               await axios.post(\`/api/assignment/\${currentAssignmentId}/submission\`, {
                 student_name,
                 essay_text
