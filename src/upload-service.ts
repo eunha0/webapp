@@ -2,6 +2,7 @@
 // Handles image OCR (Google Vision) and PDF text extraction (PDF.js)
 
 import * as pdfjsLib from 'pdfjs-dist';
+import { getAccessToken, loadServiceAccountCredentials } from './google-auth-service';
 
 interface UploadedFile {
   name: string;
@@ -18,25 +19,32 @@ interface ProcessingResult {
 }
 
 /**
- * Process image file using Google Cloud Vision API
+ * Process image file using Google Cloud Vision API with Service Account
  */
 export async function processImageOCR(
   file: UploadedFile,
-  apiKey: string
+  credentialsPath: string
 ): Promise<ProcessingResult> {
   const startTime = Date.now();
 
   try {
+    // Load service account credentials
+    const credentials = await loadServiceAccountCredentials(credentialsPath);
+    
+    // Get OAuth 2.0 access token
+    const accessToken = await getAccessToken(credentials);
+
     // Convert ArrayBuffer to base64
     const base64Image = arrayBufferToBase64(file.buffer);
 
-    // Call Google Vision API
+    // Call Google Vision API with Bearer token
     const response = await fetch(
-      `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
+      'https://vision.googleapis.com/v1/images:annotate',
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           requests: [
@@ -150,21 +158,28 @@ export async function processPDFExtraction(
  */
 export async function processImagePDFOCR(
   file: UploadedFile,
-  apiKey: string
+  credentialsPath: string
 ): Promise<ProcessingResult> {
   const startTime = Date.now();
 
   try {
+    // Load service account credentials
+    const credentials = await loadServiceAccountCredentials(credentialsPath);
+    
+    // Get OAuth 2.0 access token
+    const accessToken = await getAccessToken(credentials);
+
     // Convert ArrayBuffer to base64
     const base64Pdf = arrayBufferToBase64(file.buffer);
 
-    // Call Google Vision API with PDF
+    // Call Google Vision API with PDF and Bearer token
     const response = await fetch(
-      `https://vision.googleapis.com/v1/files:annotate?key=${apiKey}`,
+      'https://vision.googleapis.com/v1/files:annotate',
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           requests: [

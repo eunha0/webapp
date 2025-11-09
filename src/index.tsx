@@ -179,10 +179,10 @@ app.post('/api/upload/image', async (c) => {
     }
     
     const db = c.env.DB
-    const apiKey = c.env.GOOGLE_VISION_API_KEY
+    const credentialsPath = c.env.GOOGLE_APPLICATION_CREDENTIALS
     
-    if (!apiKey) {
-      return c.json({ error: 'Google Vision API key not configured' }, 500)
+    if (!credentialsPath) {
+      return c.json({ error: 'Google Service Account credentials not configured' }, 500)
     }
     
     // Parse multipart form data
@@ -244,8 +244,8 @@ app.post('/api/upload/image', async (c) => {
     // Process image with OCR
     try {
       const ocrResult = await processImageOCR(
-        { name: file.name, data: fileBuffer, type: file.type },
-        apiKey
+        { name: file.name, buffer: fileBuffer, type: file.type, size: file.size },
+        credentialsPath
       )
       
       if (ocrResult.success && ocrResult.text) {
@@ -327,7 +327,7 @@ app.post('/api/upload/pdf', async (c) => {
     }
     
     const db = c.env.DB
-    const apiKey = c.env.GOOGLE_VISION_API_KEY
+    const credentialsPath = c.env.GOOGLE_APPLICATION_CREDENTIALS
     
     // Parse multipart form data
     const formData = await c.req.formData()
@@ -387,7 +387,7 @@ app.post('/api/upload/pdf', async (c) => {
     
     // Try PDF text extraction first
     try {
-      const textResult = await processPDFExtraction({ name: file.name, data: fileBuffer, type: file.type })
+      const textResult = await processPDFExtraction({ name: file.name, buffer: fileBuffer, type: file.type, size: file.size })
       
       if (textResult.success && textResult.text && textResult.text.trim().length > 100) {
         // Text extraction successful
@@ -417,8 +417,8 @@ app.post('/api/upload/pdf', async (c) => {
       }
       
       // Text extraction failed or insufficient text, try OCR
-      if (!apiKey) {
-        throw new Error('PDF has no extractable text and Google Vision API key not configured')
+      if (!credentialsPath) {
+        throw new Error('PDF has no extractable text and Google Service Account credentials not configured')
       }
       
       await logProcessingStep(
@@ -431,8 +431,8 @@ app.post('/api/upload/pdf', async (c) => {
       )
       
       const ocrResult = await processImagePDFOCR(
-        { name: file.name, data: fileBuffer, type: file.type },
-        apiKey
+        { name: file.name, buffer: fileBuffer, type: file.type, size: file.size },
+        credentialsPath
       )
       
       if (ocrResult.success && ocrResult.text) {
