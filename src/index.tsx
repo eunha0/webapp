@@ -3842,7 +3842,7 @@ app.get('/my-page', (c) => {
                                 <div class="ml-4">
                                   \${submission.graded ? 
                                     '<span class="text-green-600 font-semibold text-sm"><i class="fas fa-check-circle mr-1"></i>채점완료</span>' :
-                                    '<button onclick="gradeSubmission(\${submission.id})" class="px-4 py-2 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 transition">채점하기</button>'
+                                    '<button onclick="gradeSubmission(\${submission.id}, event)" class="px-4 py-2 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 transition">채점하기</button>'
                                   }
                                 </div>
                               </div>
@@ -4371,26 +4371,37 @@ app.get('/my-page', (c) => {
           }
 
           // Grade submission
-          async function gradeSubmission(submissionId) {
+          async function gradeSubmission(submissionId, event) {
             if (!confirm('이 답안을 AI로 채점하시겠습니까? 채점에는 약 10-30초가 소요됩니다.')) return;
 
-            const button = event.target;
-            const originalText = button.innerHTML;
-            button.disabled = true;
-            button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>채점 중...';
+            const button = event ? event.target : null;
+            let originalText = '';
+            
+            if (button) {
+              originalText = button.innerHTML;
+              button.disabled = true;
+              button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>채점 중...';
+            }
 
             try {
               const response = await axios.post(\`/api/submission/\${submissionId}/grade\`);
               
-              alert(\`채점 완료!\\n\\n전체 점수: \${response.data.grading_result.overall_score}/4\\n\\n종합 피드백: \${response.data.grading_result.overall_feedback}\`);
-              
-              // Reload assignment to show updated status
-              viewAssignment(currentAssignmentId);
+              if (response.data.success) {
+                alert(\`채점 완료!\\n\\n전체 점수: \${response.data.grading_result.total_score}/10\\n\\n종합 평가: \${response.data.grading_result.summary_evaluation}\`);
+                
+                // Reload assignment to show updated status
+                viewAssignment(currentAssignmentId);
+              } else {
+                throw new Error(response.data.error || '채점 실패');
+              }
             } catch (error) {
               console.error('Error grading submission:', error);
               alert('채점에 실패했습니다: ' + (error.response?.data?.error || error.message));
-              button.disabled = false;
-              button.innerHTML = originalText;
+              
+              if (button) {
+                button.disabled = false;
+                button.innerHTML = originalText;
+              }
             }
           }
 
