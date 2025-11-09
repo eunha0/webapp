@@ -1238,6 +1238,83 @@ app.post('/api/submission/:id/grade', async (c) => {
 })
 
 /**
+ * PUT /api/submission/:id/feedback - Update grading feedback
+ */
+app.put('/api/submission/:id/feedback', async (c) => {
+  try {
+    const user = await requireAuth(c)
+    if (!user.id) return user
+    
+    const submissionId = parseInt(c.req.param('id'))
+    const { grading_result } = await c.req.json()
+    const db = c.env.DB
+    
+    // Verify ownership
+    const submission = await db.prepare(
+      `SELECT s.*, a.user_id FROM student_submissions s
+       JOIN assignments a ON s.assignment_id = a.id
+       WHERE s.id = ?`
+    ).bind(submissionId).first()
+    
+    if (!submission) {
+      return c.json({ error: 'Submission not found' }, 404)
+    }
+    
+    if (submission.user_id !== user.id) {
+      return c.json({ error: 'Access denied' }, 403)
+    }
+    
+    // Update submission summary
+    await db.prepare(
+      `UPDATE submission_summary 
+       SET total_score = ?, overall_comment = ?
+       WHERE submission_id = ?`
+    ).bind(
+      grading_result.total_score,
+      grading_result.overall_comment,
+      submissionId
+    ).run()
+    
+    // Update criterion feedback
+    for (let i = 0; i < grading_result.criterion_scores.length; i++) {
+      const criterion = grading_result.criterion_scores[i]
+      
+      // Get rubric ID by name
+      const rubric = await db.prepare(
+        `SELECT r.id FROM assignment_rubrics r
+         JOIN assignments a ON r.assignment_id = a.id
+         JOIN student_submissions s ON s.assignment_id = a.id
+         WHERE s.id = ? AND r.criterion_name = ?`
+      ).bind(submissionId, criterion.criterion_name).first()
+      
+      if (rubric) {
+        await db.prepare(
+          `UPDATE submission_feedback 
+           SET score = ?, positive_feedback = ?, improvement_areas = ?
+           WHERE submission_id = ? AND criterion_id = ?`
+        ).bind(
+          criterion.score,
+          criterion.strengths,
+          criterion.areas_for_improvement,
+          submissionId,
+          rubric.id
+        ).run()
+      }
+    }
+    
+    // Mark as graded
+    await db.prepare(
+      'UPDATE student_submissions SET graded = 1 WHERE id = ?'
+    ).bind(submissionId).run()
+    
+    return c.json({ success: true })
+  } catch (error) {
+    console.error('Error updating feedback:', error)
+    return c.json({ error: 'Failed to update feedback', details: String(error) }, 500)
+  }
+})
+
+/**
  * GET /api/grading-history - Get user's grading history
  */
 app.get('/api/grading-history', async (c) => {
@@ -4371,6 +4448,9 @@ app.get('/my-page', (c) => {
           }
 
           // Grade submission
+          // Global variable to store current grading data
+          let currentGradingData = null;
+
           async function gradeSubmission(submissionId, event) {
             if (!confirm('이 답안을 AI로 채점하시겠습니까? 채점에는 약 10-30초가 소요됩니다.')) return;
 
@@ -4386,11 +4466,21 @@ app.get('/my-page', (c) => {
             try {
               const response = await axios.post(\`/api/submission/\${submissionId}/grade\`);
               
+              if (button) {
+                button.disabled = false;
+                button.innerHTML = originalText;
+              }
+              
               if (response.data.success) {
-                alert(\`채점 완료!\\n\\n전체 점수: \${response.data.grading_result.total_score}/10\\n\\n종합 평가: \${response.data.grading_result.summary_evaluation}\`);
+                // Store grading data for review
+                currentGradingData = {
+                  submissionId: submissionId,
+                  result: response.data.grading_result,
+                  detailedFeedback: response.data.detailed_feedback
+                };
                 
-                // Reload assignment to show updated status
-                viewAssignment(currentAssignmentId);
+                // Show review modal
+                showGradingReviewModal();
               } else {
                 throw new Error(response.data.error || '채점 실패');
               }
@@ -4402,6 +4492,182 @@ app.get('/my-page', (c) => {
                 button.disabled = false;
                 button.innerHTML = originalText;
               }
+            }
+          }
+
+          function showGradingReviewModal() {
+            if (!currentGradingData) return;
+            
+            const result = currentGradingData.result;
+            const feedback = currentGradingData.detailedFeedback;
+            
+            // Create modal HTML
+            const modalHTML = \`
+              <div id="gradingReviewModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                  <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-900">
+                      <i class="fas fa-clipboard-check text-navy-700 mr-2"></i>
+                      채점 결과 검토
+                    </h2>
+                    <button onclick="closeGradingReviewModal()" class="text-gray-400 hover:text-gray-600">
+                      <i class="fas fa-times text-2xl"></i>
+                    </button>
+                  </div>
+                  
+                  <div class="p-6 space-y-6">
+                    <!-- Overall Score -->
+                    <div class="bg-gradient-to-r from-navy-50 to-blue-50 rounded-lg p-6 border-l-4 border-navy-700">
+                      <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-lg font-bold text-gray-900">전체 점수</h3>
+                        <div class="text-3xl font-bold text-navy-700">
+                          <input type="number" id="editTotalScore" value="\${result.total_score}" min="0" max="10" step="0.1"
+                            class="w-24 text-center border-2 border-navy-300 rounded-lg px-2 py-1" />
+                          <span class="text-2xl text-gray-600">/10</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">종합 평가</label>
+                        <textarea id="editSummaryEvaluation" rows="3" 
+                          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent"
+                        >\${result.summary_evaluation}</textarea>
+                      </div>
+                    </div>
+
+                    <!-- Criterion Scores -->
+                    <div>
+                      <h3 class="text-lg font-bold text-gray-900 mb-3">
+                        <i class="fas fa-list-check text-navy-700 mr-2"></i>
+                        평가 기준별 점수
+                      </h3>
+                      <div class="space-y-4" id="criterionScoresContainer">
+                        \${result.criterion_scores.map((criterion, index) => \`
+                          <div class="border border-gray-200 rounded-lg p-4 bg-white">
+                            <div class="flex justify-between items-start mb-3">
+                              <h4 class="font-semibold text-gray-900">\${criterion.criterion_name}</h4>
+                              <div class="flex items-center gap-2">
+                                <input type="number" id="editScore_\${index}" value="\${criterion.score}" min="1" max="4" 
+                                  class="w-16 text-center border border-gray-300 rounded px-2 py-1" />
+                                <span class="text-gray-600">/4</span>
+                              </div>
+                            </div>
+                            <div class="space-y-3">
+                              <div>
+                                <label class="block text-sm font-semibold text-green-700 mb-1">
+                                  <i class="fas fa-check-circle mr-1"></i>강점
+                                </label>
+                                <textarea id="editStrengths_\${index}" rows="2" 
+                                  class="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                                >\${criterion.strengths}</textarea>
+                              </div>
+                              <div>
+                                <label class="block text-sm font-semibold text-orange-700 mb-1">
+                                  <i class="fas fa-exclamation-circle mr-1"></i>개선점
+                                </label>
+                                <textarea id="editImprovements_\${index}" rows="2" 
+                                  class="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                                >\${criterion.areas_for_improvement}</textarea>
+                              </div>
+                            </div>
+                          </div>
+                        \`).join('')}
+                      </div>
+                    </div>
+
+                    <!-- Overall Comment -->
+                    <div>
+                      <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-comment text-navy-700 mr-1"></i>
+                        종합 의견
+                      </label>
+                      <textarea id="editOverallComment" rows="3" 
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      >\${result.overall_comment}</textarea>
+                    </div>
+
+                    <!-- Revision Suggestions -->
+                    <div>
+                      <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-lightbulb text-yellow-600 mr-1"></i>
+                        수정 제안
+                      </label>
+                      <textarea id="editRevisionSuggestions" rows="5" 
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      >\${result.revision_suggestions}</textarea>
+                    </div>
+
+                    <!-- Next Steps -->
+                    <div>
+                      <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-forward text-blue-600 mr-1"></i>
+                        다음 단계 조언
+                      </label>
+                      <textarea id="editNextSteps" rows="4" 
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      >\${result.next_steps_advice}</textarea>
+                    </div>
+                  </div>
+
+                  <!-- Action Buttons -->
+                  <div class="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex gap-3">
+                    <button onclick="saveFeedback()" 
+                      class="flex-1 px-6 py-3 bg-navy-900 text-white rounded-lg font-semibold hover:bg-navy-800 transition">
+                      <i class="fas fa-save mr-2"></i>저장하고 완료
+                    </button>
+                    <button onclick="closeGradingReviewModal()" 
+                      class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">
+                      <i class="fas fa-times mr-2"></i>취소
+                    </button>
+                  </div>
+                </div>
+              </div>
+            \`;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+          }
+
+          function closeGradingReviewModal() {
+            const modal = document.getElementById('gradingReviewModal');
+            if (modal) {
+              modal.remove();
+            }
+            currentGradingData = null;
+          }
+
+          async function saveFeedback() {
+            if (!currentGradingData) return;
+            
+            try {
+              // Collect edited data
+              const editedResult = {
+                total_score: parseFloat(document.getElementById('editTotalScore').value),
+                summary_evaluation: document.getElementById('editSummaryEvaluation').value,
+                overall_comment: document.getElementById('editOverallComment').value,
+                revision_suggestions: document.getElementById('editRevisionSuggestions').value,
+                next_steps_advice: document.getElementById('editNextSteps').value,
+                criterion_scores: currentGradingData.result.criterion_scores.map((criterion, index) => ({
+                  criterion_name: criterion.criterion_name,
+                  score: parseInt(document.getElementById(\`editScore_\${index}\`).value),
+                  strengths: document.getElementById(\`editStrengths_\${index}\`).value,
+                  areas_for_improvement: document.getElementById(\`editImprovements_\${index}\`).value
+                }))
+              };
+              
+              // Update feedback on server
+              const response = await axios.put(\`/api/submission/\${currentGradingData.submissionId}/feedback\`, {
+                grading_result: editedResult
+              });
+              
+              if (response.data.success) {
+                alert('피드백이 저장되었습니다!');
+                closeGradingReviewModal();
+                viewAssignment(currentAssignmentId);
+              } else {
+                throw new Error('피드백 저장 실패');
+              }
+            } catch (error) {
+              console.error('Error saving feedback:', error);
+              alert('피드백 저장에 실패했습니다: ' + (error.response?.data?.error || error.message));
             }
           }
 
