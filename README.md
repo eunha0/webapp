@@ -78,6 +78,7 @@
   
   **채점 API** (교사 인증 필요):
   - `GET /api/submission/:id` - 제출물 상세 조회 (학생 이름, 답안 내용 포함) (NEW! 🎉)
+  - `GET /api/submission/:id/feedback` - 제출물 피드백 조회 (교사용) (NEW! 🎉)
   - `POST /api/submission/:id/grade` - 답안 AI 채점 (상세 피드백 생성)
   - `PUT /api/submission/:id/feedback` - 채점 피드백 수정 (NEW! 🎉)
   - `GET /api/grading-history` - 채점 이력 조회

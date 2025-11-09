@@ -1272,6 +1272,60 @@ app.get('/api/submission/:id', async (c) => {
 })
 
 /**
+ * GET /api/submission/:id/feedback - Get feedback for teacher review
+ */
+app.get('/api/submission/:id/feedback', async (c) => {
+  try {
+    const user = await requireAuth(c)
+    if (!user.id) return user
+    
+    const submissionId = parseInt(c.req.param('id'))
+    const db = c.env.DB
+    
+    // Verify ownership
+    const submission = await db.prepare(
+      `SELECT s.*, a.user_id 
+       FROM student_submissions s
+       JOIN assignments a ON s.assignment_id = a.id
+       WHERE s.id = ?`
+    ).bind(submissionId).first()
+    
+    if (!submission) {
+      return c.json({ error: 'Submission not found' }, 404)
+    }
+    
+    if (submission.user_id !== user.id) {
+      return c.json({ error: 'Access denied' }, 403)
+    }
+    
+    // Get criterion feedbacks
+    const feedbacks = await db.prepare(
+      `SELECT 
+        sf.*,
+        ar.criterion_name,
+        ar.criterion_description
+       FROM submission_feedback sf
+       JOIN assignment_rubrics ar ON sf.criterion_id = ar.id
+       WHERE sf.submission_id = ?
+       ORDER BY sf.id`
+    ).bind(submissionId).all()
+    
+    // Get overall summary
+    const summary = await db.prepare(
+      'SELECT * FROM submission_summary WHERE submission_id = ?'
+    ).bind(submissionId).first()
+    
+    return c.json({
+      criteria: feedbacks.results || [],
+      summary: summary || null
+    })
+  } catch (error) {
+    console.error('Error fetching feedback:', error)
+    return c.json({ error: 'Failed to fetch feedback', details: String(error) }, 500)
+  }
+})
+
+/**
  * PUT /api/submission/:id/feedback - Update grading feedback
  */
 app.put('/api/submission/:id/feedback', async (c) => {
@@ -5050,8 +5104,10 @@ app.get('/my-page', (c) => {
               
               const submission = submissionResponse.data;
               
-              // Fetch grading feedback
-              const feedbackResponse = await axios.get(\`/api/student/submission/\${submissionId}/feedback\`);
+              // Fetch grading feedback (teacher API)
+              console.log('Fetching feedback...');
+              const feedbackResponse = await axios.get(\`/api/submission/\${submissionId}/feedback\`);
+              console.log('Feedback response:', feedbackResponse.status, feedbackResponse.data);
               const feedback = feedbackResponse.data;
               
               // Prepare grading data for modal
