@@ -3827,28 +3827,28 @@ app.get('/my-page', (c) => {
                     <div id="submissionsList">
                       \${assignment.submissions.length === 0 ? 
                         '<p class="text-gray-500 text-center py-8">아직 제출된 답안지가 없습니다.</p>' :
-                        \`<div class="space-y-3">
-                          \${assignment.submissions.map(submission => \`
-                            <div class="border border-gray-200 rounded-lg p-4 bg-white hover:bg-gray-50 transition">
-                              <div class="flex justify-between items-start">
-                                <div class="flex-1">
-                                  <div class="font-semibold text-gray-900">\${submission.student_name}</div>
-                                  <div class="text-sm text-gray-600 mt-1">\${submission.essay_text.substring(0, 100)}...</div>
-                                  <div class="text-xs text-gray-500 mt-2">
-                                    <i class="fas fa-clock mr-1"></i>
-                                    \${new Date(submission.submitted_at).toLocaleString('ko-KR')}
-                                  </div>
-                                </div>
-                                <div class="ml-4">
-                                  \${submission.graded ? 
+                        '<div class="space-y-3">' +
+                          assignment.submissions.map(submission => 
+                            '<div class="border border-gray-200 rounded-lg p-4 bg-white hover:bg-gray-50 transition">' +
+                              '<div class="flex justify-between items-start">' +
+                                '<div class="flex-1">' +
+                                  '<div class="font-semibold text-gray-900">' + submission.student_name + '</div>' +
+                                  '<div class="text-sm text-gray-600 mt-1">' + submission.essay_text.substring(0, 100) + '...</div>' +
+                                  '<div class="text-xs text-gray-500 mt-2">' +
+                                    '<i class="fas fa-clock mr-1"></i>' +
+                                    new Date(submission.submitted_at).toLocaleString('ko-KR') +
+                                  '</div>' +
+                                '</div>' +
+                                '<div class="ml-4">' +
+                                  (submission.graded ? 
                                     '<span class="text-green-600 font-semibold text-sm"><i class="fas fa-check-circle mr-1"></i>채점완료</span>' :
-                                    '<button onclick="gradeSubmission(\${submission.id}, event)" class="px-4 py-2 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 transition">채점하기</button>'
-                                  }
-                                </div>
-                              </div>
-                            </div>
-                          \`).join('')}
-                        </div>\`
+                                    '<button onclick="gradeSubmission(' + submission.id + ', event)" class="px-4 py-2 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 transition">채점하기</button>'
+                                  ) +
+                                '</div>' +
+                              '</div>' +
+                            '</div>'
+                          ).join('') +
+                        '</div>'
                       }
                     </div>
 
