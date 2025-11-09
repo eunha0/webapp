@@ -4961,12 +4961,16 @@ app.get('/my-page', (c) => {
                           <input type="checkbox" 
                             class="submission-checkbox w-5 h-5 text-navy-900 border-gray-300 rounded focus:ring-navy-500" 
                             data-submission-id="\${item.submission_id}"
-                            onchange="updateSelection()">
+                            onchange="updateSelection()"
+                            onclick="event.stopPropagation()">
                         </div>
-                        <div class="flex-1">
+                        <div class="flex-1 cursor-pointer" onclick="reviewSubmissionFromHistory(\${item.submission_id})">
                           <div class="flex justify-between items-start mb-3">
                             <div class="flex-1">
-                              <h3 class="text-lg font-bold text-gray-900">\${item.assignment_title}</h3>
+                              <h3 class="text-lg font-bold text-gray-900 hover:text-navy-700 transition">
+                                \${item.assignment_title}
+                                <i class="fas fa-edit text-navy-600 ml-2 text-sm"></i>
+                              </h3>
                               <p class="text-sm text-gray-600 mt-1">
                                 <i class="fas fa-user mr-2"></i>\${item.student_name}
                                 <span class="mx-2">•</span>
@@ -4985,11 +4989,14 @@ app.get('/my-page', (c) => {
                             <div class="text-sm font-semibold text-gray-700 mb-2">종합 피드백</div>
                             <div class="text-sm text-gray-600">\${item.overall_feedback}</div>
                           </div>
-                          <div class="mt-4 pt-4 border-t border-gray-200">
+                          <div class="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center">
                             <div class="text-xs text-gray-500">
                               <i class="fas fa-calendar mr-1"></i>
                               제출일: \${new Date(item.submitted_at).toLocaleString('ko-KR')}
                             </div>
+                            <button class="text-xs text-navy-700 font-semibold hover:text-navy-900 transition">
+                              클릭하여 재검토 →
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -5005,6 +5012,44 @@ app.get('/my-page', (c) => {
                   <p>채점 이력을 불러오는데 실패했습니다.</p>
                 </div>
               \`;
+            }
+          }
+
+          async function reviewSubmissionFromHistory(submissionId) {
+            try {
+              // Fetch submission details
+              const submissionResponse = await axios.get(\`/api/submission/\${submissionId}\`);
+              const submission = submissionResponse.data;
+              
+              // Fetch grading feedback
+              const feedbackResponse = await axios.get(\`/api/student/submission/\${submissionId}/feedback\`);
+              const feedback = feedbackResponse.data;
+              
+              // Prepare grading data for modal
+              currentGradingData = {
+                submissionId: submissionId,
+                submission: submission,
+                result: {
+                  total_score: feedback.summary?.total_score || 0,
+                  summary_evaluation: feedback.summary?.summary_evaluation || '',
+                  overall_comment: feedback.summary?.overall_comment || '',
+                  revision_suggestions: feedback.summary?.revision_suggestions || '',
+                  next_steps_advice: feedback.summary?.next_steps_advice || '',
+                  criterion_scores: (feedback.criteria || []).map(criterion => ({
+                    criterion_name: criterion.criterion_name,
+                    score: criterion.score,
+                    strengths: criterion.positive_feedback || '',
+                    areas_for_improvement: criterion.improvement_areas || ''
+                  }))
+                },
+                detailedFeedback: feedback
+              };
+              
+              // Show the review modal
+              showGradingReviewModal();
+            } catch (error) {
+              console.error('Error loading submission for review:', error);
+              alert('답안 정보를 불러오는데 실패했습니다: ' + (error.response?.data?.error || error.message));
             }
           }
 
