@@ -314,13 +314,17 @@ export async function logProcessingStep(
   processingTimeMs: number | null
 ) {
   try {
+    // D1 doesn't support undefined values, so convert null to appropriate defaults
+    const finalMessage = message ?? '';
+    const finalProcessingTime = processingTimeMs ?? 0;
+    
     await db
       .prepare(
         `INSERT INTO file_processing_log 
          (uploaded_file_id, step, status, message, processing_time_ms) 
          VALUES (?, ?, ?, ?, ?)`
       )
-      .bind(uploadedFileId, step, status, message, processingTimeMs)
+      .bind(uploadedFileId, step, status, finalMessage, finalProcessingTime)
       .run();
   } catch (error) {
     console.error('Failed to log processing step:', error);
