@@ -4897,6 +4897,9 @@ app.get('/my-page', (c) => {
             }
           }
 
+          // Track selected submissions for export
+          let selectedSubmissions = new Set();
+
           // Load history
           async function loadHistory() {
             try {
@@ -4916,35 +4919,78 @@ app.get('/my-page', (c) => {
                 return;
               }
 
-              container.innerHTML = \`
+              // Create toolbar with export buttons
+              const toolbar = \`
+                <div class="bg-white rounded-lg shadow-md p-4 mb-6 flex justify-between items-center">
+                  <div class="flex items-center space-x-4">
+                    <label class="flex items-center cursor-pointer">
+                      <input type="checkbox" id="selectAll" onchange="toggleSelectAll()" class="w-5 h-5 text-navy-900 border-gray-300 rounded focus:ring-navy-500">
+                      <span class="ml-2 text-sm font-medium text-gray-700">전체 선택</span>
+                    </label>
+                    <span class="text-sm text-gray-600">
+                      <span id="selectedCount">0</span>개 선택됨
+                    </span>
+                  </div>
+                  <div class="relative">
+                    <button id="exportButton" onclick="toggleExportMenu()" 
+                      class="px-6 py-2 bg-navy-900 text-white rounded-lg font-semibold hover:bg-navy-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled>
+                      <i class="fas fa-file-export mr-2"></i>출력
+                      <i class="fas fa-chevron-down ml-2 text-sm"></i>
+                    </button>
+                    <div id="exportMenu" class="hidden absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-10">
+                      <button onclick="exportToPDF()" class="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center border-b border-gray-100">
+                        <i class="fas fa-file-pdf text-red-600 mr-3"></i>
+                        <span class="font-medium">PDF (개별 출력)</span>
+                      </button>
+                      <button onclick="exportToSinglePDF()" class="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center">
+                        <i class="fas fa-file-pdf text-blue-600 mr-3"></i>
+                        <span class="font-medium">단일 PDF 파일로 내보내기</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              \`;
+
+              container.innerHTML = toolbar + \`
                 <div class="space-y-4">
                   \${history.map(item => \`
                     <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition">
-                      <div class="flex justify-between items-start mb-3">
+                      <div class="flex items-start space-x-4">
+                        <div class="flex items-center pt-1">
+                          <input type="checkbox" 
+                            class="submission-checkbox w-5 h-5 text-navy-900 border-gray-300 rounded focus:ring-navy-500" 
+                            data-submission-id="\${item.submission_id}"
+                            onchange="updateSelection()">
+                        </div>
                         <div class="flex-1">
-                          <h3 class="text-lg font-bold text-gray-900">\${item.assignment_title}</h3>
-                          <p class="text-sm text-gray-600 mt-1">
-                            <i class="fas fa-user mr-2"></i>\${item.student_name}
-                            <span class="mx-2">•</span>
-                            <i class="fas fa-graduation-cap mr-2"></i>\${item.grade_level}
-                          </p>
-                        </div>
-                        <div class="text-right">
-                          <div class="text-2xl font-bold text-navy-900">\${item.overall_score}/4</div>
-                          <div class="text-xs text-gray-500 mt-1">
-                            <i class="fas fa-clock mr-1"></i>
-                            \${new Date(item.graded_at).toLocaleString('ko-KR')}
+                          <div class="flex justify-between items-start mb-3">
+                            <div class="flex-1">
+                              <h3 class="text-lg font-bold text-gray-900">\${item.assignment_title}</h3>
+                              <p class="text-sm text-gray-600 mt-1">
+                                <i class="fas fa-user mr-2"></i>\${item.student_name}
+                                <span class="mx-2">•</span>
+                                <i class="fas fa-graduation-cap mr-2"></i>\${item.grade_level}
+                              </p>
+                            </div>
+                            <div class="text-right">
+                              <div class="text-2xl font-bold text-navy-900">\${item.overall_score}/4</div>
+                              <div class="text-xs text-gray-500 mt-1">
+                                <i class="fas fa-clock mr-1"></i>
+                                \${new Date(item.graded_at).toLocaleString('ko-KR')}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                      <div class="bg-gray-50 rounded-lg p-4 mt-4">
-                        <div class="text-sm font-semibold text-gray-700 mb-2">종합 피드백</div>
-                        <div class="text-sm text-gray-600">\${item.overall_feedback}</div>
-                      </div>
-                      <div class="mt-4 pt-4 border-t border-gray-200">
-                        <div class="text-xs text-gray-500">
-                          <i class="fas fa-calendar mr-1"></i>
-                          제출일: \${new Date(item.submitted_at).toLocaleString('ko-KR')}
+                          <div class="bg-gray-50 rounded-lg p-4 mt-4">
+                            <div class="text-sm font-semibold text-gray-700 mb-2">종합 피드백</div>
+                            <div class="text-sm text-gray-600">\${item.overall_feedback}</div>
+                          </div>
+                          <div class="mt-4 pt-4 border-t border-gray-200">
+                            <div class="text-xs text-gray-500">
+                              <i class="fas fa-calendar mr-1"></i>
+                              제출일: \${new Date(item.submitted_at).toLocaleString('ko-KR')}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -4960,6 +5006,371 @@ app.get('/my-page', (c) => {
                 </div>
               \`;
             }
+          }
+
+          function toggleSelectAll() {
+            const selectAll = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('.submission-checkbox');
+            
+            checkboxes.forEach(checkbox => {
+              checkbox.checked = selectAll.checked;
+            });
+            
+            updateSelection();
+          }
+
+          function updateSelection() {
+            const checkboxes = document.querySelectorAll('.submission-checkbox:checked');
+            selectedSubmissions = new Set(Array.from(checkboxes).map(cb => cb.dataset.submissionId));
+            
+            const count = selectedSubmissions.size;
+            document.getElementById('selectedCount').textContent = count;
+            document.getElementById('exportButton').disabled = count === 0;
+            
+            // Update "select all" checkbox state
+            const allCheckboxes = document.querySelectorAll('.submission-checkbox');
+            const selectAllCheckbox = document.getElementById('selectAll');
+            if (selectAllCheckbox) {
+              selectAllCheckbox.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+              selectAllCheckbox.indeterminate = count > 0 && count < allCheckboxes.length;
+            }
+          }
+
+          function toggleExportMenu() {
+            const menu = document.getElementById('exportMenu');
+            menu.classList.toggle('hidden');
+          }
+
+          // Close export menu when clicking outside
+          document.addEventListener('click', function(event) {
+            const menu = document.getElementById('exportMenu');
+            const button = document.getElementById('exportButton');
+            if (menu && button && !menu.contains(event.target) && !button.contains(event.target)) {
+              menu.classList.add('hidden');
+            }
+          });
+
+          async function exportToPDF() {
+            if (selectedSubmissions.size === 0) return;
+            
+            document.getElementById('exportMenu').classList.add('hidden');
+            
+            // Open each submission in a new window for printing
+            for (const submissionId of selectedSubmissions) {
+              await printSubmission(submissionId);
+              // Add delay to prevent browser blocking multiple windows
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          }
+
+          async function exportToSinglePDF() {
+            if (selectedSubmissions.size === 0) return;
+            
+            document.getElementById('exportMenu').classList.add('hidden');
+            
+            try {
+              // Fetch all selected submission details
+              const submissions = await Promise.all(
+                Array.from(selectedSubmissions).map(id => 
+                  axios.get(\`/api/submission/\${id}\`).then(res => res.data)
+                )
+              );
+              
+              // Generate combined HTML for all submissions
+              const combinedHTML = await generateCombinedPDF(submissions);
+              
+              // Open in new window
+              const printWindow = window.open('', '_blank');
+              printWindow.document.write(combinedHTML);
+              printWindow.document.close();
+            } catch (error) {
+              console.error('Error generating combined PDF:', error);
+              alert('PDF 생성에 실패했습니다: ' + error.message);
+            }
+          }
+
+          async function printSubmission(submissionId) {
+            try {
+              const response = await axios.get(\`/api/submission/\${submissionId}\`);
+              const submission = response.data;
+              
+              // Get feedback details
+              const feedbackResponse = await axios.get(\`/api/student/submission/\${submissionId}/feedback\`);
+              const feedback = feedbackResponse.data;
+              
+              // Generate print HTML
+              const printHTML = generatePrintHTML(submission, feedback);
+              
+              const printWindow = window.open('', '_blank');
+              printWindow.document.write(printHTML);
+              printWindow.document.close();
+            } catch (error) {
+              console.error('Error printing submission:', error);
+              alert(\`답안지 \${submissionId} 출력에 실패했습니다.\`);
+            }
+          }
+
+          function generatePrintHTML(submission, feedback) {
+            const summary = feedback.summary || {};
+            const criteriaFeedback = feedback.criteria || [];
+            
+            let criterionHTML = '';
+            criteriaFeedback.forEach(criterion => {
+              criterionHTML += \`
+                <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <strong>\${criterion.criterion_name}</strong>
+                    <span style="font-size: 18px; font-weight: bold; color: #1e3a8a;">\${criterion.score}/4</span>
+                  </div>
+                  <div style="margin-bottom: 8px;">
+                    <strong style="color: #059669;">강점:</strong>
+                    <p style="margin: 5px 0; white-space: pre-wrap;">\${criterion.positive_feedback || '없음'}</p>
+                  </div>
+                  <div>
+                    <strong style="color: #ea580c;">개선점:</strong>
+                    <p style="margin: 5px 0; white-space: pre-wrap;">\${criterion.improvement_areas || '없음'}</p>
+                  </div>
+                </div>
+              \`;
+            });
+            
+            return \`
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="UTF-8">
+                <title>채점 결과 - \${submission.student_name}</title>
+                <style>
+                  body {
+                    font-family: 'Noto Sans KR', Arial, sans-serif;
+                    line-height: 1.6;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 20px;
+                  }
+                  h1, h2, h3 { color: #1e3a8a; }
+                  .header {
+                    border-bottom: 3px solid #1e3a8a;
+                    padding-bottom: 15px;
+                    margin-bottom: 20px;
+                  }
+                  .section {
+                    margin-bottom: 25px;
+                    padding: 15px;
+                    background: #f9fafb;
+                    border-radius: 8px;
+                  }
+                  .score-box {
+                    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+                    color: white;
+                    padding: 20px;
+                    border-radius: 10px;
+                    text-align: center;
+                    margin-bottom: 20px;
+                  }
+                  .score-box h2 {
+                    color: white;
+                    margin: 0 0 10px 0;
+                  }
+                  .score {
+                    font-size: 48px;
+                    font-weight: bold;
+                  }
+                  .essay-content {
+                    background: white;
+                    padding: 15px;
+                    border-left: 4px solid #3b82f6;
+                    margin-bottom: 20px;
+                    white-space: pre-wrap;
+                  }
+                  @media print {
+                    body { padding: 0; }
+                    .no-print { display: none; }
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="header">
+                  <h1>📝 AI 논술 채점 결과</h1>
+                  <p><strong>과제:</strong> \${submission.assignment_title}</p>
+                  <p><strong>학생:</strong> \${submission.student_name}</p>
+                  <p><strong>제출일:</strong> \${new Date(submission.submitted_at).toLocaleString('ko-KR')}</p>
+                </div>
+                
+                <div class="score-box">
+                  <h2>전체 점수</h2>
+                  <div class="score">\${summary.total_score || 0} / 10</div>
+                </div>
+                
+                <div class="section">
+                  <h2>📄 학생 답안</h2>
+                  <div class="essay-content">\${submission.essay_text}</div>
+                </div>
+                
+                <div class="section">
+                  <h2>📋 평가 기준별 점수</h2>
+                  \${criterionHTML}
+                </div>
+                
+                <div class="section">
+                  <h2>💬 종합 의견</h2>
+                  <p style="white-space: pre-wrap;">\${summary.overall_comment || '없음'}</p>
+                </div>
+                
+                <div class="no-print" style="text-align: center; margin-top: 30px;">
+                  <button onclick="window.print()" style="padding: 10px 30px; background: #1e3a8a; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
+                    🖨️ 인쇄하기
+                  </button>
+                  <button onclick="window.close()" style="padding: 10px 30px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-left: 10px;">
+                    닫기
+                  </button>
+                </div>
+              </body>
+              </html>
+            \`;
+          }
+
+          async function generateCombinedPDF(submissions) {
+            let combinedContent = '';
+            
+            for (let i = 0; i < submissions.length; i++) {
+              const submission = submissions[i];
+              
+              try {
+                const feedbackResponse = await axios.get(\`/api/student/submission/\${submission.id}/feedback\`);
+                const feedback = feedbackResponse.data;
+                const summary = feedback.summary || {};
+                const criteriaFeedback = feedback.criteria || [];
+                
+                let criterionHTML = '';
+                criteriaFeedback.forEach(criterion => {
+                  criterionHTML += \`
+                    <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                      <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <strong>\${criterion.criterion_name}</strong>
+                        <span style="font-size: 18px; font-weight: bold; color: #1e3a8a;">\${criterion.score}/4</span>
+                      </div>
+                      <div style="margin-bottom: 8px;">
+                        <strong style="color: #059669;">강점:</strong>
+                        <p style="margin: 5px 0; white-space: pre-wrap;">\${criterion.positive_feedback || '없음'}</p>
+                      </div>
+                      <div>
+                        <strong style="color: #ea580c;">개선점:</strong>
+                        <p style="margin: 5px 0; white-space: pre-wrap;">\${criterion.improvement_areas || '없음'}</p>
+                      </div>
+                    </div>
+                  \`;
+                });
+                
+                combinedContent += \`
+                  <div class="submission-section" style="\${i > 0 ? 'page-break-before: always;' : ''}">
+                    <div class="header">
+                      <h1>📝 AI 논술 채점 결과 (\${i + 1}/\${submissions.length})</h1>
+                      <p><strong>과제:</strong> \${submission.assignment_title}</p>
+                      <p><strong>학생:</strong> \${submission.student_name}</p>
+                      <p><strong>제출일:</strong> \${new Date(submission.submitted_at).toLocaleString('ko-KR')}</p>
+                    </div>
+                    
+                    <div class="score-box">
+                      <h2>전체 점수</h2>
+                      <div class="score">\${summary.total_score || 0} / 10</div>
+                    </div>
+                    
+                    <div class="section">
+                      <h2>📄 학생 답안</h2>
+                      <div class="essay-content">\${submission.essay_text}</div>
+                    </div>
+                    
+                    <div class="section">
+                      <h2>📋 평가 기준별 점수</h2>
+                      \${criterionHTML}
+                    </div>
+                    
+                    <div class="section">
+                      <h2>💬 종합 의견</h2>
+                      <p style="white-space: pre-wrap;">\${summary.overall_comment || '없음'}</p>
+                    </div>
+                  </div>
+                \`;
+              } catch (error) {
+                console.error(\`Error fetching feedback for submission \${submission.id}:\`, error);
+              }
+            }
+            
+            return \`
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="UTF-8">
+                <title>채점 결과 통합 문서 - \${submissions.length}개 답안</title>
+                <style>
+                  body {
+                    font-family: 'Noto Sans KR', Arial, sans-serif;
+                    line-height: 1.6;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 20px;
+                  }
+                  h1, h2, h3 { color: #1e3a8a; }
+                  .header {
+                    border-bottom: 3px solid #1e3a8a;
+                    padding-bottom: 15px;
+                    margin-bottom: 20px;
+                  }
+                  .section {
+                    margin-bottom: 25px;
+                    padding: 15px;
+                    background: #f9fafb;
+                    border-radius: 8px;
+                  }
+                  .score-box {
+                    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+                    color: white;
+                    padding: 20px;
+                    border-radius: 10px;
+                    text-align: center;
+                    margin-bottom: 20px;
+                  }
+                  .score-box h2 {
+                    color: white;
+                    margin: 0 0 10px 0;
+                  }
+                  .score {
+                    font-size: 48px;
+                    font-weight: bold;
+                  }
+                  .essay-content {
+                    background: white;
+                    padding: 15px;
+                    border-left: 4px solid #3b82f6;
+                    margin-bottom: 20px;
+                    white-space: pre-wrap;
+                  }
+                  .submission-section {
+                    margin-bottom: 40px;
+                  }
+                  @media print {
+                    body { padding: 0; }
+                    .no-print { display: none; }
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="no-print" style="text-align: center; padding: 20px; background: #f0f9ff; border-radius: 10px; margin-bottom: 30px;">
+                  <h2 style="color: #1e3a8a; margin-bottom: 10px;">📚 채점 결과 통합 문서</h2>
+                  <p style="color: #64748b;">총 <strong>\${submissions.length}개</strong>의 답안지가 포함되어 있습니다</p>
+                  <button onclick="window.print()" style="padding: 12px 40px; background: #1e3a8a; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 10px;">
+                    🖨️ 전체 인쇄하기
+                  </button>
+                  <button onclick="window.close()" style="padding: 12px 40px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-left: 10px; margin-top: 10px;">
+                    닫기
+                  </button>
+                </div>
+                
+                \${combinedContent}
+              </body>
+              </html>
+            \`;
           }
 
           // Initial load
