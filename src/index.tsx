@@ -4075,7 +4075,7 @@ app.get('/my-page', (c) => {
                                 '<div class="ml-4">' +
                                   (submission.graded ? 
                                     '<span class="text-green-600 font-semibold text-sm"><i class="fas fa-check-circle mr-1"></i>채점완료</span>' :
-                                    '<button onclick="gradeSubmission(' + submission.id + ', event)" class="px-4 py-2 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 transition">채점하기</button>'
+                                    '<button onclick="gradeSubmission(' + submission.id + ')" class="px-4 py-2 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 transition">채점하기</button>'
                                   ) +
                                 '</div>' +
                               '</div>' +
@@ -4348,6 +4348,19 @@ app.get('/my-page', (c) => {
             const feedbackLevel = feedbackLevelBtn ? feedbackLevelBtn.dataset.level : 'detailed';
             const strictness = strictnessBtn ? strictnessBtn.dataset.strictness : 'moderate';
             
+            console.log('Grading Settings:', {
+              submissionId: currentSubmissionIdForGrading,
+              feedbackLevel,
+              strictness
+            });
+            
+            // Validate submission ID
+            if (!currentSubmissionIdForGrading) {
+              alert('채점할 답안지를 찾을 수 없습니다.');
+              closeGradingSettingsModal();
+              return;
+            }
+            
             // Close settings modal
             closeGradingSettingsModal();
             
@@ -4356,6 +4369,7 @@ app.get('/my-page', (c) => {
           }
           
           // Expose functions to window object for onclick handlers
+          window.gradeSubmission = gradeSubmission;
           window.showGradingSettingsModal = showGradingSettingsModal;
           window.selectFeedbackLevel = selectFeedbackLevel;
           window.selectGradingStrictness = selectGradingStrictness;
@@ -4783,12 +4797,26 @@ app.get('/my-page', (c) => {
           // Global variable to store current grading data
           let currentGradingData = null;
 
-          async function gradeSubmission(submissionId, event) {
+          async function gradeSubmission(submissionId) {
+            console.log('gradeSubmission called with submissionId:', submissionId, 'Type:', typeof submissionId);
             // Show grading settings modal
             showGradingSettingsModal(submissionId);
           }
           
           async function executeGrading(submissionId, feedbackLevel, strictness) {
+            console.log('Execute Grading called with:', {
+              submissionId,
+              feedbackLevel,
+              strictness,
+              submissionIdType: typeof submissionId
+            });
+            
+            // Validate submission ID
+            if (!submissionId || isNaN(submissionId)) {
+              alert('유효하지 않은 답안지 ID입니다: ' + submissionId);
+              return;
+            }
+            
             // Find the button in the submissions list
             const buttons = document.querySelectorAll('button[onclick*="gradeSubmission(' + submissionId + '"]');
             const button = buttons.length > 0 ? buttons[0] : null;
@@ -4802,8 +4830,10 @@ app.get('/my-page', (c) => {
 
             try {
               // Get submission details
+              console.log('Fetching submission:', submissionId);
               const submissionResponse = await axios.get(\`/api/submission/\${submissionId}\`);
               const submissionData = submissionResponse.data;
+              console.log('Submission data received:', submissionData);
               
               // Grade submission with settings
               const response = await axios.post(\`/api/submission/\${submissionId}/grade\`, {
