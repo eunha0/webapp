@@ -4190,7 +4190,17 @@ app.get('/my-page', (c) => {
           let currentSubmissionIdForGrading = null;
           
           function showGradingSettingsModal(submissionId) {
+            console.log('showGradingSettingsModal called with:', submissionId, 'Type:', typeof submissionId);
+            
+            // Remove any existing modal first
+            const existingModal = document.getElementById('gradingSettingsModal');
+            if (existingModal) {
+              existingModal.remove();
+            }
+            
+            // Store submission ID
             currentSubmissionIdForGrading = submissionId;
+            console.log('currentSubmissionIdForGrading set to:', currentSubmissionIdForGrading);
             
             const modalHTML = \`
               <div id="gradingSettingsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -4348,24 +4358,28 @@ app.get('/my-page', (c) => {
             const feedbackLevel = feedbackLevelBtn ? feedbackLevelBtn.dataset.level : 'detailed';
             const strictness = strictnessBtn ? strictnessBtn.dataset.strictness : 'moderate';
             
+            // IMPORTANT: Store submission ID in local variable BEFORE closing modal
+            // because closeGradingSettingsModal sets currentSubmissionIdForGrading to null
+            const submissionId = currentSubmissionIdForGrading;
+            
             console.log('Grading Settings:', {
-              submissionId: currentSubmissionIdForGrading,
+              submissionId: submissionId,
               feedbackLevel,
               strictness
             });
             
             // Validate submission ID
-            if (!currentSubmissionIdForGrading) {
+            if (!submissionId) {
               alert('채점할 답안지를 찾을 수 없습니다.');
               closeGradingSettingsModal();
               return;
             }
             
-            // Close settings modal
+            // Close settings modal (this will set currentSubmissionIdForGrading to null)
             closeGradingSettingsModal();
             
-            // Start grading with settings
-            await executeGrading(currentSubmissionIdForGrading, feedbackLevel, strictness);
+            // Start grading with settings using the stored local variable
+            await executeGrading(submissionId, feedbackLevel, strictness);
           }
           
           // Expose functions to window object for onclick handlers
