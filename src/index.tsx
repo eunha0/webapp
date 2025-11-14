@@ -4389,6 +4389,10 @@ app.get('/my-page', (c) => {
           window.selectGradingStrictness = selectGradingStrictness;
           window.closeGradingSettingsModal = closeGradingSettingsModal;
           window.confirmGradingSettings = confirmGradingSettings;
+          window.togglePrintDropdown = togglePrintDropdown;
+          window.printReport = printReport;
+          window.exportToPDF = exportToPDF;
+          window.regradeSubmission = regradeSubmission;
 
           // Platform rubric definitions
           function getPlatformRubricCriteria(type) {
@@ -5030,10 +5034,37 @@ app.get('/my-page', (c) => {
 
                   <!-- Action Buttons -->
                   <div class="bg-gray-50 border-t border-gray-200 px-6 py-4 flex gap-3 rounded-b-xl">
-                    <button onclick="printFeedback()" 
-                      class="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition">
-                      <i class="fas fa-print mr-2"></i>출력
+                    <!-- Print Button with Dropdown -->
+                    <div class="relative">
+                      <div class="flex">
+                        <button onclick="printFeedback()" 
+                          class="px-6 py-3 bg-green-600 text-white rounded-l-lg font-semibold hover:bg-green-700 transition">
+                          <i class="fas fa-print mr-2"></i>출력
+                        </button>
+                        <button onclick="togglePrintDropdown()" 
+                          class="px-3 py-3 bg-green-600 text-white rounded-r-lg font-semibold hover:bg-green-700 transition border-l border-green-700">
+                          <i class="fas fa-chevron-down"></i>
+                        </button>
+                      </div>
+                      <!-- Dropdown Menu -->
+                      <div id="printDropdownMenu" class="hidden absolute bottom-full mb-2 left-0 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[200px] z-50">
+                        <button onclick="printReport()" 
+                          class="w-full text-left px-4 py-2 hover:bg-gray-100 transition">
+                          <i class="fas fa-file-alt mr-2 text-blue-600"></i>보고서 인쇄
+                        </button>
+                        <button onclick="exportToPDF()" 
+                          class="w-full text-left px-4 py-2 hover:bg-gray-100 transition">
+                          <i class="fas fa-file-pdf mr-2 text-red-600"></i>PDF로 내보내기
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <!-- Regrade Button -->
+                    <button onclick="regradeSubmission()" 
+                      class="px-6 py-3 bg-yellow-600 text-white rounded-lg font-semibold hover:bg-yellow-700 transition">
+                      <i class="fas fa-redo mr-2"></i>재채점
                     </button>
+                    
                     <button onclick="saveFeedback()" 
                       class="flex-1 px-6 py-3 bg-navy-900 text-white rounded-lg font-semibold hover:bg-navy-800 transition">
                       <i class="fas fa-save mr-2"></i>저장하고 완료
@@ -5056,6 +5087,56 @@ app.get('/my-page', (c) => {
               modal.remove();
             }
             currentGradingData = null;
+          }
+          
+          // Toggle print dropdown menu
+          function togglePrintDropdown() {
+            const dropdown = document.getElementById('printDropdownMenu');
+            if (dropdown) {
+              dropdown.classList.toggle('hidden');
+            }
+          }
+          
+          // Close dropdown when clicking outside
+          document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('printDropdownMenu');
+            const printButtons = event.target.closest('button[onclick*="togglePrintDropdown"], button[onclick*="printFeedback"]');
+            
+            if (dropdown && !printButtons && !dropdown.contains(event.target)) {
+              dropdown.classList.add('hidden');
+            }
+          });
+          
+          // Print report function
+          function printReport() {
+            console.log('Print Report clicked');
+            togglePrintDropdown();
+            printFeedback(); // Use existing print functionality
+          }
+          
+          // Export to PDF function
+          function exportToPDF() {
+            console.log('Export to PDF clicked');
+            togglePrintDropdown();
+            alert('PDF 내보내기 기능은 준비 중입니다.');
+            // TODO: Implement PDF export functionality
+          }
+          
+          // Regrade submission function
+          function regradeSubmission() {
+            if (!currentGradingData) {
+              alert('채점 데이터를 찾을 수 없습니다.');
+              return;
+            }
+            
+            const submissionId = currentGradingData.submissionId;
+            console.log('Regrade submission:', submissionId);
+            
+            // Close review modal
+            closeGradingReviewModal();
+            
+            // Show grading settings modal for regrade
+            showGradingSettingsModal(submissionId);
           }
 
           function printFeedback() {
