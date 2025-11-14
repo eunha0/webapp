@@ -1152,6 +1152,15 @@ app.post('/api/submission/:id/grade', async (c) => {
       grading_strictness: gradingStrictness
     })
     
+    // Delete existing feedback for regrade (if any)
+    await db.prepare(
+      'DELETE FROM submission_feedback WHERE submission_id = ?'
+    ).bind(submissionId).run()
+    
+    await db.prepare(
+      'DELETE FROM submission_summary WHERE submission_id = ?'
+    ).bind(submissionId).run()
+    
     // Store detailed feedback for each criterion
     for (let i = 0; i < detailedFeedback.criterion_feedbacks.length; i++) {
       const feedback = detailedFeedback.criterion_feedbacks[i]
@@ -5117,21 +5126,23 @@ app.get('/my-page', (c) => {
           // Export to PDF function
           function exportToPDF() {
             console.log('Export to PDF clicked');
-            togglePrintDropdown();
             
             if (!currentGradingData) {
               alert('채점 데이터를 찾을 수 없습니다.');
+              togglePrintDropdown();
               return;
             }
             
-            // Use the browser's print functionality with PDF option
-            // This will allow users to save as PDF using the browser's print dialog
-            printFeedback();
+            // Close dropdown first
+            togglePrintDropdown();
             
-            // Show helpful message
-            setTimeout(() => {
-              alert('인쇄 대화상자에서 "대상"을 "PDF로 저장"으로 선택하세요.');
-            }, 500);
+            // Show instruction before opening print dialog
+            const proceed = confirm('브라우저 인쇄 기능을 사용하여 PDF로 저장합니다.\n\n인쇄 대화상자에서 다음을 선택하세요:\n1. 대상/프린터: "PDF로 저장"\n2. 용지 크기와 여백 조정\n3. "저장" 버튼 클릭\n\n계속하시겠습니까?');
+            
+            if (proceed) {
+              // Use the browser's print functionality
+              printFeedback();
+            }
           }
           
           // Regrade submission function
