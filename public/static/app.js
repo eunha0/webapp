@@ -29,6 +29,9 @@ window.addEventListener('DOMContentLoaded', () => {
   // Leave assignment prompt blank (removed default value)
   // Grade level remains unselected (user selects)
   
+  // Load platform rubrics
+  loadPlatformRubrics();
+  
   // Add 4 default criteria for custom rubric
   defaultCriteria.forEach(criterion => {
     addCriterion(criterion.name, criterion.description);
@@ -1008,4 +1011,64 @@ function generateResultHTML(result) {
       </div>
     </div>
   `;
+}
+
+// Load platform rubrics for landing page
+async function loadPlatformRubrics() {
+  try {
+    const response = await axios.get('/api/resources/rubric');
+    const rubrics = response.data;
+    
+    const select = document.getElementById('platformRubric');
+    
+    if (!select) return;
+    
+    // Add default built-in rubrics
+    const builtInOptions = [
+      { value: 'standard', text: '표준 논술 루브릭 (4개 기준)' },
+      { value: 'detailed', text: '상세 논술 루브릭 (6개 기준)' },
+      { value: 'simple', text: '간단 논술 루브릭 (3개 기준)' },
+      { value: 'nyregents', text: '뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)' }
+    ];
+    
+    // Sort database rubrics in specific order
+    // Order: 분석적 글쓰기 (ID:2) -> 중학교 (ID:1) -> 초등학교 (ID:3)
+    const sortOrder = {
+      '뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭': 1,
+      '뉴욕 주 중학교 글쓰기 루브릭': 2,
+      '뉴욕 주 초등학교 글쓰기 루브릭': 3
+    };
+    
+    const sortedRubrics = rubrics.sort((a, b) => {
+      const orderA = sortOrder[a.title] || 999;
+      const orderB = sortOrder[b.title] || 999;
+      return orderA - orderB;
+    });
+    
+    // Add database rubrics
+    const dbOptions = sortedRubrics.map(rubric => ({
+      value: 'db_' + rubric.id,
+      text: rubric.title
+    }));
+    
+    // Combine all options
+    const allOptions = [...builtInOptions, ...dbOptions];
+    
+    select.innerHTML = allOptions.map(opt => 
+      `<option value="${opt.value}">${opt.text}</option>`
+    ).join('');
+    
+  } catch (error) {
+    console.error('Failed to load platform rubrics:', error);
+    // Keep default options on error
+    const select = document.getElementById('platformRubric');
+    if (select) {
+      select.innerHTML = `
+        <option value="standard">표준 논술 루브릭 (4개 기준)</option>
+        <option value="detailed">상세 논술 루브릭 (6개 기준)</option>
+        <option value="simple">간단 논술 루브릭 (3개 기준)</option>
+        <option value="nyregents">뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)</option>
+      `;
+    }
+  }
 }

@@ -1080,6 +1080,11 @@ app.post('/api/submission/:id/grade', async (c) => {
     const submissionId = parseInt(c.req.param('id'))
     const db = c.env.DB
     
+    // Get grading settings from request body (optional)
+    const body = await c.req.json().catch(() => ({}))
+    const feedbackLevel = body.feedback_level || 'detailed' // 'detailed', 'moderate', 'brief'
+    const gradingStrictness = body.grading_strictness || 'moderate' // 'lenient', 'moderate', 'strict'
+    
     // Get submission and verify assignment ownership
     const submission = await db.prepare(
       `SELECT s.*, a.title as assignment_title, a.description as assignment_prompt, a.grade_level, a.user_id
@@ -1129,7 +1134,7 @@ app.post('/api/submission/:id/grade', async (c) => {
     // Store grading result
     const resultId = await storeGradingResult(db, essayId, sessionId, gradingResult)
     
-    // Generate detailed feedback with grade-level tone adjustment
+    // Generate detailed feedback with grade-level tone adjustment and custom settings
     const detailedFeedback = await generateDetailedFeedback({
       essay_text: submission.essay_text as string,
       grade_level: submission.grade_level as string,
@@ -1142,7 +1147,9 @@ app.post('/api/submission/:id/grade', async (c) => {
         score: cs.score,
         strengths: cs.strengths,
         areas_for_improvement: cs.areas_for_improvement
-      }))
+      })),
+      feedback_level: feedbackLevel,
+      grading_strictness: gradingStrictness
     })
     
     // Store detailed feedback for each criterion
@@ -2224,10 +2231,7 @@ app.get('/', (c) => {
                                             id="platformRubric" 
                                             class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent"
                                         >
-                                            <option value="standard">표준 논술 루브릭 (4개 기준)</option>
-                                            <option value="detailed">상세 논술 루브릭 (6개 기준)</option>
-                                            <option value="simple">간단 논술 루브릭 (3개 기준)</option>
-                                            <option value="nyregents">뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)</option>
+                                            <option value="">루브릭을 불러오는 중...</option>
                                         </select>
                                     </div>
                                     
@@ -2544,7 +2548,7 @@ app.get('/resources/:category', async (c) => {
         <script>
           async function loadPosts() {
             try {
-              const response = await axios.get('/api/resources/${category}');
+              const response = await axios.get('/api/resources/' + '${category}');
               const posts = response.data;
               
               const container = document.getElementById('postsList');
@@ -3794,10 +3798,7 @@ app.get('/my-page', (c) => {
                                     id="assignmentPlatformRubric" 
                                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-700 focus:border-transparent"
                                 >
-                                    <option value="standard">표준 논술 루브릭 (4개 기준)</option>
-                                    <option value="detailed">상세 논술 루브릭 (6개 기준)</option>
-                                    <option value="simple">간단 논술 루브릭 (3개 기준)</option>
-                                    <option value="nyregents">뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)</option>
+                                    <option value="">루브릭을 불러오는 중...</option>
                                 </select>
                             </div>
                             
@@ -3895,6 +3896,66 @@ app.get('/my-page', (c) => {
               historyContent.classList.remove('hidden');
               assignmentsContent.classList.add('hidden');
               loadHistory();
+            }
+          }
+
+          // Load platform rubrics for assignment creation
+          async function loadPlatformRubrics() {
+            try {
+              const response = await axios.get('/api/resources/rubric');
+              const rubrics = response.data;
+              
+              const select = document.getElementById('assignmentPlatformRubric');
+              
+              if (!select) return;
+              
+              // Add default built-in rubrics
+              const builtInOptions = [
+                { value: 'standard', text: '표준 논술 루브릭 (4개 기준)' },
+                { value: 'detailed', text: '상세 논술 루브릭 (6개 기준)' },
+                { value: 'simple', text: '간단 논술 루브릭 (3개 기준)' },
+                { value: 'nyregents', text: '뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)' }
+              ];
+              
+              // Sort database rubrics in specific order
+              // Order: 분석적 글쓰기 (ID:2) -> 중학교 (ID:1) -> 초등학교 (ID:3)
+              const sortOrder = {
+                '뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭': 1,
+                '뉴욕 주 중학교 글쓰기 루브릭': 2,
+                '뉴욕 주 초등학교 글쓰기 루브릭': 3
+              };
+              
+              const sortedRubrics = rubrics.sort((a, b) => {
+                const orderA = sortOrder[a.title] || 999;
+                const orderB = sortOrder[b.title] || 999;
+                return orderA - orderB;
+              });
+              
+              // Add database rubrics
+              const dbOptions = sortedRubrics.map(rubric => ({
+                value: 'db_' + rubric.id,
+                text: rubric.title
+              }));
+              
+              // Combine all options
+              const allOptions = [...builtInOptions, ...dbOptions];
+              
+              select.innerHTML = allOptions.map(opt => 
+                \`<option value="\${opt.value}">\${opt.text}</option>\`
+              ).join('');
+              
+            } catch (error) {
+              console.error('Failed to load platform rubrics:', error);
+              // Keep default options on error
+              const select = document.getElementById('assignmentPlatformRubric');
+              if (select) {
+                select.innerHTML = \`
+                  <option value="standard">표준 논술 루브릭 (4개 기준)</option>
+                  <option value="detailed">상세 논술 루브릭 (6개 기준)</option>
+                  <option value="simple">간단 논술 루브릭 (3개 기준)</option>
+                  <option value="nyregents">뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)</option>
+                \`;
+              }
             }
           }
 
@@ -4124,6 +4185,182 @@ app.get('/my-page', (c) => {
               alert('과제를 불러오는데 실패했습니다.');
             }
           }
+
+          // Grading Settings Modal
+          let currentSubmissionIdForGrading = null;
+          
+          function showGradingSettingsModal(submissionId) {
+            currentSubmissionIdForGrading = submissionId;
+            
+            const modalHTML = \`
+              <div id="gradingSettingsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
+                  <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900">
+                      <i class="fas fa-sliders-h text-navy-700 mr-2"></i>
+                      채점 설정
+                    </h2>
+                    <button onclick="closeGradingSettingsModal()" class="text-gray-400 hover:text-gray-600">
+                      <i class="fas fa-times text-2xl"></i>
+                    </button>
+                  </div>
+                  
+                  <div class="space-y-6">
+                    <!-- Feedback Detail Level -->
+                    <div>
+                      <label class="block text-sm font-semibold text-gray-700 mb-3">
+                        <i class="fas fa-list-ul text-navy-700 mr-2"></i>
+                        피드백 세부 수준
+                      </label>
+                      <div class="grid grid-cols-3 gap-3">
+                        <button 
+                          type="button"
+                          onclick="selectFeedbackLevel('detailed')"
+                          class="feedback-level-btn px-4 py-3 border-2 border-gray-300 rounded-lg text-sm font-semibold hover:border-navy-500 transition active"
+                          data-level="detailed"
+                        >
+                          <i class="fas fa-align-justify mb-1"></i>
+                          <div>상세하게</div>
+                        </button>
+                        <button 
+                          type="button"
+                          onclick="selectFeedbackLevel('moderate')"
+                          class="feedback-level-btn px-4 py-3 border-2 border-gray-300 rounded-lg text-sm font-semibold hover:border-navy-500 transition"
+                          data-level="moderate"
+                        >
+                          <i class="fas fa-align-left mb-1"></i>
+                          <div>중간</div>
+                        </button>
+                        <button 
+                          type="button"
+                          onclick="selectFeedbackLevel('brief')"
+                          class="feedback-level-btn px-4 py-3 border-2 border-gray-300 rounded-lg text-sm font-semibold hover:border-navy-500 transition"
+                          data-level="brief"
+                        >
+                          <i class="fas fa-minus mb-1"></i>
+                          <div>간략하게</div>
+                        </button>
+                      </div>
+                      <p class="text-xs text-gray-500 mt-2">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        피드백의 상세함 정도를 선택하세요
+                      </p>
+                    </div>
+                    
+                    <!-- Grading Strictness -->
+                    <div>
+                      <label class="block text-sm font-semibold text-gray-700 mb-3">
+                        <i class="fas fa-balance-scale text-navy-700 mr-2"></i>
+                        채점 강도
+                      </label>
+                      <div class="grid grid-cols-3 gap-3">
+                        <button 
+                          type="button"
+                          onclick="selectGradingStrictness('lenient')"
+                          class="grading-strictness-btn px-4 py-3 border-2 border-gray-300 rounded-lg text-sm font-semibold hover:border-navy-500 transition"
+                          data-strictness="lenient"
+                        >
+                          <i class="fas fa-smile mb-1"></i>
+                          <div>관대하게</div>
+                        </button>
+                        <button 
+                          type="button"
+                          onclick="selectGradingStrictness('moderate')"
+                          class="grading-strictness-btn px-4 py-3 border-2 border-gray-300 rounded-lg text-sm font-semibold hover:border-navy-500 transition active"
+                          data-strictness="moderate"
+                        >
+                          <i class="fas fa-meh mb-1"></i>
+                          <div>보통</div>
+                        </button>
+                        <button 
+                          type="button"
+                          onclick="selectGradingStrictness('strict')"
+                          class="grading-strictness-btn px-4 py-3 border-2 border-gray-300 rounded-lg text-sm font-semibold hover:border-navy-500 transition"
+                          data-strictness="strict"
+                        >
+                          <i class="fas fa-frown mb-1"></i>
+                          <div>엄격하게</div>
+                        </button>
+                      </div>
+                      <p class="text-xs text-gray-500 mt-2">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        채점 기준의 엄격함 정도를 선택하세요
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div class="flex gap-3 mt-8">
+                    <button 
+                      onclick="confirmGradingSettings()" 
+                      class="flex-1 px-6 py-3 bg-navy-900 text-white rounded-lg font-semibold hover:bg-navy-800 transition"
+                    >
+                      <i class="fas fa-check mr-2"></i>채점 시작
+                    </button>
+                    <button 
+                      onclick="closeGradingSettingsModal()" 
+                      class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition"
+                    >
+                      취소
+                    </button>
+                  </div>
+                </div>
+              </div>
+            \`;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+          }
+          
+          function selectFeedbackLevel(level) {
+            const buttons = document.querySelectorAll('.feedback-level-btn');
+            buttons.forEach(btn => {
+              if (btn.dataset.level === level) {
+                btn.classList.add('active', 'bg-navy-900', 'text-white', 'border-navy-900');
+              } else {
+                btn.classList.remove('active', 'bg-navy-900', 'text-white', 'border-navy-900');
+              }
+            });
+          }
+          
+          function selectGradingStrictness(strictness) {
+            const buttons = document.querySelectorAll('.grading-strictness-btn');
+            buttons.forEach(btn => {
+              if (btn.dataset.strictness === strictness) {
+                btn.classList.add('active', 'bg-navy-900', 'text-white', 'border-navy-900');
+              } else {
+                btn.classList.remove('active', 'bg-navy-900', 'text-white', 'border-navy-900');
+              }
+            });
+          }
+          
+          function closeGradingSettingsModal() {
+            const modal = document.getElementById('gradingSettingsModal');
+            if (modal) {
+              modal.remove();
+            }
+            currentSubmissionIdForGrading = null;
+          }
+          
+          async function confirmGradingSettings() {
+            // Get selected settings
+            const feedbackLevelBtn = document.querySelector('.feedback-level-btn.active');
+            const strictnessBtn = document.querySelector('.grading-strictness-btn.active');
+            
+            const feedbackLevel = feedbackLevelBtn ? feedbackLevelBtn.dataset.level : 'detailed';
+            const strictness = strictnessBtn ? strictnessBtn.dataset.strictness : 'moderate';
+            
+            // Close settings modal
+            closeGradingSettingsModal();
+            
+            // Start grading with settings
+            await executeGrading(currentSubmissionIdForGrading, feedbackLevel, strictness);
+          }
+          
+          // Expose functions to window object for onclick handlers
+          window.showGradingSettingsModal = showGradingSettingsModal;
+          window.selectFeedbackLevel = selectFeedbackLevel;
+          window.selectGradingStrictness = selectGradingStrictness;
+          window.closeGradingSettingsModal = closeGradingSettingsModal;
+          window.confirmGradingSettings = confirmGradingSettings;
 
           // Platform rubric definitions
           function getPlatformRubricCriteria(type) {
@@ -4547,9 +4784,14 @@ app.get('/my-page', (c) => {
           let currentGradingData = null;
 
           async function gradeSubmission(submissionId, event) {
-            if (!confirm('이 답안을 AI로 채점하시겠습니까? 채점에는 약 10-30초가 소요됩니다.')) return;
-
-            const button = event ? event.target : null;
+            // Show grading settings modal
+            showGradingSettingsModal(submissionId);
+          }
+          
+          async function executeGrading(submissionId, feedbackLevel, strictness) {
+            // Find the button in the submissions list
+            const buttons = document.querySelectorAll('button[onclick*="gradeSubmission(' + submissionId + '"]');
+            const button = buttons.length > 0 ? buttons[0] : null;
             let originalText = '';
             
             if (button) {
@@ -4563,8 +4805,11 @@ app.get('/my-page', (c) => {
               const submissionResponse = await axios.get(\`/api/submission/\${submissionId}\`);
               const submissionData = submissionResponse.data;
               
-              // Grade submission
-              const response = await axios.post(\`/api/submission/\${submissionId}/grade\`);
+              // Grade submission with settings
+              const response = await axios.post(\`/api/submission/\${submissionId}/grade\`, {
+                feedback_level: feedbackLevel,
+                grading_strictness: strictness
+              });
               
               if (button) {
                 button.disabled = false;
@@ -5510,6 +5755,7 @@ app.get('/my-page', (c) => {
           }
 
           // Initial load
+          loadPlatformRubrics();
           loadAssignments();
         </script>
     </body>

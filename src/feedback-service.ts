@@ -32,13 +32,22 @@ interface FeedbackRequest {
     strengths: string
     areas_for_improvement: string
   }>
+  feedback_level?: 'detailed' | 'moderate' | 'brief'
+  grading_strictness?: 'lenient' | 'moderate' | 'strict'
 }
 
 /**
  * Generate detailed feedback for each criterion with tone adjusted for grade level
  */
 export async function generateDetailedFeedback(request: FeedbackRequest): Promise<DetailedFeedbackResult> {
-  const { essay_text, grade_level, rubric_criteria, criterion_scores } = request
+  const { 
+    essay_text, 
+    grade_level, 
+    rubric_criteria, 
+    criterion_scores,
+    feedback_level = 'detailed',
+    grading_strictness = 'moderate'
+  } = request
   
   // Determine tone based on grade level
   const tone = getGradeLevelTone(grade_level)
@@ -50,9 +59,9 @@ export async function generateDetailedFeedback(request: FeedbackRequest): Promis
     return {
       criterion_name: score.criterion_name,
       score: score.score,
-      positive_feedback: generatePositiveFeedback(score, criterion?.criterion_description || '', tone),
-      improvement_areas: score.areas_for_improvement,
-      specific_suggestions: generateSpecificSuggestions(score, criterion?.criterion_description || '', tone)
+      positive_feedback: generatePositiveFeedback(score, criterion?.criterion_description || '', tone, feedback_level),
+      improvement_areas: adjustImprovementAreasByLevel(score.areas_for_improvement, feedback_level),
+      specific_suggestions: generateSpecificSuggestions(score, criterion?.criterion_description || '', tone, feedback_level)
     }
   })
   
@@ -94,7 +103,8 @@ function getGradeLevelTone(grade_level: string): 'elementary' | 'middle' | 'high
 function generatePositiveFeedback(
   score: { criterion_name: string; score: number; strengths: string },
   description: string,
-  tone: string
+  tone: string,
+  feedbackLevel: string = 'detailed'
 ): string {
   const { criterion_name, score: points, strengths } = score
   
@@ -126,33 +136,53 @@ function generatePositiveFeedback(
 }
 
 /**
+ * Adjust improvement areas based on feedback level
+ */
+function adjustImprovementAreasByLevel(text: string, feedbackLevel: string): string {
+  if (feedbackLevel === 'brief') {
+    // Return first sentence only
+    const sentences = text.split('.')
+    return sentences[0] + (sentences[0].endsWith('.') ? '' : '.')
+  } else if (feedbackLevel === 'moderate') {
+    // Return first 2 sentences
+    const sentences = text.split('.')
+    return sentences.slice(0, 2).join('.') + (sentences.length > 1 ? '.' : '')
+  }
+  return text // detailed: return all
+}
+
+/**
  * Generate specific, actionable suggestions
  */
 function generateSpecificSuggestions(
   score: { criterion_name: string; score: number; areas_for_improvement: string },
   description: string,
-  tone: string
+  tone: string,
+  feedbackLevel: string = 'detailed'
 ): string {
   const { criterion_name, score: points, areas_for_improvement } = score
   
   const suggestions: string[] = []
   
+  // Adjust detail level based on feedback_level
+  const maxSuggestions = feedbackLevel === 'brief' ? 1 : feedbackLevel === 'moderate' ? 2 : 3
+  
   if (points < 4) {
     if (tone === 'elementary') {
-      suggestions.push(`💡 다음번에는 이렇게 해보세요:`)
-      suggestions.push(`1. ${areas_for_improvement}`)
-      suggestions.push(`2. 선생님께 더 자세히 여쭤보세요`)
-      suggestions.push(`3. 친구들의 좋은 예를 참고해보세요`)
+      if (maxSuggestions >= 1) suggestions.push(`💡 다음번에는 이렇게 해보세요:`)
+      if (maxSuggestions >= 1) suggestions.push(`1. ${areas_for_improvement}`)
+      if (maxSuggestions >= 2) suggestions.push(`2. 선생님께 더 자세히 여쭤보세요`)
+      if (maxSuggestions >= 3) suggestions.push(`3. 친구들의 좋은 예를 참고해보세요`)
     } else if (tone === 'middle') {
-      suggestions.push(`💡 구체적인 개선 방안:`)
-      suggestions.push(`1. ${areas_for_improvement}`)
-      suggestions.push(`2. 관련 예시를 더 많이 찾아보세요`)
-      suggestions.push(`3. 논리적 연결을 강화하기 위해 접속사를 효과적으로 사용하세요`)
+      if (maxSuggestions >= 1) suggestions.push(`💡 구체적인 개선 방안:`)
+      if (maxSuggestions >= 1) suggestions.push(`1. ${areas_for_improvement}`)
+      if (maxSuggestions >= 2) suggestions.push(`2. 관련 예시를 더 많이 찾아보세요`)
+      if (maxSuggestions >= 3) suggestions.push(`3. 논리적 연결을 강화하기 위해 접속사를 효과적으로 사용하세요`)
     } else {
-      suggestions.push(`💡 심화 학습 방향:`)
-      suggestions.push(`1. ${areas_for_improvement}`)
-      suggestions.push(`2. 학술적 근거를 보강하기 위해 신뢰할 수 있는 출처를 인용하세요`)
-      suggestions.push(`3. 반론을 고려하여 논증의 설득력을 높이세요`)
+      if (maxSuggestions >= 1) suggestions.push(`💡 심화 학습 방향:`)
+      if (maxSuggestions >= 1) suggestions.push(`1. ${areas_for_improvement}`)
+      if (maxSuggestions >= 2) suggestions.push(`2. 학술적 근거를 보강하기 위해 신뢰할 수 있는 출처를 인용하세요`)
+      if (maxSuggestions >= 3) suggestions.push(`3. 반론을 고려하여 논증의 설득력을 높이세요`)
     }
   }
   
