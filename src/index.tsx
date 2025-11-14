@@ -5118,8 +5118,20 @@ app.get('/my-page', (c) => {
           function exportToPDF() {
             console.log('Export to PDF clicked');
             togglePrintDropdown();
-            alert('PDF 내보내기 기능은 준비 중입니다.');
-            // TODO: Implement PDF export functionality
+            
+            if (!currentGradingData) {
+              alert('채점 데이터를 찾을 수 없습니다.');
+              return;
+            }
+            
+            // Use the browser's print functionality with PDF option
+            // This will allow users to save as PDF using the browser's print dialog
+            printFeedback();
+            
+            // Show helpful message
+            setTimeout(() => {
+              alert('인쇄 대화상자에서 "대상"을 "PDF로 저장"으로 선택하세요.');
+            }, 500);
           }
           
           // Regrade submission function
@@ -5129,13 +5141,20 @@ app.get('/my-page', (c) => {
               return;
             }
             
+            // CRITICAL: Store submission ID BEFORE closing modal
+            // because closeGradingReviewModal sets currentGradingData to null
             const submissionId = currentGradingData.submissionId;
-            console.log('Regrade submission:', submissionId);
+            console.log('Regrade submission:', submissionId, 'Type:', typeof submissionId);
+            
+            if (!submissionId || isNaN(submissionId)) {
+              alert('유효하지 않은 답안지 ID입니다: ' + submissionId);
+              return;
+            }
             
             // Close review modal
             closeGradingReviewModal();
             
-            // Show grading settings modal for regrade
+            // Show grading settings modal for regrade with the stored ID
             showGradingSettingsModal(submissionId);
           }
 
