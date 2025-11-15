@@ -3950,7 +3950,7 @@ app.get('/my-page', (c) => {
               const allOptions = [...builtInOptions, ...dbOptions];
               
               select.innerHTML = allOptions.map(opt => 
-                \`<option value="\${opt.value}">\${opt.text}</option>\`
+                '<option value="' + opt.value + '">' + opt.text + '</option>'
               ).join('');
               
             } catch (error) {
@@ -5137,7 +5137,14 @@ app.get('/my-page', (c) => {
             togglePrintDropdown();
             
             // Show instruction before opening print dialog
-            const proceed = confirm('브라우저 인쇄 기능을 사용하여 PDF로 저장합니다.\n\n인쇄 대화상자에서 다음을 선택하세요:\n1. 대상/프린터: "PDF로 저장"\n2. 용지 크기와 여백 조정\n3. "저장" 버튼 클릭\n\n계속하시겠습니까?');
+            const proceed = confirm(
+              '브라우저 인쇄 기능을 사용하여 PDF로 저장합니다.' + '\\n\\n' +
+              '인쇄 대화상자에서 다음을 선택하세요:' + '\\n' +
+              '1. 대상/프린터: "PDF로 저장"' + '\\n' +
+              '2. 용지 크기와 여백 조정' + '\\n' +
+              '3. "저장" 버튼 클릭' + '\\n\\n' +
+              '계속하시겠습니까?'
+            );
             
             if (proceed) {
               // Use the browser's print functionality
