@@ -1028,31 +1028,17 @@ async function loadPlatformRubrics() {
       { value: 'standard', text: '표준 논술 루브릭 (4개 기준)' },
       { value: 'detailed', text: '상세 논술 루브릭 (6개 기준)' },
       { value: 'simple', text: '간단 논술 루브릭 (3개 기준)' },
-      { value: 'nyregents', text: '뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)' }
+      { value: 'nyregents', text: '뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)' },
+      { value: 'nyregents_analytical', text: '뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭' },
+      { value: 'ny_middle', text: '뉴욕 주 중학교 논술 루브릭' },
+      { value: 'ny_elementary', text: '뉴욕 주 초등학교 논술 루브릭' },
+      { value: 'ib_myp_highschool', text: 'IB 중등 프로그램 고등학교 개인과 사회 논술 루브릭' },
+      { value: 'ib_myp_middleschool', text: 'IB 중등 프로그램 중학교 개인과 사회 논술 루브릭' },
+      { value: 'ib_myp_science', text: 'IB 중등 프로그램 과학 논술 루브릭' }
     ];
     
-    // Sort database rubrics in specific order
-    // Order: 분석적 글쓰기 (ID:2) -> 중학교 (ID:1) -> 초등학교 (ID:3)
-    const sortOrder = {
-      '뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭': 1,
-      '뉴욕 주 중학교 글쓰기 루브릭': 2,
-      '뉴욕 주 초등학교 글쓰기 루브릭': 3
-    };
-    
-    const sortedRubrics = rubrics.sort((a, b) => {
-      const orderA = sortOrder[a.title] || 999;
-      const orderB = sortOrder[b.title] || 999;
-      return orderA - orderB;
-    });
-    
-    // Add database rubrics
-    const dbOptions = sortedRubrics.map(rubric => ({
-      value: 'db_' + rubric.id,
-      text: rubric.title
-    }));
-    
-    // Combine all options
-    const allOptions = [...builtInOptions, ...dbOptions];
+    // All rubrics are now built-in (no database rubrics)
+    const allOptions = builtInOptions;
     
     select.innerHTML = allOptions.map(opt => 
       `<option value="${opt.value}">${opt.text}</option>`
@@ -1068,6 +1054,12 @@ async function loadPlatformRubrics() {
         <option value="detailed">상세 논술 루브릭 (6개 기준)</option>
         <option value="simple">간단 논술 루브릭 (3개 기준)</option>
         <option value="nyregents">뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)</option>
+        <option value="nyregents_analytical">뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭</option>
+        <option value="ny_middle">뉴욕 주 중학교 논술 루브릭</option>
+        <option value="ny_elementary">뉴욕 주 초등학교 논술 루브릭</option>
+        <option value="ib_myp_highschool">IB 중등 프로그램 고등학교 개인과 사회 논술 루브릭</option>
+        <option value="ib_myp_middleschool">IB 중등 프로그램 중학교 개인과 사회 논술 루브릭</option>
+        <option value="ib_myp_science">IB 중등 프로그램 과학 논술 루브릭</option>
       `;
     }
   }

@@ -57,7 +57,7 @@ async function requireAuth(c: any) {
 app.use('/api/*', cors())
 
 // Serve static files
-app.use('/static/*', serveStatic({ root: './public' }))
+app.use('/static/*', serveStatic({ root: './' }))
 
 // API Routes
 
@@ -181,10 +181,6 @@ app.post('/api/upload/image', async (c) => {
     const db = c.env.DB
     const credentialsJson = c.env.GOOGLE_APPLICATION_CREDENTIALS
     
-    if (!credentialsJson) {
-      return c.json({ error: 'Google Service Account credentials not configured' }, 500)
-    }
-    
     // Parse multipart form data
     const formData = await c.req.formData()
     const file = formData.get('file') as File
@@ -241,72 +237,83 @@ app.post('/api/upload/image', async (c) => {
     // Log upload step
     await logProcessingStep(db, uploadedFileId, 'upload', 'completed', 'R2 업로드 및 메타데이터 저장 완료', null)
     
-    // Process image with OCR
-    try {
-      const ocrResult = await processImageOCR(
-        { name: file.name, buffer: fileBuffer, type: file.type, size: file.size },
-        credentialsJson
-      )
-      
-      if (ocrResult.success && ocrResult.extractedText) {
-        // Update database with extracted text
-        await db.prepare(
-          `UPDATE uploaded_files 
-           SET extracted_text = ?, processing_status = ?, processed_at = CURRENT_TIMESTAMP
-           WHERE id = ?`
-        ).bind(ocrResult.extractedText, 'completed', uploadedFileId).run()
-        
-        // Log OCR step
-        await logProcessingStep(
-          db,
-          uploadedFileId,
-          'ocr',
-          'completed',
-          `추출된 텍스트: ${ocrResult.extractedText.length} characters`,
-          ocrResult.processingTimeMs || null
+    // Process image with OCR (optional - if credentials are available)
+    let extractedText = null
+    
+    if (credentialsJson) {
+      try {
+        const ocrResult = await processImageOCR(
+          { name: file.name, buffer: fileBuffer, type: file.type, size: file.size },
+          credentialsJson
         )
         
-        return c.json({
-          success: true,
-          file_id: uploadedFileId,
-          file_name: file.name,
-          extracted_text: ocrResult.extractedText,
-          processing_time_ms: ocrResult.processingTimeMs
-        })
-      } else {
-        // OCR failed
+        if (ocrResult.success && ocrResult.extractedText) {
+          extractedText = ocrResult.extractedText
+          
+          // Update database with extracted text
+          await db.prepare(
+            `UPDATE uploaded_files 
+             SET extracted_text = ?, processing_status = ?, processed_at = CURRENT_TIMESTAMP
+             WHERE id = ?`
+          ).bind(ocrResult.extractedText, 'completed', uploadedFileId).run()
+          
+          // Log OCR step
+          await logProcessingStep(
+            db,
+            uploadedFileId,
+            'ocr',
+            'completed',
+            `추출된 텍스트: ${ocrResult.extractedText.length} characters`,
+            ocrResult.processingTimeMs || null
+          )
+        } else {
+          // OCR failed but file upload succeeded
+          await db.prepare(
+            `UPDATE uploaded_files 
+             SET processing_status = ?, processed_at = CURRENT_TIMESTAMP
+             WHERE id = ?`
+          ).bind('completed', uploadedFileId).run()
+          
+          await logProcessingStep(
+            db,
+            uploadedFileId,
+            'ocr',
+            'skipped',
+            'OCR 처리 실패 - 파일 업로드는 성공',
+            null
+          )
+        }
+      } catch (error) {
+        console.error('OCR processing error (non-fatal):', error)
+        // Mark as completed without OCR
         await db.prepare(
           `UPDATE uploaded_files 
-           SET processing_status = ?, error_message = ?, processed_at = CURRENT_TIMESTAMP
+           SET processing_status = ?, processed_at = CURRENT_TIMESTAMP
            WHERE id = ?`
-        ).bind('failed', ocrResult.error || 'OCR failed', uploadedFileId).run()
+        ).bind('completed', uploadedFileId).run()
         
-        await logProcessingStep(
-          db,
-          uploadedFileId,
-          'ocr',
-          'failed',
-          ocrResult.error || 'OCR failed',
-          ocrResult.processingTimeMs || null
-        )
-        
-        return c.json({
-          success: false,
-          error: ocrResult.error || 'OCR processing failed'
-        }, 500)
+        await logProcessingStep(db, uploadedFileId, 'ocr', 'skipped', 'OCR 처리 오류 - 파일 업로드는 성공', null)
       }
-    } catch (error) {
-      // Log error
+    } else {
+      // No OCR credentials - mark as completed without OCR
       await db.prepare(
         `UPDATE uploaded_files 
-         SET processing_status = ?, error_message = ?, processed_at = CURRENT_TIMESTAMP
+         SET processing_status = ?, processed_at = CURRENT_TIMESTAMP
          WHERE id = ?`
-      ).bind('failed', String(error), uploadedFileId).run()
+      ).bind('completed', uploadedFileId).run()
       
-      await logProcessingStep(db, uploadedFileId, 'ocr', 'failed', String(error), null)
-      
-      throw error
+      await logProcessingStep(db, uploadedFileId, 'ocr', 'skipped', 'OCR 자격 증명 없음 - 파일 업로드만 완료', null)
     }
+    
+    // Return success regardless of OCR status
+    return c.json({
+      success: true,
+      file_id: uploadedFileId,
+      file_name: file.name,
+      storage_url: r2Result.url,
+      extracted_text: extractedText,
+      ocr_available: !!credentialsJson
+    })
   } catch (error) {
     console.error('Image upload error:', error)
     return c.json({ error: '이미지 업로드 처리 실패', details: String(error) }, 500)
@@ -808,13 +815,25 @@ app.post('/api/assignments', async (c) => {
     const user = await requireAuth(c)
     if (!user.id) return user // Return error response
     
-    const { title, description, grade_level, due_date, rubric_criteria } = await c.req.json()
+    const { title, description, grade_level, due_date, rubric_criteria, prompts } = await c.req.json()
     const db = c.env.DB
     
-    // Create assignment
+    // Generate unique 6-digit access code
+    let accessCode = ''
+    let isUnique = false
+    while (!isUnique) {
+      accessCode = Math.floor(100000 + Math.random() * 900000).toString()
+      const existing = await db.prepare(
+        'SELECT id FROM assignments WHERE access_code = ?'
+      ).bind(accessCode).first()
+      if (!existing) isUnique = true
+    }
+    
+    // Create assignment with prompts and access code
+    const promptsJSON = prompts ? JSON.stringify(prompts) : null
     const result = await db.prepare(
-      'INSERT INTO assignments (user_id, title, description, grade_level, due_date) VALUES (?, ?, ?, ?, ?)'
-    ).bind(user.id, title, description, grade_level, due_date).run()
+      'INSERT INTO assignments (user_id, title, description, grade_level, due_date, prompts, access_code) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(user.id, title, description, grade_level, due_date, promptsJSON, accessCode).run()
     
     const assignmentId = result.meta.last_row_id
     
@@ -827,10 +846,52 @@ app.post('/api/assignments', async (c) => {
       }
     }
     
-    return c.json({ success: true, assignment_id: assignmentId })
+    return c.json({ success: true, assignment_id: assignmentId, access_code: accessCode })
   } catch (error) {
     console.error('Error creating assignment:', error)
     return c.json({ error: 'Failed to create assignment' }, 500)
+  }
+})
+
+/**
+ * GET /api/assignment/code/:accessCode - Get assignment by access code (for students)
+ */
+app.get('/api/assignment/code/:accessCode', async (c) => {
+  try {
+    const accessCode = c.req.param('accessCode')
+    const db = c.env.DB
+    
+    // Find assignment by access code
+    const assignment = await db.prepare(
+      'SELECT * FROM assignments WHERE access_code = ?'
+    ).bind(accessCode).first()
+    
+    if (!assignment) {
+      return c.json({ error: '유효하지 않은 액세스 코드입니다.' }, 404)
+    }
+    
+    // Parse prompts if exists
+    if (assignment.prompts) {
+      try {
+        assignment.prompts = JSON.parse(assignment.prompts)
+      } catch (e) {
+        assignment.prompts = []
+      }
+    } else {
+      assignment.prompts = []
+    }
+    
+    // Get rubrics
+    const rubrics = await db.prepare(
+      'SELECT * FROM assignment_rubrics WHERE assignment_id = ? ORDER BY criterion_order'
+    ).bind(assignment.id).all()
+    
+    assignment.rubrics = rubrics.results || []
+    
+    return c.json(assignment)
+  } catch (error) {
+    console.error('Error fetching assignment by access code:', error)
+    return c.json({ error: '과제를 불러오는데 실패했습니다.' }, 500)
   }
 })
 
@@ -868,11 +929,15 @@ app.get('/api/assignment/:id', async (c) => {
        ORDER BY s.submitted_at DESC`
     ).bind(assignmentId).all()
     
-    return c.json({
+    // Parse prompts from JSON
+    const parsedAssignment = {
       ...assignment,
+      prompts: assignment.prompts ? JSON.parse(assignment.prompts) : [],
       rubrics: rubrics.results || [],
       submissions: submissions.results || []
-    })
+    }
+    
+    return c.json(parsedAssignment)
   } catch (error) {
     console.error('Error fetching assignment:', error)
     return c.json({ error: 'Failed to fetch assignment' }, 500)
@@ -1730,6 +1795,47 @@ app.get('/api/student/progress', async (c) => {
 app.get('/api/resources/:category', async (c) => {
   try {
     const category = c.req.param('category')
+    
+    // Handle exam category (static PDF files)
+    if (category === 'exam') {
+      const examQuestions = [
+        {
+          id: 'exam-1',
+          title: '201001 리젠트 시험 DBQ - 신석기 혁명 농업 혁명 그린 혁명',
+          content: 'PDF 파일',
+          file: '/exam-questions/201001 리젠트 시험 DBQ - 신석기 혁명 농업 혁명 그린 혁명.pdf',
+          author: 'Admin',
+          created_at: '2010-01-01'
+        },
+        {
+          id: 'exam-2',
+          title: '201206 리젠트 시험 DBQ - 독재 정치가 진시황제 표트르 루이14세',
+          content: 'PDF 파일',
+          file: '/exam-questions/201206 리젠트 시험 DBQ - 독재 정치가 진시황제 표트르 루이14세.pdf',
+          author: 'Admin',
+          created_at: '2012-06-01'
+        },
+        {
+          id: 'exam-3',
+          title: '201506 리젠트 시험 DBQ - 로마 제국 오스만 제국 대영 제국 멸망',
+          content: 'PDF 파일',
+          file: '/exam-questions/201506 리젠트 시험 DBQ - 로마 제국 오스만 제국 대영 제국 멸망.pdf',
+          author: 'Admin',
+          created_at: '2015-06-01'
+        },
+        {
+          id: 'exam-4',
+          title: '200906 리젠트 시험 DBQ - 중세말의 사회 변화 산업 혁명 세계화',
+          content: 'PDF 파일',
+          file: '/exam-questions/200906 리젠트 시험 DBQ - 중세말의 사회 변화 산업 혁명 세계화.pdf',
+          author: 'Admin',
+          created_at: '2009-06-01'
+        }
+      ]
+      return c.json(examQuestions)
+    }
+    
+    // Handle other categories from database
     const db = c.env.DB
     
     const result = await db.prepare(
@@ -1831,7 +1937,7 @@ app.get('/', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>AI 논술 평가 | 교사를 위한 AI 논술 채점 시스템</title>
-        <meta name="description" content="AI로 논술 답안지를 10배 빠르게 채점하세요. 상세하고 실행 가능한 피드백을 받으세요. 1,000개 이상의 학교에서 신뢰합니다.">
+        <meta name="description" content="AI로 논술 답안지를 10배 빠르게 채점하세요. 상세하고 실행 가능한 피드백을 받으세요. 1,000명 이상의 교사가 신뢰합니다.">
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script>
@@ -1917,33 +2023,45 @@ app.get('/', (c) => {
             border-color: #1e3a8a;
           }
           .dropdown {
-            position: relative;
-            display: inline-block;
+            position: relative !important;
+            display: inline-block !important;
           }
           .dropdown-content {
-            display: none;
-            position: absolute;
-            background-color: white;
-            min-width: 200px;
-            box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
-            z-index: 100;
-            border-radius: 8px;
-            overflow: hidden;
-            margin-top: 8px;
+            display: none !important;
+            position: absolute !important;
+            top: 100% !important;
+            left: 0 !important;
+            background-color: white !important;
+            min-width: 220px !important;
+            box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2) !important;
+            z-index: 1000 !important;
+            border-radius: 8px !important;
+            overflow: hidden !important;
+            margin-top: 8px !important;
           }
           .dropdown:hover .dropdown-content {
-            display: block;
+            display: block !important;
+          }
+          .dropdown button {
+            font-size: 1rem !important;
+            padding: 0 !important;
+            outline: none !important;
+            background: transparent !important;
+            border: none !important;
+          }
+          .dropdown button:focus {
+            outline: none !important;
           }
           .dropdown-content a {
-            color: #374151;
-            padding: 12px 16px;
-            text-decoration: none;
-            display: block;
-            transition: background-color 0.2s;
+            color: #374151 !important;
+            padding: 12px 16px !important;
+            text-decoration: none !important;
+            display: block !important;
+            transition: background-color 0.2s !important;
           }
           .dropdown-content a:hover {
-            background-color: #f3f4f6;
-            color: #1e3a8a;
+            background-color: #f3f4f6 !important;
+            color: #1e3a8a !important;
           }
           @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -1985,11 +2103,12 @@ app.get('/', (c) => {
                         <a href="#how-it-works" class="text-gray-700 hover:text-navy-700 font-medium">작동 방식</a>
                         <a href="#features" class="text-gray-700 hover:text-navy-700 font-medium">기능</a>
                         <div class="dropdown">
-                            <a href="#resources" class="text-gray-700 hover:text-navy-700 font-medium cursor-pointer">
+                            <button class="text-gray-700 hover:text-navy-700 font-medium cursor-pointer">
                                 평가 관련 자료 <i class="fas fa-chevron-down text-xs ml-1"></i>
-                            </a>
+                            </button>
                             <div class="dropdown-content">
                                 <a href="/resources/rubric"><i class="fas fa-clipboard-list mr-2 text-navy-700"></i>루브릭</a>
+                                <a href="/resources/exam"><i class="fas fa-file-alt mr-2 text-navy-700"></i>기출 문제</a>
                                 <a href="/resources/evaluation"><i class="fas fa-book mr-2 text-navy-700"></i>논술 평가 자료</a>
                             </div>
                         </div>
@@ -2010,7 +2129,7 @@ app.get('/', (c) => {
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                 <div class="mb-6">
                     <span class="inline-block bg-white/20 backdrop-blur px-4 py-2 rounded-full text-sm font-semibold">
-                        1,000개 이상의 학교와 대학에서 신뢰하는 서비스
+                        1,000명 이상의 교사가 신뢰하는 서비스
                     </span>
                 </div>
                 <h1 class="text-5xl md:text-6xl font-bold mb-6 leading-tight">
@@ -2044,7 +2163,7 @@ app.get('/', (c) => {
                     </div>
                     <div>
                         <div class="text-3xl font-bold text-navy-700">1,000+</div>
-                        <div class="text-sm text-gray-600">신뢰하는 학교</div>
+                        <div class="text-sm text-gray-600">신뢰하는 교사</div>
                     </div>
                     <div>
                         <div class="text-3xl font-bold text-navy-700">&lt;4%</div>
@@ -2072,7 +2191,7 @@ app.get('/', (c) => {
                             <i class="fas fa-file-upload text-5xl text-navy-700"></i>
                         </div>
                         <h3 class="text-xl font-bold mb-2">루브릭 업로드</h3>
-                        <p class="text-gray-600">채점 루브릭을 생성하거나 가져오세요. 400개 이상의 사전 제작 루브릭 중에서 선택하거나 직접 맞춤 설정하세요.</p>
+                        <p class="text-gray-600">채점 루브릭을 생성하거나 가져오세요. 10개 이상의 사전 제작 루브릭 중에서 선택하거나 직접 맞춤 설정하세요.</p>
                     </div>
                     <div class="text-center">
                         <div class="step-number">2</div>
@@ -2101,7 +2220,22 @@ app.get('/', (c) => {
                     <h2 class="text-4xl font-bold text-gray-900 mb-4">강력한 기능</h2>
                     <p class="text-xl text-gray-600">논술을 효과적으로 채점하는 데 필요한 모든 것</p>
                 </div>
-                <div class="grid md:grid-cols-3 gap-8">
+                <!-- First row: 3 columns -->
+                <div class="grid md:grid-cols-3 gap-8 mb-8">
+                    <div class="feature-card bg-white p-6 rounded-xl shadow-md">
+                        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                            <i class="fas fa-folder-open text-2xl text-green-600"></i>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2">기존 과제 불러오기</h3>
+                        <p class="text-gray-600">새 과제 만들기에서 기존에 출제했던 과제를 불러올 수 있습니다. 기존 과제를 편집하여 사용하세요.</p>
+                    </div>
+                    <div class="feature-card bg-white p-6 rounded-xl shadow-md">
+                        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
+                            <i class="fas fa-pen-fancy text-2xl text-purple-600"></i>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2">손글씨 텍스트 변환</h3>
+                        <p class="text-gray-600">학생이 손글씨로 작성한 논술문을 업로드하여 채점하세요. 광학 문자 인식(OCR) 도구로 손글씨 이미지를 디지털 텍스트로 변환합니다.</p>
+                    </div>
                     <div class="feature-card bg-white p-6 rounded-xl shadow-md">
                         <div class="w-12 h-12 bg-navy-100 rounded-lg flex items-center justify-center mb-4">
                             <i class="fas fa-bolt text-2xl text-navy-700"></i>
@@ -2109,6 +2243,10 @@ app.get('/', (c) => {
                         <h3 class="text-xl font-bold mb-2">초고속 채점</h3>
                         <p class="text-gray-600">전체 학급을 몇 분 안에 채점하세요. 매주 몇 시간의 채점 시간을 절약하세요.</p>
                     </div>
+                </div>
+                
+                <!-- Second row: 2 columns centered -->
+                <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                     <div class="feature-card bg-white p-6 rounded-xl shadow-md">
                         <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
                             <i class="fas fa-chart-line text-2xl text-blue-600"></i>
@@ -2123,27 +2261,6 @@ app.get('/', (c) => {
                         <h3 class="text-xl font-bold mb-2">일관된 채점</h3>
                         <p class="text-gray-600">편향을 제거하고 모든 학생에게 공정하고 표준에 부합하는 평가를 보장합니다.</p>
                     </div>
-                    <div class="feature-card bg-white p-6 rounded-xl shadow-md">
-                        <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-4">
-                            <i class="fas fa-clipboard-check text-2xl text-yellow-600"></i>
-                        </div>
-                        <h3 class="text-xl font-bold mb-2">맞춤형 루브릭</h3>
-                        <p class="text-gray-600">400개 이상의 사전 제작 루브릭 또는 직접 만들기. 국가 교육과정 표준 지원.</p>
-                    </div>
-                    <div class="feature-card bg-white p-6 rounded-xl shadow-md">
-                        <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
-                            <i class="fas fa-shield-alt text-2xl text-red-600"></i>
-                        </div>
-                        <h3 class="text-xl font-bold mb-2">AI 탐지</h3>
-                        <p class="text-gray-600">AI 생성 텍스트 및 표절을 탐지하여 학문적 무결성을 보장합니다.</p>
-                    </div>
-                    <div class="feature-card bg-white p-6 rounded-xl shadow-md">
-                        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                            <i class="fas fa-globe text-2xl text-purple-600"></i>
-                        </div>
-                        <h3 class="text-xl font-bold mb-2">다국어 지원</h3>
-                        <p class="text-gray-600">한국어, 영어, 스페인어, 프랑스어, 독일어 등 다양한 언어로 논술을 채점하세요.</p>
-                    </div>
                 </div>
             </div>
         </section>
@@ -2152,7 +2269,7 @@ app.get('/', (c) => {
         <section id="grader" class="py-20 bg-white">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="text-center mb-12">
-                    <h2 class="text-4xl font-bold text-gray-900 mb-4">지금 사용해보기</h2>
+                    <h2 class="text-4xl font-bold text-gray-900 mb-4">지금 사용해 보기</h2>
                     <p class="text-xl text-gray-600">몇 초 만에 첫 논술 채점하기</p>
                 </div>
 
@@ -2176,7 +2293,7 @@ app.get('/', (c) => {
                                     <!-- Reference Materials Section -->
                                     <div class="mt-4">
                                         <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                            <i class="fas fa-paperclip mr-2 text-navy-700"></i>참고 자료 첨부 (선택사항)
+                                            <i class="fas fa-paperclip mr-2 text-navy-700"></i>제시문
                                         </label>
                                         <div id="materialsContainer" class="space-y-2">
                                             <!-- Materials will be added dynamically -->
@@ -2409,20 +2526,24 @@ app.get('/', (c) => {
                 </div>
                 <div class="space-y-4">
                     <details class="bg-gray-50 p-6 rounded-lg">
+                        <summary class="font-bold cursor-pointer">AI 논술 평가 서비스를 이용하면 어떤 이점이 있나요?</summary>
+                        <p class="mt-4 text-gray-600">AI 논술 평가 서비스는 교사가 학생의 논술 실력 향상을 위해 구체적이고 시의적절한 피드백을 제공하도록 돕습니다. 학생은 개인화된 상세 피드백으로 개선이 필요한 영역을 명확히 알게 되어 빠른 향상과 학습 성과를 얻습니다.</p>
+                    </details>
+                    <details class="bg-gray-50 p-6 rounded-lg">
                         <summary class="font-bold cursor-pointer">AI 채점은 얼마나 정확한가요?</summary>
                         <p class="mt-4 text-gray-600">우리 AI는 인간 채점자와 비교하여 4% 미만의 편차를 달성하며, 학문적 사용에 필요한 실질적 일치 임계값(QWK 0.61+)을 충족합니다.</p>
                     </details>
                     <details class="bg-gray-50 p-6 rounded-lg">
-                        <summary class="font-bold cursor-pointer">루브릭을 맞춤 설정할 수 있나요?</summary>
-                        <p class="mt-4 text-gray-600">네! 맞춤형 루브릭을 만들거나 국가 교육과정 표준에 맞춘 400개 이상의 사전 제작 루브릭 중에서 선택할 수 있습니다.</p>
+                        <summary class="font-bold cursor-pointer">AI 논술 평가의 최종 성적은 누가 책임 지나요?</summary>
+                        <p class="mt-4 text-gray-600">AI 논술 평가 서비스는 인공지능 기반 제안으로 채점 과정을 간소화하여 교사를 지원하도록 설계된 것으로 어디까지나 보조적인 용도로 사용해야 합니다. 교사는 채점 결과를 최종 확정하기 전에 성적과 피드백을 검토하고 검증해야 합니다. 따라서 채점 결과에 대한 책임은 교사에게 있습니다.</p>
                     </details>
                     <details class="bg-gray-50 p-6 rounded-lg">
-                        <summary class="font-bold cursor-pointer">무료 플랜이 있나요?</summary>
-                        <p class="mt-4 text-gray-600">네! 무료 플랜에는 월 25개의 논술이 포함됩니다. 유료 플랜은 무제한 채점을 위해 월 19,900원부터 시작합니다.</p>
+                        <summary class="font-bold cursor-pointer">학생이 논술 답안을 어떻게 제출하나요?</summary>
+                        <p class="mt-4 text-gray-600">네! 교사가 과제를 생성하면 학생 전용 엑세스 코드가 생성됩니다. 학생들은 이 엑세스 코드를 통해 논술 답안을 간편하게 제출할 수 있습니다.</p>
                     </details>
                     <details class="bg-gray-50 p-6 rounded-lg">
-                        <summary class="font-bold cursor-pointer">내 학습 관리 시스템(LMS)과 연동되나요?</summary>
-                        <p class="mt-4 text-gray-600">네! Google Classroom, Canvas 및 Schoology와 통합됩니다. 성적과 피드백을 LMS에 직접 동기화할 수 있습니다.</p>
+                        <summary class="font-bold cursor-pointer">무료 체험이 가능한가요?</summary>
+                        <p class="mt-4 text-gray-600">네! 무료 체험 플랜으로 월 20개의 논술 답안지를 채점할 수 있습니다. 유료 플랜은 한달에 7,500원으로 90개의 논술 답안지를 채점할 수 있는 "스타터" 요금제부터 시작합니다.</p>
                     </details>
                 </div>
             </div>
@@ -2431,8 +2552,8 @@ app.get('/', (c) => {
         <!-- CTA Section -->
         <section class="hero-gradient text-white py-20">
             <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                <h2 class="text-4xl font-bold mb-6">매주 몇 시간을 절약할 준비가 되셨나요?</h2>
-                <p class="text-xl mb-8">AI 논술 평가를 사용하는 1,000개 이상의 학교에 합류하세요</p>
+                <h2 class="text-2xl md:text-3xl font-bold mb-6">논술 채점에 들어가는 시간을 절약할 준비가 되셨나요?</h2>
+                <p class="text-xl mb-8">AI 논술 평가를 사용하는 1,000명 이상의 교사와 함께하세요</p>
                 <button onclick="scrollToGrader()" class="bg-white text-navy-900 px-12 py-4 rounded-lg font-bold text-lg hover:shadow-2xl transition transform hover:scale-105">
                     <i class="fas fa-rocket mr-2"></i>무료로 채점 시작하기
                 </button>
@@ -2451,25 +2572,23 @@ app.get('/', (c) => {
                     <div>
                         <h4 class="font-bold mb-4">제품</h4>
                         <ul class="space-y-2 text-gray-400 text-sm">
-                            <li><a href="#" class="hover:text-white">기능</a></li>
-                            <li><a href="#" class="hover:text-white">가격</a></li>
-                            <li><a href="#" class="hover:text-white">학교 계정</a></li>
+                            <li><a href="#features" class="hover:text-white">기능</a></li>
+                            <li><a href="/pricing" class="hover:text-white">가격</a></li>
                         </ul>
                     </div>
                     <div>
-                        <h4 class="font-bold mb-4">지원</h4>
+                        <h4 class="font-bold mb-4">고객 지원</h4>
                         <ul class="space-y-2 text-gray-400 text-sm">
-                            <li><a href="#" class="hover:text-white">도움말 센터</a></li>
-                            <li><a href="#" class="hover:text-white">문의하기</a></li>
-                            <li><a href="#" class="hover:text-white">데모 예약</a></li>
+                            <li><a href="mailto:simmanistudy@gmail.com" class="hover:text-white">문의하기</a></li>
+                            <li class="text-gray-400">✉ simmanistudy@gmail.com</li>
+                            <li class="text-gray-400">☎ 02-6339-6059</li>
                         </ul>
                     </div>
                     <div>
                         <h4 class="font-bold mb-4">법적 고지</h4>
                         <ul class="space-y-2 text-gray-400 text-sm">
-                            <li><a href="#" class="hover:text-white">개인정보 처리방침</a></li>
-                            <li><a href="#" class="hover:text-white">이용 약관</a></li>
-                            <li><a href="#" class="hover:text-white">개인정보 보호 규정</a></li>
+                            <li><a href="/terms" class="hover:text-white">이용 약관</a></li>
+                            <li><a href="/privacy" class="hover:text-white">개인정보 처리방침</a></li>
                         </ul>
                     </div>
                 </div>
@@ -2489,7 +2608,7 @@ app.get('/', (c) => {
 // Resource List Page
 app.get('/resources/:category', async (c) => {
   const category = c.req.param('category')
-  const categoryName = category === 'rubric' ? '루브릭' : '논술 평가 자료'
+  const categoryName = category === 'rubric' ? '루브릭' : category === 'exam' ? '기출 문제' : '논술 평가 자료'
   
   return c.html(`
     <!DOCTYPE html>
@@ -2548,50 +2667,160 @@ app.get('/resources/:category', async (c) => {
                 <p class="text-xl text-gray-600">교육 현장에 도움이 되는 자료를 확인하세요</p>
             </div>
 
+            <!-- Search Box -->
+            <div class="mb-8">
+                <div class="relative max-w-2xl mx-auto">
+                    <input 
+                        type="text" 
+                        id="searchInput" 
+                        placeholder="자료 검색..." 
+                        class="w-full px-6 py-4 pl-12 text-lg border-2 border-gray-300 rounded-xl focus:outline-none focus:border-navy-700 transition"
+                        onkeyup="filterResources()"
+                    />
+                    <i class="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-xl"></i>
+                </div>
+            </div>
+
             <div id="postsList" class="space-y-6">
                 <p class="text-gray-500 text-center py-8">자료를 불러오는 중...</p>
             </div>
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
         <script>
-          async function loadPosts() {
-            try {
-              const response = await axios.get('/api/resources/' + '${category}');
-              const posts = response.data;
-              
-              const container = document.getElementById('postsList');
-              
-              if (posts.length === 0) {
-                container.innerHTML = \`
-                  <div class="text-center py-12">
-                    <i class="fas fa-inbox text-6xl text-gray-300 mb-4"></i>
-                    <p class="text-gray-500 text-lg">아직 등록된 자료가 없습니다.</p>
+          const category = '${category}';
+          let allItems = [];
+          
+          // 기출 문제 목록
+          const examQuestions = [
+            {
+              id: 'exam-1',
+              title: '201001 리젠트 시험 DBQ - 신석기 혁명 농업 혁명 그린 혁명',
+              file: '/exam-questions/201001 리젠트 시험 DBQ - 신석기 혁명 농업 혁명 그린 혁명.pdf',
+              date: '2010-01-01'
+            },
+            {
+              id: 'exam-2',
+              title: '201206 리젠트 시험 DBQ - 독재 정치가 진시황제 표트르 루이14세',
+              file: '/exam-questions/201206 리젠트 시험 DBQ - 독재 정치가 진시황제 표트르 루이14세.pdf',
+              date: '2012-06-01'
+            },
+            {
+              id: 'exam-3',
+              title: '201506 리젠트 시험 DBQ - 로마 제국 오스만 제국 대영 제국 멸망',
+              file: '/exam-questions/201506 리젠트 시험 DBQ - 로마 제국 오스만 제국 대영 제국 멸망.pdf',
+              date: '2015-06-01'
+            },
+            {
+              id: 'exam-4',
+              title: '200906 리젠트 시험 DBQ - 중세말의 사회 변화 산업 혁명 세계화',
+              file: '/exam-questions/200906 리젠트 시험 DBQ - 중세말의 사회 변화 산업 혁명 세계화.pdf',
+              date: '2009-06-01'
+            }
+          ];
+          
+          function filterResources() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = allItems.filter(item => 
+              item.title.toLowerCase().includes(searchTerm)
+            );
+            displayItems(filtered);
+          }
+          
+          function displayItems(items) {
+            const container = document.getElementById('postsList');
+            
+            if (items.length === 0) {
+              container.innerHTML = \`
+                <div class="text-center py-12">
+                  <i class="fas fa-inbox text-6xl text-gray-300 mb-4"></i>
+                  <p class="text-gray-500 text-lg">검색 결과가 없습니다.</p>
+                </div>
+              \`;
+              return;
+            }
+            
+            if (category === 'exam') {
+              container.innerHTML = items.map(item => \`
+                <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition cursor-pointer" onclick="openPDF('\${item.file}', '\${item.title}')">
+                  <div class="flex items-center justify-between">
+                    <div class="flex-1">
+                      <h2 class="text-2xl font-bold text-gray-900 mb-3 hover:text-navy-700 transition">\${item.title}</h2>
+                      <div class="flex items-center text-sm text-gray-500">
+                        <i class="fas fa-file-pdf mr-2 text-red-600"></i>
+                        <span>PDF 문서</span>
+                        <span class="mx-2">•</span>
+                        <i class="fas fa-calendar mr-2"></i>
+                        <span>\${new Date(item.date).toLocaleDateString('ko-KR')}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <i class="fas fa-eye text-3xl text-navy-700"></i>
+                    </div>
                   </div>
-                \`;
-                return;
-              }
-              
-              container.innerHTML = posts.map(post => \`
-                <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition">
-                  <a href="/resource/\${post.id}">
-                    <h2 class="text-2xl font-bold text-gray-900 mb-3 hover:text-navy-700 transition">\${post.title}</h2>
-                    <div class="flex items-center text-sm text-gray-500 mb-4">
-                      <i class="fas fa-user mr-2"></i>
-                      <span>\${post.author || 'Admin'}</span>
-                      <span class="mx-2">•</span>
-                      <i class="fas fa-calendar mr-2"></i>
-                      <span>\${new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
-                    </div>
-                    <p class="text-gray-700 line-clamp-3">\${post.content.substring(0, 200)}...</p>
-                    <div class="mt-4">
-                      <span class="inline-block bg-navy-100 text-navy-800 px-3 py-1 rounded-full text-sm font-semibold">
-                        자세히 보기 →
-                      </span>
-                    </div>
-                  </a>
                 </div>
               \`).join('');
+            } else {
+              container.innerHTML = items.map(post => \`
+                <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition cursor-pointer" onclick="location.href='/resource/\${post.id}'">
+                  <div class="flex items-center justify-between">
+                    <div class="flex-1">
+                      <h2 class="text-2xl font-bold text-gray-900 mb-3 hover:text-navy-700 transition">\${post.title}</h2>
+                      <div class="flex items-center text-sm text-gray-500">
+                        <i class="fas fa-user mr-2"></i>
+                        <span>\${post.author || 'AI 논술 평가 시스템'}</span>
+                        <span class="mx-2">•</span>
+                        <i class="fas fa-calendar mr-2"></i>
+                        <span>\${new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <i class="fas fa-arrow-right text-3xl text-navy-700"></i>
+                    </div>
+                  </div>
+                </div>
+              \`).join('');
+            }
+          }
+          
+          function openPDF(url, title) {
+            const modal = document.createElement('div');
+            modal.id = 'pdfModal';
+            modal.className = 'fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4';
+            modal.innerHTML = \`
+              <div class="bg-white rounded-lg w-full max-w-6xl h-5/6 flex flex-col">
+                <div class="flex items-center justify-between p-4 border-b">
+                  <h3 class="text-xl font-bold text-gray-900 truncate">\${title}</h3>
+                  <button onclick="closePDF()" class="text-gray-500 hover:text-gray-700 text-2xl font-bold">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+                <div class="flex-1 overflow-auto">
+                  <iframe src="\${url}" class="w-full h-full" frameborder="0"></iframe>
+                </div>
+              </div>
+            \`;
+            document.body.appendChild(modal);
+          }
+          
+          function closePDF() {
+            const modal = document.getElementById('pdfModal');
+            if (modal) {
+              modal.remove();
+            }
+          }
+          
+          async function loadPosts() {
+            try {
+              if (category === 'exam') {
+                allItems = examQuestions;
+                displayItems(allItems);
+              } else {
+                const response = await axios.get('/api/resources/' + category);
+                allItems = response.data;
+                displayItems(allItems);
+              }
             } catch (error) {
               console.error('Error loading posts:', error);
               document.getElementById('postsList').innerHTML = \`
@@ -3008,6 +3237,12 @@ app.get('/login', (c) => {
                             새 계정 만들기
                         </a>
                     </p>
+                    <p class="mt-1 text-center text-sm text-gray-600">
+                        학생이신가요?
+                        <a href="/student/login" class="font-medium text-blue-600 hover:text-blue-700">
+                            학생 로그인
+                        </a>
+                    </p>
                 </div>
                 <form class="mt-8 space-y-6" onsubmit="handleLogin(event)">
                     <div class="rounded-md shadow-sm -space-y-px">
@@ -3164,8 +3399,41 @@ app.get('/signup', (c) => {
                             로그인하기
                         </a>
                     </p>
+                    <p class="mt-1 text-center text-sm text-gray-600">
+                        학생이신가요?
+                        <a href="/student/signup" class="font-medium text-blue-600 hover:text-blue-700">
+                            학생 회원가입
+                        </a>
+                    </p>
                 </div>
-                <form class="mt-8 space-y-6" onsubmit="handleSignup(event)">
+                
+                <!-- Google Sign Up Button -->
+                <div class="mt-8">
+                    <button type="button" onclick="signUpWithGoogle()" 
+                            class="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navy-700 transition">
+                        <svg class="w-6 h-6" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                        </svg>
+                        <span class="text-base font-medium text-gray-700">Google로 가입하기</span>
+                    </button>
+                </div>
+                
+                <!-- Divider -->
+                <div class="mt-6">
+                    <div class="relative">
+                        <div class="absolute inset-0 flex items-center">
+                            <div class="w-full border-t border-gray-300"></div>
+                        </div>
+                        <div class="relative flex justify-center text-sm">
+                            <span class="px-2 bg-white text-gray-500">또는 이메일로 가입</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <form class="mt-6 space-y-6" onsubmit="handleSignup(event)">
                     <div class="rounded-md shadow-sm space-y-3">
                         <div>
                             <label for="name" class="sr-only">이름</label>
@@ -3217,6 +3485,19 @@ app.get('/signup', (c) => {
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+          // Google Sign Up
+          function signUpWithGoogle() {
+            // Google OAuth 2.0 인증 URL (실제 구현 시 설정 필요)
+            alert('Google 가입 기능은 현재 개발 중입니다. Google OAuth 2.0 설정이 필요합니다.');
+            
+            // 실제 구현 예시:
+            // const clientId = 'YOUR_GOOGLE_CLIENT_ID';
+            // const redirectUri = window.location.origin + '/api/auth/google/callback';
+            // const scope = 'profile email';
+            // const googleAuthUrl = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + clientId + '&redirect_uri=' + redirectUri + '&response_type=code&scope=' + scope;
+            // window.location.href = googleAuthUrl;
+          }
+          
           async function handleSignup(event) {
             event.preventDefault();
             
@@ -3251,6 +3532,298 @@ app.get('/signup', (c) => {
             }
           }
         </script>
+    </body>
+    </html>
+  `)
+})
+
+// Terms of Service Page
+app.get('/terms', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>이용 약관 | AI 논술 평가</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    </head>
+    <body class="bg-gray-50">
+        <nav class="bg-white border-b border-gray-200 sticky top-0 z-10">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <a href="/" class="flex items-center">
+                        <span class="text-2xl font-bold text-gray-900">
+                            <i class="fas fa-graduation-cap mr-2"></i>AI 논술 평가
+                        </span>
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2 text-center">AI 논술 평가 서비스</h1>
+            <h2 class="text-3xl font-bold text-gray-800 mb-8 text-center">이용약관</h2>
+            
+            <div class="bg-white rounded-lg shadow-lg p-8">
+                <p class="text-gray-700 mb-3 leading-relaxed">AI 논술 평가 서비스 이용약관</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제1조 (목적)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">이 약관은 심마니 스터디(이하 "회사")가 제공하는 인공지능 기반 논술 평가 서비스 "AI 논술 평가"(이하 "서비스")의 이용과 관련하여 회사와 이용자 간의 권리, 의무 및 책임사항, 기타 필요한 사항을 규정함을 목적으로 합니다.</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제2조 (용어의 정의)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">이 약관에서 사용되는 주요한 용어의 정의는 다음과 같습니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">1. "서비스"란 회사가 제공하는 AI 기반 논술 답안지 평가 및 관련 제반 서비스를 의미합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. "회원"이란 이 약관에 동의하고 회사와 서비스 이용계약을 체결하고, 회사가 제공하는 서비스를 이용하는 자를 말합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">3. "아이디(ID)"란 회원의 식별과 서비스 이용을 위하여 회원이 설정하고 회사가 승인한 이메일 주소를 말합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">4. "비밀번호"란 회원의 정보 보호를 위해 회원 자신이 설정한 문자와 숫자의 조합을 말합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">5. "구독"이란 일정 기간 동안 서비스를 이용할 수 있는 권리를 의미합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">6. "정기결제"란 회원이 선택한 구독 플랜에 따라 자동으로 결제가 이루어지는 것을 말합니다.</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제3조 (약관의 효력 및 변경)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 이 약관은 서비스를 이용하고자 하는 모든 회원에게 그 효력이 발생합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 회사는 필요한 경우 관련 법령을 위배하지 않는 범위 내에서 이 약관을 변경할 수 있으며, 약관이 변경되는 경우 변경사항을 시행일자 7일 전부터 공지합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">3. 회원이 변경된 약관에 동의하지 않는 경우, 서비스 이용을 중단하고 탈퇴할 수 있습니다. 변경된 약관의 효력 발생일 이후에도 서비스를 계속 이용하는 경우에는 약관 변경에 동의한 것으로 간주합니다.</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제4조 (회원가입)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 회원가입은 이용신청자가 약관의 내용에 대하여 동의하고 회원가입 신청을 한 후 회사가 이러한 신청에 대하여 승인함으로써 체결됩니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 회사는 다음 각 호에 해당하는 신청에 대하여는 승인을 하지 않거나 사후에 이용계약을 해지할 수 있습니다.</p>
+<p class="text-gray-600 ml-6 mb-2">• 실명이 아니거나 타인의 명의를 이용한 경우</p>
+<p class="text-gray-600 ml-6 mb-2">• 허위의 정보를 기재하거나, 회사가 제시하는 내용을 기재하지 않은 경우</p>
+<p class="text-gray-600 ml-6 mb-2">• 14세 미만 아동이 법정 대리인의 동의를 얻지 아니한 경우</p>
+<p class="text-gray-600 ml-6 mb-2">• 이용자의 귀책사유로 인하여 승인이 불가능하거나 기타 규정한 제반 사항을 위반하며 신청하는 경우</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제5조 (회원탈퇴 및 자격 상실)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 회원은 언제든지 탈퇴를 요청할 수 있으며, 회사는 즉시 회원탈퇴를 처리합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 회원이 다음 각 호의 사유에 해당하는 경우, 회사는 회원자격을 제한 및 정지시킬 수 있습니다.</p>
+<p class="text-gray-600 ml-6 mb-2">• 가입 신청 시에 허위 내용을 등록한 경우</p>
+<p class="text-gray-600 ml-6 mb-2">• 다른 사람의 서비스 이용을 방해하거나 그 정보를 도용하는 등 전자상거래 질서를 위협하는 경우</p>
+<p class="text-gray-600 ml-6 mb-2">• 서비스를 이용하여 법령 또는 본 약관이 금지하거나 공서양속에 반하는 행위를 하는 경우</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제6조 (서비스의 제공 및 변경)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 회사는 다음과 같은 서비스를 제공합니다.</p>
+<p class="text-gray-600 ml-6 mb-2">• 인공지능 기반 논술 답안지 자동 채점 및 피드백 서비스</p>
+<p class="text-gray-600 ml-6 mb-2">• 논리 구조, 근거 타당성, 언어표현력 분석</p>
+<p class="text-gray-600 ml-6 mb-2">• 상세한 피드백 및 개선 제안</p>
+<p class="text-gray-600 ml-6 mb-2">• 기타 회사가 정하는 서비스</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 회사는 필요한 경우 서비스의 내용을 변경할 수 있으며, 변경 시 사전에 공지합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">3. 회사는 서비스의 품질 향상을 위해 지속적으로 노력합니다.</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제7조 (서비스의 중단)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 회사는 컴퓨터 등 정보통신 설비의 보수 점검, 교체 및 고장, 통신의 두절 등의 사유가 발생한 경우에는 서비스의 제공을 일시적으로 중단할 수 있습니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 회사는 천재지변, 국가비상사태 등 불가항력적 사유로 서비스를 제공할 수 없는 경우에는 서비스의 제공을 제한하거나 중단할 수 있습니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">3. 제1항 및 제2항에 의한 서비스 중단의 경우에는 회사는 제10조에 정한 방법으로 회원에게 통지합니다.</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제8조 (구독 서비스 및 이용요금)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 서비스는 기본적으로 무료 체험 또는 유료 구독 형태로 제공됩니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 유료 구독 서비스의 이용 요금은 회사가 정한 바에 따르며, 서비스 화면에 명시됩니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">3. 회원은 회사가 제공하는 결제 수단(토스페이먼츠 등)을 통해 이용요금을 결제할 수 있습니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">3. 구독 플랜별 제공 혜택은 다음과 같습니다.</p>
+<p class="text-gray-600 ml-6 mb-2">• 무료 체험: 제한된 횟수의 논술 답안 평가</p>
+<p class="text-gray-600 ml-6 mb-2">• 유료 구독: 플랜별 월 이용 가능 횟수 제공</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제9조 (정기결제 및 환불 규정)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 정기 결제</p>
+<p class="text-gray-700 mb-3 leading-relaxed">① 회원이 정기결제를 신청한 경우, 최초 결제일을 기준으로 매월 자동으로 결제가 진행됩니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">정기결제는 회원이 해지하기 전까지 자동으로 갱신됩니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">② 회원은 언제든지 정기결제를 해지할 수 있으며, 해지 시 다음 결제일부터 청구가 중단됩니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">정기결제 수단(카드 등)의 변경이 필요한 경우, 고객센터를 통해 변경 요청할 수 있습니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 환불 규정</p>
+<p class="text-gray-700 mb-3 leading-relaxed">가. 일반 환불 원칙</p>
+<p class="text-gray-700 mb-3 leading-relaxed">① 서비스 이용 전(결제 후 서비스 미사용): 전액 환불</p>
+<p class="text-gray-700 mb-3 leading-relaxed">② 서비스 일부 이용 후: 사용하지 않은 기간에 대해 일할 계산하여 환불</p>
+<p class="text-gray-600 ml-6 mb-2">• 환불 금액 = (구독 금액 / 30일) × 남은 일수</p>
+<p class="text-gray-600 ml-6 mb-2">• 단, 이미 사용한 답안지 채점 횟수가 있는 경우, 사용 횟수에 따른 금액을 차감</p>
+<p class="text-gray-700 mb-3 leading-relaxed">③ 결제 수단의 환불 수수료가 발생하는 경우, 해당 수수료는 회원이 부담합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">나. 정기결제 중도 해지 시 환불</p>
+<p class="text-gray-700 mb-3 leading-relaxed">① 정기결제를 중도 해지하는 경우, 이미 결제된 당월 이용료는 환불되지 않으며, 당월 말일까지 서비스를 이용할 수 있습니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">② 단, 결제 후 7일 이내이고 서비스를 전혀 이용하지 않은 경우에는 전액 환불이 가능합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">③ 다음 달부터는 결제가 자동으로 중단됩니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">다. 환불 제한 사항</p>
+<p class="text-gray-700 mb-3 leading-relaxed">① 회원의 귀책사유로 서비스 이용이 제한된 경우에는 환불이 제한될 수 있습니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">② 할인 혜택을 받은 경우, 환불 시 정상가 기준으로 사용 금액을 차감합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">③ 무료 체험 기간은 환불 대상이 아닙니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">라. 환불 신청 방법</p>
+<p class="text-gray-700 mb-3 leading-relaxed">① 환불을 원하시는 경우, 고객센터(02-6339-6059)로 연락 주시기 바랍니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">② 환불 신청 후 영업일 기준 3~5일 이내에 처리됩니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">③ 환불은 원결제 수단으로 처리되며, 카드 취소의 경우 카드사 정책에 따라 영업일 기준 3~7일 소요될 수 있습니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">3. 결제 오류 및 과오납</p>
+<p class="text-gray-700 mb-3 leading-relaxed">① 시스템 오류 등으로 인한 과오납의 경우, 즉시 전액 환불 처리됩니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">② 회원의 실수로 인한 중복 결제의 경우, 고객센터를 통해 환불 신청하시면 확인 후 처리됩니다.</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제10조 (회원에 대한 통지)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 회사가 회원에 대한 통지를 하는 경우, 회원이 등록한 이메일 주소로 할 수 있습니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 회사는 불특정다수 회원에 대한 통지의 경우 웹사이트 공지사항에 게시함으로써 개별 통지에 갈음할 수 있습니다.</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제11조 (회원의 의무)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">회원은 다음 행위를 하여서는 안 됩니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">▶ 신청 또는 변경 시 허위 내용의 등록</p>
+<p class="text-gray-700 mb-3 leading-relaxed">▶ 타인의 정보 도용</p>
+<p class="text-gray-700 mb-3 leading-relaxed">▶ 회사가 게시한 정보의 변경</p>
+<p class="text-gray-700 mb-3 leading-relaxed">▶ 회사가 정한 정보 이외의 정보(컴퓨터 프로그램 등) 등의 송신 또는 게시</p>
+<p class="text-gray-700 mb-3 leading-relaxed">▶ 회사 기타 제3자의 저작권 등 지적재산권에 대한 침해</p>
+<p class="text-gray-700 mb-3 leading-relaxed">▶ 회사 기타 제3자의 명예를 손상시키거나 업무를 방해하는 행위</p>
+<p class="text-gray-700 mb-3 leading-relaxed">▶ 외설 또는 폭력적인 메시지, 화상, 음성, 기타 공서양속에 반하는 정보를 서비스에 공개 또는 게시하는 행위</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제12조 (저작권의 귀속 및 이용제한)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 회사가 작성한 저작물에 대한 저작권 기타 지적재산권은 회사에 귀속합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 회원이 서비스 내에 게시한 게시물의 저작권은 해당 게시물의 저작자에게 귀속됩니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">3. 회원은 서비스를 이용함으로써 얻은 정보 중 회사에게 지적재산권이 귀속된 정보를 회사의 사전 승낙 없이 복제, 송신, 출판, 배포, 방송 기타 방법에 의하여 영리목적으로 이용하거나 제3자에게 이용하게 하여서는 안됩니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">4. 회원이 업로드한 논술 답안 및 관련 파일에 대한 저작권은 회원에게 있으며, 회사는 서비스 제공 목적으로만 이용합니다.</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제13조 (개인정보보호)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 회사는 회원의 개인정보 수집 시 서비스 제공을 위하여 필요한 범위에서 최소한의 개인정보를 수집합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 회사는 회원의 개인정보를 보호하기 위하여 관련 법령이 정하는 바를 준수하며, 개인정보의 보호 및 사용에 대해서는 관련 법령 및 회사의 개인정보처리방침이 적용됩니다.</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제14조 (회사의 의무)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 회사는 법령과 본 약관이 금지하거나 공서양속에 반하는 행위를 하지 않으며 본 약관이 정하는 바에 따라 지속적이고, 안정적으로 서비스를 제공하는데 최선을 다하여야 합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 회사는 회원이 안전하게 서비스를 이용할 수 있도록 회원의 개인정보 보호를 위한 보안 시스템을 구축합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">3. 회사는 서비스 이용과 관련하여 발생하는 회원의 불만 또는 피해구제 요청을 적절하게 처리할 수 있도록 필요한 인력 및 시스템을 구비합니다.</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제15조 (손해 배상)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 회사는 서비스의 이용과 관련하여 회원에게 발생한 손해에 대하여 회사의 고의 또는 중과실이 없는 한 책임을 지지 않습니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 회원이 본 약관을 위반하여 회사에 손해가 발생한 경우, 회원은 회사에 발생한 모든 손해를 배상하여야 합니다.</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제16조 (면책 조항)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 회사는 천재지변 또는 이에 준하는 불가항력으로 인하여 서비스를 제공할 수 없는 경우에는 서비스 제공에 관한 책임이 면제됩니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 회사는 회원의 귀책사유로 인한 서비스 이용의 장애에 대하여 책임을 지지 않습니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">3. 회사는 회원이 서비스를 이용하여 기대하는 수익을 상실한 것에 대하여 책임을 지지 않으며, 그 밖에 서비스를 통하여 얻은 자료로 인한 손해 등에 대하여도 책임을 지지 않습니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">4. 회사는 AI 분석 결과의 정확성을 보장하지 않으며, 해당 결과는 참고용으로만 활용되어야 합니다.</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제17조 (분쟁 해결)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 회사는 회원이 제기하는 정당한 의견이나 불만을 반영하고 그 피해를 보상처리하기 위하여 피해보상처리기구를 설치·운영합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 회사는 회원으로부터 제출되는 불만사항 및 의견을 우선적으로 처리합니다. 다만, 신속한 처리가 곤란한 경우에는 회원에게 그 사유와 처리일정을 즉시 통보합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">3. 회사와 회원 간에 발생한 분쟁은 전자거래기본법 제28조 및 동 시행령 제15조에 의하여 설치된 전자거래분쟁조정위원회의 조정에 따를 수 있습니다.</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제18조 (재판권 및 준거법)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 회사와 회원 간에 발생한 전자거래 분쟁에 관한 소송은 제소 당시의 회원의 주소에 의하고, 주소가 없는 경우에는 거주지를 관할하는 지방법원의 전속관할로 합니다. 다만, 제소 당시 회원의 주소 또는 거주지가 분명하지 않거나 외국 거주자의 경우에는 민사소송법상의 관할법원에 제기합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 회사와 회원 간에 제기된 전자거래 소송에는 대한민국 법률을 적용합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">부칙</p>
+<p class="text-gray-700 mb-3 leading-relaxed">이 약관은 2026년 1월 3일부터 시행됩니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">이 이용약관에 대한 문의사항이 있으시면 고객센터(02-6339-6059)로 연락주시기 바랍니다.</p>
+            </div>
+            
+            <div class="mt-8 text-center">
+                <a href="/" class="inline-flex items-center text-blue-600 hover:text-blue-700 font-medium">
+                    <i class="fas fa-arrow-left mr-2"></i>홈으로 돌아가기
+                </a>
+            </div>
+        </div>
+    </body>
+    </html>
+  `)
+})
+
+// Privacy Policy Page
+app.get('/privacy', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>개인정보 처리방침 | AI 논술 평가</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    </head>
+    <body class="bg-gray-50">
+        <nav class="bg-white border-b border-gray-200 sticky top-0 z-10">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <a href="/" class="flex items-center">
+                        <span class="text-2xl font-bold text-gray-900">
+                            <i class="fas fa-graduation-cap mr-2"></i>AI 논술 평가
+                        </span>
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <h1 class="text-4xl font-bold text-gray-900 mb-8 text-center">개인정보 처리방침</h1>
+            
+            <div class="bg-white rounded-lg shadow-lg p-8">
+                <p class="text-gray-700 mb-3 leading-relaxed">개인정보 처리방침</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제1조 (개인정보의 처리 목적)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">심마니 스터디(이하 "회사")는 이용자의 개인정보를 중요시하며, 「개인정보 보호법」, 「정보통신망 이용촉진 및 정보보호 등에 관한 법률」 등 관련 법령을 준수하고 있습니다. 회사는 개인정보 처리방침을 통하여 이용자가 제공하는 개인정보가 어떠한 용도와 방식으로 이용되고 있으며, 개인정보 보호를 위해 어떠한 조치가 취해지고 있는지 알려드립니다.</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제2조 (수집하는 개인정보의 항목 및 수집 방법)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 수집하는 개인정보의 항목</p>
+<p class="text-gray-700 mb-3 leading-relaxed">가. 회원가입 시</p>
+<p class="text-gray-600 ml-6 mb-2">• 필수항목: 이메일 주소, 비밀번호, 사용자명</p>
+<p class="text-gray-600 ml-6 mb-2">• 소셜(SNS)을 통하여 회원가입하는 경우 : 소셜(SNS)에서 제공하는 사용자의 계정 정보와 친구 관계 정보 등 연동되는 SNS에서 허용하는 모든 정보</p>
+<p class="text-gray-700 mb-3 leading-relaxed">나. 서비스 이용 시</p>
+<p class="text-gray-600 ml-6 mb-2">• 직접 작성하거나 업로드한 논술 문제 및 평가 기준 파일</p>
+<p class="text-gray-600 ml-6 mb-2">• 직접 작성하거나 업로드한 학생 답안 파일</p>
+<p class="text-gray-600 ml-6 mb-2">• AI 분석 결과 및 첨삭 데이터</p>
+<p class="text-gray-600 ml-6 mb-2">• 서비스 이용 기록, 접속 로그, IP 주소</p>
+<p class="text-gray-700 mb-3 leading-relaxed">다. 결제 시</p>
+<p class="text-gray-600 ml-6 mb-2">• 결제 정보는 계약된 PG사를 통해 처리되며, 회사는 결제 완료 정보만 수신합니다.</p>
+<p class="text-gray-600 ml-6 mb-2">• 카드번호, 유효기간 등 민감한 결제정보는 회사가 직접 보관하지 않습니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 개인정보 수집 방법</p>
+<p class="text-gray-600 ml-6 mb-2">• 웹사이트를 통한 회원가입 및 서비스 이용</p>
+<p class="text-gray-600 ml-6 mb-2">• 파일 업로드 및 서비스 이용 과정</p>
+<p class="text-gray-600 ml-6 mb-2">• 고객센터를 통한 상담 과정</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제3조 (개인정보의 수집 및 이용 목적)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">회사는 수집한 개인정보를 다음의 목적을 위해 활용합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 서비스 제공</p>
+<p class="text-gray-600 ml-6 mb-2">• AI 논술 첨삭 서비스 제공</p>
+<p class="text-gray-600 ml-6 mb-2">• 문제 및 기준 업로드, 답안 제출, 분석 결과 제공</p>
+<p class="text-gray-600 ml-6 mb-2">• 맞춤형 학습 피드백 제공</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 회원 관리</p>
+<p class="text-gray-600 ml-6 mb-2">• 회원제 서비스 이용에 따른 본인 확인, 개인 식별</p>
+<p class="text-gray-600 ml-6 mb-2">• 불법적 이용 방지 및 비인가 사용 방지</p>
+<p class="text-gray-600 ml-6 mb-2">• 가입 의사 확인, 연령확인</p>
+<p class="text-gray-600 ml-6 mb-2">• 불만처리 등 민원처리, 고지사항 전달</p>
+<p class="text-gray-700 mb-3 leading-relaxed">3. 요금 결제 및 정산</p>
+<p class="text-gray-600 ml-6 mb-2">• 구독 서비스 이용에 대한 요금 결제</p>
+<p class="text-gray-600 ml-6 mb-2">• 정기결제 처리 및 결제 내역 관리</p>
+<p class="text-gray-600 ml-6 mb-2">• 환불 처리</p>
+<p class="text-gray-700 mb-3 leading-relaxed">4. 서비스 개선</p>
+<p class="text-gray-600 ml-6 mb-2">• 신규 서비스 개발 및 기존 서비스 개선</p>
+<p class="text-gray-600 ml-6 mb-2">• 통계학적 특성에 따른 서비스 제공 및 광고 게재</p>
+<p class="text-gray-600 ml-6 mb-2">• 서비스 이용 통계 분석</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제4조 (개인정보의 보유 및 이용 기간)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">회사는 원칙적으로 개인정보 수집 및 이용 목적이 달성된 후에는 해당 정보를 지체없이 파기합니다. 단, 다음의 정보에 대해서는 아래의 이유로 명시한 기간 동안 보존합니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 회사 내부 방침에 의한 정보보유 사유</p>
+<p class="text-gray-600 ml-6 mb-2">• 부정 이용 기록: 1년 (부정 이용 방지)</p>
+<p class="text-gray-600 ml-6 mb-2">• 서비스 이용 기록: 회원 탈퇴 시까지</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 관련 법령에 의한 정보보유 사유</p>
+<p class="text-gray-600 ml-6 mb-2">• 계약 또는 청약철회 등에 관한 기록: 5년 (전자상거래법)</p>
+<p class="text-gray-600 ml-6 mb-2">• 대금결제 및 재화 등의 공급에 관한 기록: 5년 (전자상거래법)</p>
+<p class="text-gray-600 ml-6 mb-2">• 소비자의 불만 또는 분쟁처리에 관한 기록: 3년 (전자상거래법)</p>
+<p class="text-gray-600 ml-6 mb-2">• 웹사이트 방문 기록: 3개월 (통신비밀보호법)</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제5조 (개인정보의 파기 절차 및 방법)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">1. 파기 절차</p>
+<p class="text-gray-700 mb-3 leading-relaxed">이용자가 회원가입 등을 위해 입력한 정보는 목적이 달성된 후 별도의 DB로 옮겨져 내부 방침 및 기타 관련 법령에 의한 정보보호 사유에 따라 일정 기간 저장된 후 파기됩니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">2. 파기 방법</p>
+<p class="text-gray-600 ml-6 mb-2">• 전자적 파일 형태의 정보: 기록을 재생할 수 없는 기술적 방법을 사용하여 삭제</p>
+<p class="text-gray-600 ml-6 mb-2">• 종이에 출력된 개인정보: 분쇄기로 분쇄하거나 소각</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제6조 (개인정보의 제3자 제공)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">회사는 원칙적으로 이용자의 개인정보를 제3자에게 제공하지 않습니다. 다만, 아래의 경우에는 예외로 합니다.</p>
+<p class="text-gray-600 ml-6 mb-2">• 이용자가 사전에 동의한 경우</p>
+<p class="text-gray-600 ml-6 mb-2">• 법령의 규정에 의거하거나, 수사 목적으로 법령에 정해진 절차와 방법에 따라 수사기관의 요구가 있는 경우</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제7조 (개인정보 처리의 위탁)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">회사는 서비스 향상을 위해 아래와 같이 개인정보를 위탁하고 있으며, 관계 법령에 따라 위탁계약 시 개인정보가 안전하게 관리될 수 있도록 필요한 사항을 규정하고 있습니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">수탁업체</p>
+<p class="text-gray-700 mb-3 leading-relaxed">위탁업무 내용</p>
+<p class="text-gray-700 mb-3 leading-relaxed">토스페이먼츠</p>
+<p class="text-gray-700 mb-3 leading-relaxed">결제 처리 및 결제 정보 관리</p>
+<p class="text-gray-700 mb-3 leading-relaxed">Google (Gemini API)</p>
+<p class="text-gray-700 mb-3 leading-relaxed">AI 논술 분석 서비스 제공</p>
+<p class="text-gray-700 mb-3 leading-relaxed">카페24</p>
+<p class="text-gray-700 mb-3 leading-relaxed">데이터베이스 호스팅 및 관리</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제8조 (이용자의 권리와 행사 방법)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">이용자는 언제든지 다음 각 호의 개인정보 보호 관련 권리를 행사할 수 있습니다.</p>
+<p class="text-gray-600 ml-6 mb-2">• 개인정보 열람 요구</p>
+<p class="text-gray-600 ml-6 mb-2">• 개인정보에 오류가 있을 경우 정정 요구</p>
+<p class="text-gray-600 ml-6 mb-2">• 개인정보 삭제 요구</p>
+<p class="text-gray-600 ml-6 mb-2">• 개인정보 처리 정지 요구</p>
+<p class="text-gray-700 mb-3 leading-relaxed">위 권리 행사는 고객센터를 통해 하실 수 있으며, 회사는 이에 대해 지체 없이 조치하겠습니다.</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제9조 (개인정보 보호책임자)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">회사는 개인정보 처리에 관한 업무를 총괄해서 책임지고, 개인정보 처리와 관련한 이용자의 불만처리 및 피해구제 등을 위하여 아래와 같이 개인정보 보호책임자를 지정하고 있습니다.</p>
+<p class="text-gray-700 mb-3 leading-relaxed">개인정보 보호책임자</p>
+<p class="text-gray-700 mb-3 leading-relaxed">성명: 이영세</p>
+<p class="text-gray-700 mb-3 leading-relaxed">직책: 대표</p>
+<p class="text-gray-700 mb-3 leading-relaxed">연락처: 02-6339-6059 또는 simmanistudy@google.com</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제10조 (개인정보 처리방침의 변경)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">이 개인정보 처리방침은 2026년 1월 3일부터 적용되며, 법령 및 방침에 따른 변경내용의 추가, 삭제 및 정정이 있는 경우에는 변경사항의 시행 7일 전부터 공지사항을 통하여 고지할 것입니다.</p>
+<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">제11조 (개인정보의 안전성 확보조치)</h2>
+<p class="text-gray-700 mb-3 leading-relaxed">회사는 개인정보의 안전성 확보를 위해 다음과 같은 조치를 취하고 있습니다.</p>
+<p class="text-gray-600 ml-6 mb-2">• 관리적 조치: 내부관리계획 수립·시행, 정기적 직원 교육</p>
+<p class="text-gray-600 ml-6 mb-2">• 기술적 조치: 개인정보처리시스템 등의 접근권한 관리, 접근통제시스템 설치, 개인정보의 암호화, 보안프로그램 설치</p>
+<p class="text-gray-600 ml-6 mb-2">• 물리적 조치: 전산실, 자료보관실 등의 접근통제</p>
+<p class="text-gray-700 mb-3 leading-relaxed">본 개인정보 처리방침에 대한 문의사항이 있는 분은 고객센터(02-6339-6059)로 연락 주시기 바랍니다.</p>
+            </div>
+            
+            <div class="mt-8 text-center">
+                <a href="/" class="inline-flex items-center text-blue-600 hover:text-blue-700 font-medium">
+                    <i class="fas fa-arrow-left mr-2"></i>홈으로 돌아가기
+                </a>
+            </div>
+        </div>
     </body>
     </html>
   `)
@@ -3357,14 +3930,14 @@ app.get('/pricing', (c) => {
                 <span class="inline-block bg-navy-100 text-navy-800 px-4 py-2 rounded-full text-sm font-semibold mb-4">
                     가격
                 </span>
-                <h1 class="text-4xl font-bold text-gray-900 mb-4">모든 교사를 위한 저렴한 플랜</h1>
+                <h1 class="text-4xl font-bold text-gray-900 mb-4">채점해야 할 분량에 따른 다양한 구독 플랜</h1>
                 <p class="text-xl text-gray-600 mb-8">
-                    채점 생산성을 10배로 늘이고 매일 수 시간을 절약하고자 있는 10만 명의 교육자에 합류하세요.
+                    자신의 평가 계획에 맞는 최적의 플랜을 선택하여 AI 논술 평가 서비스를 이용해 보세요.
                 </p>
                 
                 <!-- Billing Toggle -->
                 <div class="flex items-center justify-center space-x-4 mb-4">
-                    <span id="monthlyLabel" class="text-lg font-semibold text-navy-900">월간 간편결제</span>
+                    <span id="monthlyLabel" class="text-lg font-semibold text-navy-900">월간 결제</span>
                     <label class="billing-toggle">
                         <input type="checkbox" id="billingToggle" onchange="toggleBilling()">
                         <span class="slider"></span>
@@ -3372,18 +3945,18 @@ app.get('/pricing', (c) => {
                     <span id="yearlyLabel" class="text-lg font-semibold text-gray-500">매년</span>
                 </div>
                 <p class="text-purple-600 font-semibold">
-                    <i class="fas fa-tag mr-2"></i>최대 30% 할인
+                    <i class="fas fa-tag mr-2"></i>연간 결제시 최대 20% 할인
                 </p>
             </div>
 
             <!-- Pricing Cards -->
             <div class="grid md:grid-cols-4 gap-6">
                 <!-- Free Plan -->
-                <div class="pricing-card bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <div class="pricing-card bg-white rounded-xl shadow-lg p-6 border border-gray-200" data-plan="free">
                     <div class="mb-6">
-                        <h3 class="text-xl font-bold text-gray-900 mb-2">기본</h3>
+                        <h3 class="text-xl font-bold text-gray-900 mb-2">무료 체험</h3>
                         <p class="text-sm text-gray-600 mb-4">
-                            AI 논술 평가 도구를 테스트해 보고자 하는 분들을 위하여.
+                            정규 수업에서 처음으로 논술형 평가를 도입해 보려고 하는 교사들을 위하여
                         </p>
                         <div class="text-4xl font-bold text-gray-900 mb-2">무료</div>
                     </div>
@@ -3391,15 +3964,11 @@ app.get('/pricing', (c) => {
                     <ul class="space-y-3 mb-6 text-sm">
                         <li class="flex items-start">
                             <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
-                            <span>한달에 25개 논술 답안지 채점</span>
+                            <span>한달에 20개 논술 답안지 채점</span>
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
-                            <span>한달에 25개 논술문 내용 요약</span>
-                        </li>
-                        <li class="flex items-start">
-                            <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
-                            <span>논술 1개당 최대 글자 수는 5,000자</span>
+                            <span>논술 1개당 최대 글자 수는 3,000자</span>
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
@@ -3409,55 +3978,59 @@ app.get('/pricing', (c) => {
                             <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
                             <span>간편하게 루브릭 작성</span>
                         </li>
+                        <li class="flex items-start">
+                            <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
+                            <span>학생이 손 글씨로 작성한 답안을 인식하여 디지털 문자로 변환</span>
+                        </li>
                     </ul>
                     
-                    <button onclick="selectPlan('free', 'monthly')" class="w-full bg-navy-900 text-white py-3 rounded-lg font-semibold hover:bg-navy-800 transition">
+                    <button onclick="selectPlan('free', 'monthly')" data-plan-button="free" class="w-full bg-navy-900 text-white py-3 rounded-lg font-semibold hover:bg-navy-800 transition">
                         무료로 시작하세요
                     </button>
                 </div>
 
-                <!-- Lite Plan -->
-                <div class="pricing-card bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <!-- Starter Plan -->
+                <div class="pricing-card bg-white rounded-xl shadow-lg p-6 border border-gray-200" data-plan="starter">
                     <div class="mb-6">
-                        <h3 class="text-xl font-bold text-gray-900 mb-2">라이트</h3>
+                        <h3 class="text-xl font-bold text-gray-900 mb-2">스타터</h3>
                         <p class="text-sm text-gray-600 mb-4">
-                            아주 많은 분량의 논술문을 채점하지 않는 분들을 위하여.
+                            논술 학원이나 방과 후 수업에서 논술을 지도하는 교사들을 위하여
                         </p>
                         <div class="monthly-price">
-                            <div class="text-4xl font-bold text-gray-900">6,000원<span class="text-lg text-gray-500">/월</span></div>
+                            <div class="text-4xl font-bold text-gray-900">7,500원<span class="text-lg text-gray-500">/월</span></div>
                         </div>
                         <div class="yearly-price hidden">
-                            <div class="text-4xl font-bold text-gray-900">4,500원<span class="text-lg text-gray-500">/월</span></div>
-                            <div class="text-sm text-gray-500">(연간 54,000원)</div>
+                            <div class="text-4xl font-bold text-gray-900">6,000원<span class="text-lg text-gray-500">/월</span></div>
+                            <div class="text-sm text-gray-500">(연간 72,000원)</div>
                         </div>
                     </div>
                     
                     <ul class="space-y-3 mb-6 text-sm">
                         <li class="flex items-start">
                             <i class="fas fa-arrow-left text-navy-700 mr-2 mt-1"></i>
-                            <span>기본 요금제에서 제공하는 것에 더하여 아래와 같은 서비스가 제공됩니다.</span>
+                            <span>무료 체험 요금제의 모든 기능 +</span>
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
-                            <span>한달에 120개 논술 답안지 채점</span>
+                            <span>한달에 90개 논술 답안지 채점</span>
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
-                            <span>한달에 120개 논술문 내용 요약</span>
+                            <span>논술 1개당 최대 글자 수는 5,000자</span>
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
-                            <span>논술 1개당 최대 글자 수는 10,000자</span>
+                            <span>교사가 출제한 문항에 학생이 직접 답안지를 제출할 수 있도록 학생 접속 코드 제공</span>
                         </li>
                     </ul>
                     
-                    <button onclick="selectPlan('lite', 'monthly')" class="w-full bg-navy-900 text-white py-3 rounded-lg font-semibold hover:bg-navy-800 transition">
+                    <button onclick="selectPlan('starter', 'monthly')" data-plan-button="starter" class="w-full bg-navy-900 text-white py-3 rounded-lg font-semibold hover:bg-navy-800 transition">
                         무료로 시작하세요
                     </button>
                 </div>
 
-                <!-- Pro Plan (Featured) -->
-                <div class="pricing-card bg-white rounded-xl shadow-2xl p-6 border-2 border-navy-700 relative">
+                <!-- Basic Plan (Featured) -->
+                <div class="pricing-card bg-white rounded-xl shadow-2xl p-6 border-2 border-navy-700 relative" data-plan="basic">
                     <div class="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
                         <span class="bg-gradient-to-r from-purple-500 to-navy-700 text-white px-6 py-1 rounded-full text-sm font-semibold flex items-center">
                             <i class="fas fa-star mr-2"></i>적극 추천
@@ -3465,35 +4038,31 @@ app.get('/pricing', (c) => {
                     </div>
                     
                     <div class="mb-6 mt-4">
-                        <h3 class="text-xl font-bold text-gray-900 mb-2">프로</h3>
+                        <h3 class="text-xl font-bold text-gray-900 mb-2">베이직</h3>
                         <p class="text-sm text-gray-600 mb-4">
-                            한달에 아주 많은 분량의 논술문을 채점하는 교사들을 위하여.
+                            정규 수업에서 논술 평가를 실시해 보고자 하는 교사들을 위하여
                         </p>
                         <div class="monthly-price">
-                            <div class="text-4xl font-bold text-gray-900">15,000원<span class="text-lg text-gray-500">/월</span></div>
+                            <div class="text-4xl font-bold text-gray-900">20,000원<span class="text-lg text-gray-500">/월</span></div>
                         </div>
                         <div class="yearly-price hidden">
-                            <div class="text-4xl font-bold text-gray-900">12,000원<span class="text-lg text-gray-500">/월</span></div>
-                            <div class="text-sm text-gray-500">(연간 144,000원)</div>
+                            <div class="text-4xl font-bold text-gray-900">16,000원<span class="text-lg text-gray-500">/월</span></div>
+                            <div class="text-sm text-gray-500">(연간 192,000원)</div>
                         </div>
                     </div>
                     
                     <ul class="space-y-3 mb-6 text-sm">
                         <li class="flex items-start">
                             <i class="fas fa-arrow-left text-navy-700 mr-2 mt-1"></i>
-                            <span>라이트 요금제에서 제공하는 것에 더하여 아래와 같은 서비스가 제공됩니다.</span>
+                            <span>스타터 요금제의 모든 기능 +</span>
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
-                            <span>한달에 360개 논술 답안지 채점</span>
+                            <span>한달에 300개 논술 답안지 채점</span>
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
-                            <span>한달에 360개 논술문 내용 요약</span>
-                        </li>
-                        <li class="flex items-start">
-                            <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
-                            <span>논술 1개당 최대 글자 수는 30,000자</span>
+                            <span>논술 1개당 최대 글자 수는 10,000자</span>
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
@@ -3505,65 +4074,85 @@ app.get('/pricing', (c) => {
                         </li>
                     </ul>
                     
-                    <button onclick="selectPlan('pro', 'monthly')" class="w-full bg-gradient-to-r from-navy-700 to-navy-900 text-white py-3 rounded-lg font-semibold hover:shadow-xl transition">
+                    <button onclick="selectPlan('basic', 'monthly')" data-plan-button="basic" class="w-full bg-gradient-to-r from-navy-700 to-navy-900 text-white py-3 rounded-lg font-semibold hover:shadow-xl transition">
                         무료로 시작하세요
                     </button>
                 </div>
 
-                <!-- Premium Plan -->
-                <div class="pricing-card bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <!-- Pro Plan -->
+                <div class="pricing-card bg-white rounded-xl shadow-lg p-6 border border-gray-200" data-plan="pro">
                     <div class="mb-6">
-                        <h3 class="text-xl font-bold text-gray-900 mb-2">프리미엄</h3>
+                        <h3 class="text-xl font-bold text-gray-900 mb-2">프로</h3>
                         <p class="text-sm text-gray-600 mb-4">
-                            AI 논술 평가의 모든 기능을 활용해야 할 정도로 업무량이 많은 교사들을 위하여.
+                            아주 많은 분량의 논술문을 채점하는 교사들을 위하여
                         </p>
                         <div class="monthly-price">
-                            <div class="text-4xl font-bold text-gray-900">30,000원<span class="text-lg text-gray-500">/월</span></div>
+                            <div class="text-4xl font-bold text-gray-900">39,000원<span class="text-lg text-gray-500">/월</span></div>
                         </div>
                         <div class="yearly-price hidden">
-                            <div class="text-4xl font-bold text-gray-900">24,000원<span class="text-lg text-gray-500">/월</span></div>
-                            <div class="text-sm text-gray-500">(연간 288,000원)</div>
+                            <div class="text-4xl font-bold text-gray-900">31,000원<span class="text-lg text-gray-500">/월</span></div>
+                            <div class="text-sm text-gray-500">(연간 372,000원)</div>
                         </div>
                     </div>
                     
                     <ul class="space-y-3 mb-6 text-sm">
                         <li class="flex items-start">
                             <i class="fas fa-arrow-left text-navy-700 mr-2 mt-1"></i>
-                            <span>프로 요금제에서 제공하는 것에 더하여 아래와 같은 서비스가 제공됩니다.</span>
+                            <span>베이직 요금제의 모든 기능 +</span>
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
-                            <span>한달에 750개 논술 답안지 채점</span>
+                            <span>한달에 600개 논술 답안지 채점</span>
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
-                            <span>한달에 750개 논술문 내용 요약</span>
-                        </li>
-                        <li class="flex items-start">
-                            <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
-                            <span>논술 1개당 글자 수 최대 글자 수는 70,000자</span>
+                            <span>논술 1개당 최대 글자 수는 15,000자</span>
                         </li>
                     </ul>
                     
-                    <button onclick="selectPlan('premium', 'monthly')" class="w-full bg-navy-900 text-white py-3 rounded-lg font-semibold hover:bg-navy-800 transition">
+                    <button onclick="selectPlan('pro', 'monthly')" data-plan-button="pro" class="w-full bg-navy-900 text-white py-3 rounded-lg font-semibold hover:bg-navy-800 transition">
                         무료로 시작하세요
                     </button>
                 </div>
             </div>
 
-            <!-- Additional Info -->
-            <div class="mt-16 text-center">
-                <p class="text-gray-600 mb-4">모든 플랜에는 다음이 포함됩니다:</p>
-                <div class="flex justify-center space-x-8 text-sm text-gray-700">
-                    <div><i class="fas fa-check text-green-500 mr-2"></i>무료 평가판</div>
-                    <div><i class="fas fa-check text-green-500 mr-2"></i>신용카드 불필요</div>
-                    <div><i class="fas fa-check text-green-500 mr-2"></i>언제든지 취소</div>
-                </div>
-            </div>
         </div>
 
         <script>
           let currentBilling = 'monthly';
+          let currentPlan = 'free'; // Default plan
+          
+          // Get current plan from URL parameter
+          window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const plan = urlParams.get('plan');
+            if (plan) {
+              currentPlan = plan;
+              updatePlanDisplay();
+            }
+          });
+          
+          function updatePlanDisplay() {
+            // Hide plans based on current plan
+            if (currentPlan === 'starter') {
+              // Hide free plan for starter users
+              const freePlanCard = document.querySelector('[data-plan="free"]');
+              if (freePlanCard) freePlanCard.style.display = 'none';
+            }
+            
+            // Update button texts
+            document.querySelectorAll('[data-plan-button]').forEach(button => {
+              const planType = button.getAttribute('data-plan-button');
+              if (planType === currentPlan) {
+                button.textContent = '사용 중';
+                button.disabled = true;
+                button.classList.remove('bg-navy-900', 'hover:bg-navy-800', 'bg-gradient-to-r', 'from-navy-700', 'to-navy-900', 'hover:shadow-xl');
+                button.classList.add('bg-gray-400', 'cursor-not-allowed');
+              } else {
+                button.textContent = '선택하기';
+              }
+            });
+          }
           
           function toggleBilling() {
             const toggle = document.getElementById('billingToggle');
@@ -3594,7 +4183,376 @@ app.get('/pricing', (c) => {
           }
           
           function selectPlan(plan, billing) {
-            window.location.href = \`/signup?plan=\${plan}&billing=\${currentBilling}\`;
+            window.location.href = '/checkout?plan=' + plan + '&billing=' + currentBilling;
+          }
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+// Checkout Page
+app.get('/checkout', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>결제하기 | AI 논술 평가</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script>
+          tailwind.config = {
+            theme: {
+              extend: {
+                colors: {
+                  navy: {
+                    50: '#f0f4ff',
+                    100: '#e0e9ff',
+                    700: '#4338ca',
+                    800: '#3730a3',
+                    900: '#1e3a8a',
+                  }
+                }
+              }
+            }
+          }
+        </script>
+        <style>
+          .payment-method {
+            cursor: pointer;
+            transition: all 0.3s ease;
+          }
+          .payment-method.active {
+            background-color: #1e3a8a;
+            color: white;
+            border-color: #1e3a8a;
+          }
+        </style>
+    </head>
+    <body class="bg-gray-50">
+        <!-- Navigation -->
+        <nav class="bg-white border-b border-gray-200">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <a href="/" class="flex items-center">
+                        <span class="text-2xl font-bold text-navy-900">
+                            <i class="fas fa-graduation-cap mr-2"></i>AI 논술 평가
+                        </span>
+                    </a>
+                    <button onclick="history.back()" class="text-gray-700 hover:text-navy-700 font-medium">
+                        <i class="fas fa-arrow-left mr-2"></i>돌아가기
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <!-- Header -->
+            <div class="mb-8">
+                <h1 class="text-3xl font-bold text-gray-900 mb-2">선택한 요금제</h1>
+            </div>
+
+            <!-- Billing Toggle -->
+            <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+                <div class="flex items-center justify-center space-x-4">
+                    <button id="monthlyBtn" onclick="toggleBilling('monthly')" class="px-6 py-2 rounded-lg font-semibold transition bg-navy-900 text-white">
+                        월간
+                    </button>
+                    <button id="yearlyBtn" onclick="toggleBilling('yearly')" class="px-6 py-2 rounded-lg font-semibold transition bg-gray-200 text-gray-700">
+                        연간 (20% 할인)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Plan Details -->
+            <div class="bg-white rounded-lg shadow-md p-8 mb-6 border-l-4 border-lime-400">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h2 id="planName" class="text-2xl font-bold text-gray-900 mb-2">스타터 요금제</h2>
+                        <p id="planDescription" class="text-gray-600">논술 학원이나 방과 후 수업에서 논술을 지도하는 교사들을 위하여</p>
+                    </div>
+                    <div class="text-right">
+                        <div id="planPrice" class="text-3xl font-bold text-gray-900">₩7,500<span class="text-lg text-gray-500">/월</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment Method -->
+            <div class="bg-white rounded-lg shadow-md p-8 mb-6">
+                <h3 class="text-lg font-bold text-gray-900 mb-4">결제 방법</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="payment-method active border-2 border-gray-300 rounded-lg p-4 text-center" onclick="selectPaymentMethod('card')">
+                        <i class="fas fa-credit-card text-2xl mb-2"></i>
+                        <div class="font-semibold">신용/체크카드</div>
+                    </div>
+                    <div class="payment-method border-2 border-gray-300 rounded-lg p-4 text-center" onclick="selectPaymentMethod('kakao')">
+                        <i class="fas fa-comment text-2xl mb-2"></i>
+                        <div class="font-semibold">카카오페이</div>
+                    </div>
+                </div>
+                <button onclick="showAddCard()" class="mt-4 text-navy-700 hover:text-navy-900 text-sm font-semibold">
+                    <i class="fas fa-plus mr-2"></i>새로운 결제 카드 추가
+                </button>
+            </div>
+
+            <!-- Payment Details -->
+            <div class="bg-white rounded-lg shadow-md p-8 mb-6">
+                <h3 class="text-lg font-bold text-gray-900 mb-4">결제 내역</h3>
+                <div class="space-y-3">
+                    <div class="flex justify-between text-gray-700">
+                        <span>결제 금액</span>
+                        <span id="priceAmount" class="font-semibold">월 ₩7,500</span>
+                    </div>
+                    <div class="flex justify-between text-gray-700">
+                        <span>결제일</span>
+                        <span id="paymentDate" class="font-semibold">2025년 11월 23일</span>
+                    </div>
+                </div>
+                <div class="mt-4 pt-4 border-t text-sm text-gray-600">
+                    <p>결제 후 즉시 서비스를 이용하실 수 있습니다.</p>
+                    <p class="mt-2">위 내용은 최종 결제시 변경될 수 있습니다.</p>
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <button onclick="processPayment()" class="w-full bg-lime-400 text-black py-4 rounded-lg font-bold text-lg hover:bg-lime-500 transition">
+                결제하기
+            </button>
+        </div>
+
+        <!-- Add Card Modal -->
+        <div id="addCardModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+                <div class="p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-bold text-gray-900">새로운 결제 카드 추가</h3>
+                        <button onclick="closeAddCardModal()" class="text-gray-500 hover:text-gray-700">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+
+                    <form id="addCardForm" onsubmit="registerCard(event)">
+                        <!-- Card Number -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">카드 번호</label>
+                            <div class="grid grid-cols-4 gap-2">
+                                <input type="text" id="cardNum1" maxlength="4" placeholder="1234" required
+                                    class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent text-center"
+                                    oninput="moveToNext(this, 'cardNum2')" />
+                                <input type="text" id="cardNum2" maxlength="4" placeholder="1234" required
+                                    class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent text-center"
+                                    oninput="moveToNext(this, 'cardNum3')" />
+                                <input type="text" id="cardNum3" maxlength="4" placeholder="1234" required
+                                    class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent text-center"
+                                    oninput="moveToNext(this, 'cardNum4')" />
+                                <input type="text" id="cardNum4" maxlength="4" placeholder="1234" required
+                                    class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent text-center"
+                                    oninput="moveToNext(this, 'cardExpiry')" />
+                            </div>
+                        </div>
+
+                        <!-- Expiry Date and CVV -->
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">유효 기간</label>
+                                <input type="text" id="cardExpiry" maxlength="5" placeholder="MM / YY" required
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent"
+                                    oninput="formatExpiry(this)" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    보안코드 (CVV/CVC)
+                                    <i class="fas fa-question-circle text-gray-400 text-xs ml-1"></i>
+                                </label>
+                                <input type="password" id="cardCvv" maxlength="3" placeholder="●●●" required
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent text-center"
+                                    oninput="moveToNext(this, 'cardBirthOrBusiness')" />
+                            </div>
+                        </div>
+
+                        <!-- Birth Date or Business Number -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                생년월일 (6자리) / 사업자등록번호 (10자리)
+                                <i class="fas fa-question-circle text-gray-400 text-xs ml-1"></i>
+                            </label>
+                            <input type="text" id="cardBirthOrBusiness" maxlength="10" placeholder="생년월일 (6자리) / 사업자등록번호 (10자리)" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent" />
+                            <p class="text-xs text-gray-500 mt-2">법인카드는 앞 10자리를 입력하세요.</p>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <button type="submit" class="w-full bg-black text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition">
+                            등록하기
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <script>
+          let selectedPlan = 'starter';
+          let selectedBilling = 'monthly';
+          let selectedPaymentMethod = 'card';
+
+          const planInfo = {
+            free: {
+              name: '무료 체험',
+              description: '정규 수업에서 처음으로 논술형 평가를 도입해 보려고 하는 교사들을 위하여',
+              monthlyPrice: 0,
+              yearlyPrice: 0
+            },
+            starter: {
+              name: '스타터 요금제',
+              description: '논술 학원이나 방과 후 수업에서 논술을 지도하는 교사들을 위하여',
+              monthlyPrice: 7500,
+              yearlyPrice: 6000
+            },
+            basic: {
+              name: '베이직 요금제',
+              description: '정규 수업에서 논술 평가를 실시해 보고자 하는 교사들을 위하여',
+              monthlyPrice: 20000,
+              yearlyPrice: 16000
+            },
+            pro: {
+              name: '프로 요금제',
+              description: '아주 많은 분량의 논술문을 채점하는 교사들을 위하여',
+              monthlyPrice: 39000,
+              yearlyPrice: 31000
+            }
+          };
+
+          // Initialize from URL parameters
+          window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const plan = urlParams.get('plan') || 'starter';
+            const billing = urlParams.get('billing') || 'monthly';
+            
+            selectedPlan = plan;
+            selectedBilling = billing;
+            
+            updatePlanDisplay();
+            if (billing === 'yearly') {
+              toggleBilling('yearly');
+            }
+          });
+
+          function toggleBilling(type) {
+            selectedBilling = type;
+            const monthlyBtn = document.getElementById('monthlyBtn');
+            const yearlyBtn = document.getElementById('yearlyBtn');
+            
+            if (type === 'monthly') {
+              monthlyBtn.classList.add('bg-navy-900', 'text-white');
+              monthlyBtn.classList.remove('bg-gray-200', 'text-gray-700');
+              yearlyBtn.classList.remove('bg-navy-900', 'text-white');
+              yearlyBtn.classList.add('bg-gray-200', 'text-gray-700');
+            } else {
+              yearlyBtn.classList.add('bg-navy-900', 'text-white');
+              yearlyBtn.classList.remove('bg-gray-200', 'text-gray-700');
+              monthlyBtn.classList.remove('bg-navy-900', 'text-white');
+              monthlyBtn.classList.add('bg-gray-200', 'text-gray-700');
+            }
+            
+            updatePlanDisplay();
+          }
+
+          function updatePlanDisplay() {
+            const plan = planInfo[selectedPlan];
+            if (!plan) return;
+            
+            const price = selectedBilling === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
+            const totalYearly = price * 12;
+            
+            document.getElementById('planName').textContent = plan.name;
+            document.getElementById('planDescription').textContent = plan.description;
+            document.getElementById('planPrice').innerHTML = '₩' + price.toLocaleString() + '<span class="text-lg text-gray-500">/월</span>';
+            
+            const billingText = selectedBilling === 'monthly' ? '월' : '연간';
+            document.getElementById('priceAmount').textContent = billingText + ' ₩' + (selectedBilling === 'monthly' ? price : totalYearly).toLocaleString();
+            
+            // Update payment date
+            const today = new Date();
+            const paymentDate = new Date(today);
+            paymentDate.setMonth(today.getMonth() + 1);
+            document.getElementById('paymentDate').textContent = paymentDate.getFullYear() + '년 ' + (paymentDate.getMonth() + 1) + '월 ' + paymentDate.getDate() + '일';
+          }
+
+          function selectPaymentMethod(method) {
+            selectedPaymentMethod = method;
+            document.querySelectorAll('.payment-method').forEach(el => {
+              el.classList.remove('active');
+            });
+            event.target.closest('.payment-method').classList.add('active');
+          }
+
+          function showAddCard() {
+            document.getElementById('addCardModal').classList.remove('hidden');
+          }
+
+          function closeAddCardModal() {
+            document.getElementById('addCardModal').classList.add('hidden');
+            document.getElementById('addCardForm').reset();
+          }
+
+          function moveToNext(current, nextFieldId) {
+            if (current.value.length >= current.maxLength) {
+              const nextField = document.getElementById(nextFieldId);
+              if (nextField) {
+                nextField.focus();
+              }
+            }
+          }
+
+          function formatExpiry(input) {
+            let value = input.value.replace(/\D/g, '');
+            if (value.length >= 2) {
+              value = value.substring(0, 2) + ' / ' + value.substring(2, 4);
+            }
+            input.value = value;
+          }
+
+          function registerCard(event) {
+            event.preventDefault();
+            
+            const cardNum1 = document.getElementById('cardNum1').value;
+            const cardNum2 = document.getElementById('cardNum2').value;
+            const cardNum3 = document.getElementById('cardNum3').value;
+            const cardNum4 = document.getElementById('cardNum4').value;
+            const cardExpiry = document.getElementById('cardExpiry').value;
+            const cardCvv = document.getElementById('cardCvv').value;
+            const cardBirthOrBusiness = document.getElementById('cardBirthOrBusiness').value;
+            
+            // Basic validation
+            if (cardNum1.length !== 4 || cardNum2.length !== 4 || cardNum3.length !== 4 || cardNum4.length !== 4) {
+              alert('카드 번호를 올바르게 입력해주세요.');
+              return;
+            }
+            
+            if (cardCvv.length !== 3) {
+              alert('보안코드를 올바르게 입력해주세요.');
+              return;
+            }
+            
+            if (cardBirthOrBusiness.length !== 6 && cardBirthOrBusiness.length !== 10) {
+              alert('생년월일(6자리) 또는 사업자등록번호(10자리)를 입력해주세요.');
+              return;
+            }
+            
+            // TODO: Implement actual card registration
+            alert('카드가 등록되었습니다.');
+            closeAddCardModal();
+          }
+
+          function processPayment() {
+            if (confirm('결제를 진행하시겠습니까?')) {
+              alert('결제 기능은 현재 준비 중입니다. 실제 서비스에서는 결제 API와 연동됩니다.');
+              // TODO: Implement actual payment processing
+              // window.location.href = '/my-page';
+            }
           }
         </script>
     </body>
@@ -3639,6 +4597,27 @@ app.get('/my-page', (c) => {
             background-color: #1e3a8a;
             color: white;
           }
+          /* Reference material textarea styling */
+          .reference-input {
+            resize: vertical;
+            min-height: 120px;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 #f1f5f9;
+          }
+          .reference-input::-webkit-scrollbar {
+            width: 8px;
+          }
+          .reference-input::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+          }
+          .reference-input::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+          }
+          .reference-input::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+          }
         </style>
     </head>
     <body class="bg-gray-50">
@@ -3654,6 +4633,18 @@ app.get('/my-page', (c) => {
                     <div class="flex items-center space-x-4">
                         <a href="/" class="text-gray-700 hover:text-navy-700 font-medium">홈</a>
                         <span class="text-navy-700 font-semibold">나의 페이지</span>
+                        
+                        <!-- User Info & Usage -->
+                        <div class="flex items-center space-x-3">
+                            <div id="usageInfo" class="text-sm font-medium text-gray-700">무료 체험: 0 / 20</div>
+                            <div class="w-10 h-10 bg-navy-700 rounded-full flex items-center justify-center text-white">
+                                <i class="fas fa-user"></i>
+                            </div>
+                        </div>
+                        
+                        <a href="/pricing?plan=free" class="bg-lime-200 text-black px-4 py-2 rounded-lg font-semibold hover:bg-lime-300 transition">
+                            <i class="fas fa-arrow-up mr-2"></i>업그레이드
+                        </a>
                     </div>
                 </div>
             </div>
@@ -3707,6 +4698,24 @@ app.get('/my-page', (c) => {
                     </button>
                 </div>
 
+                <!-- Load Existing Assignment -->
+                <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-folder-open mr-2 text-blue-600"></i>기존 과제 불러오기
+                    </label>
+                    <div class="flex gap-2">
+                        <select id="existingAssignmentSelect" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-700">
+                            <option value="">-- 기존 과제를 선택하세요 --</option>
+                        </select>
+                        <button type="button" onclick="loadExistingAssignment()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold">
+                            <i class="fas fa-download mr-2"></i>불러오기
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-600 mt-2">
+                        <i class="fas fa-info-circle mr-1"></i>기존 과제를 선택하고 '불러오기'를 클릭하면 내용을 편집하여 사용할 수 있습니다.
+                    </p>
+                </div>
+
                 <form id="createAssignmentForm" onsubmit="handleCreateAssignment(event)">
                     <div class="space-y-4">
                         <div>
@@ -3719,39 +4728,71 @@ app.get('/my-page', (c) => {
                             <textarea id="assignmentDescription" rows="4" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-700" placeholder="학생들에게 요구하는 논술 주제와 요구사항을 입력하세요" required></textarea>
                         </div>
 
-                        <!-- Reference Materials -->
+                        <!-- Prompts (Reference Materials) -->
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">참고 자료 첨부</label>
-                            <div id="assignmentReferenceMaterials" class="space-y-2 mb-2">
-                                <!-- Initial 4 reference slots -->
-                                <div class="reference-item flex gap-2">
-                                    <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
-                                    <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
-                                        <i class="fas fa-times"></i>
-                                    </button>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">제시문</label>
+                            <div id="assignmentReferenceMaterials" class="space-y-3 mb-2">
+                                <!-- Initial 4 reference slots with image upload -->
+                                <div class="reference-item">
+                                    <div class="flex gap-2 mb-2">
+                                        <textarea class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)"></textarea>
+                                        <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm self-start">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
+                                            <i class="fas fa-image mr-1"></i>이미지 업로드
+                                        </button>
+                                        <span class="text-xs text-gray-500 self-center upload-status"></span>
+                                    </div>
                                 </div>
-                                <div class="reference-item flex gap-2">
-                                    <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
-                                    <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
-                                        <i class="fas fa-times"></i>
-                                    </button>
+                                <div class="reference-item">
+                                    <div class="flex gap-2 mb-2">
+                                        <textarea class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)"></textarea>
+                                        <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm self-start">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
+                                            <i class="fas fa-image mr-1"></i>이미지 업로드
+                                        </button>
+                                        <span class="text-xs text-gray-500 self-center upload-status"></span>
+                                    </div>
                                 </div>
-                                <div class="reference-item flex gap-2">
-                                    <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
-                                    <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
-                                        <i class="fas fa-times"></i>
-                                    </button>
+                                <div class="reference-item">
+                                    <div class="flex gap-2 mb-2">
+                                        <textarea class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)"></textarea>
+                                        <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm self-start">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
+                                            <i class="fas fa-image mr-1"></i>이미지 업로드
+                                        </button>
+                                        <span class="text-xs text-gray-500 self-center upload-status"></span>
+                                    </div>
                                 </div>
-                                <div class="reference-item flex gap-2">
-                                    <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
-                                    <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
-                                        <i class="fas fa-times"></i>
-                                    </button>
+                                <div class="reference-item">
+                                    <div class="flex gap-2 mb-2">
+                                        <textarea class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)"></textarea>
+                                        <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm self-start">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
+                                            <i class="fas fa-image mr-1"></i>이미지 업로드
+                                        </button>
+                                        <span class="text-xs text-gray-500 self-center upload-status"></span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="flex items-center justify-between">
                                 <button type="button" onclick="addReferenceMaterial()" id="addReferenceBtn" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm">
-                                    <i class="fas fa-plus mr-2"></i>참고 자료 추가
+                                    <i class="fas fa-plus mr-2"></i>제시문 추가
                                 </button>
                                 <span id="referenceCount" class="text-sm text-gray-600">4 / 11</span>
                             </div>
@@ -3852,6 +4893,8 @@ app.get('/my-page', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
         <script>
           let currentAssignmentId = null;
           let criterionCounter = 0;
@@ -3923,31 +4966,17 @@ app.get('/my-page', (c) => {
                 { value: 'standard', text: '표준 논술 루브릭 (4개 기준)' },
                 { value: 'detailed', text: '상세 논술 루브릭 (6개 기준)' },
                 { value: 'simple', text: '간단 논술 루브릭 (3개 기준)' },
-                { value: 'nyregents', text: '뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)' }
+                { value: 'nyregents', text: '뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)' },
+                { value: 'nyregents_analytical', text: '뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭' },
+                { value: 'ny_middle', text: '뉴욕 주 중학교 논술 루브릭' },
+                { value: 'ny_elementary', text: '뉴욕 주 초등학교 논술 루브릭' },
+                { value: 'ib_myp_highschool', text: 'IB 중등 프로그램 고등학교 개인과 사회 논술 루브릭' },
+                { value: 'ib_myp_middleschool', text: 'IB 중등 프로그램 중학교 개인과 사회 논술 루브릭' },
+                { value: 'ib_myp_science', text: 'IB 중등 프로그램 과학 논술 루브릭' }
               ];
               
-              // Sort database rubrics in specific order
-              // Order: 분석적 글쓰기 (ID:2) -> 중학교 (ID:1) -> 초등학교 (ID:3)
-              const sortOrder = {
-                '뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭': 1,
-                '뉴욕 주 중학교 글쓰기 루브릭': 2,
-                '뉴욕 주 초등학교 글쓰기 루브릭': 3
-              };
-              
-              const sortedRubrics = rubrics.sort((a, b) => {
-                const orderA = sortOrder[a.title] || 999;
-                const orderB = sortOrder[b.title] || 999;
-                return orderA - orderB;
-              });
-              
-              // Add database rubrics
-              const dbOptions = sortedRubrics.map(rubric => ({
-                value: 'db_' + rubric.id,
-                text: rubric.title
-              }));
-              
-              // Combine all options
-              const allOptions = [...builtInOptions, ...dbOptions];
+              // All rubrics are now built-in (no database rubrics)
+              const allOptions = builtInOptions;
               
               select.innerHTML = allOptions.map(opt => 
                 '<option value="' + opt.value + '">' + opt.text + '</option>'
@@ -3963,12 +4992,70 @@ app.get('/my-page', (c) => {
                   <option value="detailed">상세 논술 루브릭 (6개 기준)</option>
                   <option value="simple">간단 논술 루브릭 (3개 기준)</option>
                   <option value="nyregents">뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)</option>
+                  <option value="nyregents_analytical">뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭</option>
+                  <option value="ny_middle">뉴욕 주 중학교 논술 루브릭</option>
+                  <option value="ny_elementary">뉴욕 주 초등학교 논술 루브릭</option>
+                  <option value="ib_myp_highschool">IB 중등 프로그램 고등학교 개인과 사회 논술 루브릭</option>
+                  <option value="ib_myp_middleschool">IB 중등 프로그램 중학교 개인과 사회 논술 루브릭</option>
+                  <option value="ib_myp_science">IB 중등 프로그램 과학 논술 루브릭</option>
                 \`;
               }
             }
           }
 
           // Load assignments
+          // Print assignment function
+          function printAssignment() {
+            const assignment = window.currentAssignment;
+            if (!assignment) {
+              alert('과제 정보를 불러올 수 없습니다.');
+              return;
+            }
+
+            const printWindow = window.open('', '_blank', 'width=800,height=600');
+            
+            const promptsHTML = assignment.prompts && assignment.prompts.length > 0 
+              ? '<div class="mb-6"><h2 class="text-xl font-bold mb-3">제시문</h2><div class="space-y-3">' +
+                assignment.prompts.map((prompt, idx) => 
+                  '<div class="border border-gray-300 rounded-lg p-4 bg-gray-50"><div class="font-semibold text-blue-900 mb-2">제시문 ' + (idx + 1) + '</div><div class="whitespace-pre-wrap">' + prompt + '</div></div>'
+                ).join('') + '</div></div>'
+              : '';
+
+            const rubricsHTML = '<div class="mb-6"><h2 class="text-xl font-bold mb-3">평가 루브릭</h2><div class="space-y-2">' +
+              assignment.rubrics.map((rubric, idx) => 
+                '<div class="border border-gray-300 rounded-lg p-4"><div class="font-semibold">' + (idx + 1) + '. ' + rubric.criterion_name + '</div><div class="text-sm text-gray-600 mt-1">' + rubric.criterion_description + '</div></div>'
+              ).join('') + '</div></div>';
+
+            const accessCodeHTML = assignment.access_code 
+              ? '<div class="mb-6 p-4 bg-yellow-50 border border-yellow-300 rounded-lg"><h2 class="text-xl font-bold mb-2">학생 액세스 코드</h2><div class="text-3xl font-mono font-bold text-center py-3">' + assignment.access_code + '</div><p class="text-sm text-gray-600 text-center">학생들에게 이 코드를 공유하세요</p></div>'
+              : '';
+
+            printWindow.document.write(
+              '<html><head>' +
+              '<meta charset="UTF-8">' +
+              '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+              '<title>' + assignment.title + ' - 인쇄</title>' +
+              '<script src="https://cdn.tailwindcss.com"><' + '/script>' +
+              '<style>' +
+              'body { padding: 40px; background: white; }' +
+              '.print-title { font-size: 24px; font-weight: bold; margin-bottom: 30px; color: #111827; }' +
+              '@media print { .no-print { display: none; } }' +
+              '</style>' +
+              '</head><body>' +
+              '<div class="print-title">📝 ' + assignment.title + '</div>' +
+              '<div class="mb-6"><h2 class="text-xl font-bold mb-3">과제 설명</h2><p class="text-gray-700">' + assignment.description + '</p><div class="mt-3 text-sm text-gray-600"><i class="fas fa-graduation-cap mr-2"></i>' + assignment.grade_level + (assignment.due_date ? ' | <i class="fas fa-clock mr-2 text-orange-600"></i>마감: ' + new Date(assignment.due_date).toLocaleDateString('ko-KR') : '') + '</div></div>' +
+              promptsHTML +
+              rubricsHTML +
+              accessCodeHTML +
+              '<div class="no-print" style="margin-top: 32px; display: flex; gap: 16px; justify-content: center;">' +
+              '<button onclick="window.print()" style="padding: 12px 24px; background: #1e3a8a; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 16px;">🖨️ 인쇄하기</button>' +
+              '<button onclick="window.close()" style="padding: 12px 24px; background: #e5e7eb; color: #374151; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 16px;">닫기</button>' +
+              '</div>' +
+              '</body></html>'
+            );
+            printWindow.document.close();
+          }
+
           async function loadAssignments() {
             try {
               const response = await axios.get('/api/assignments');
@@ -4035,8 +5122,31 @@ app.get('/my-page', (c) => {
 
               document.getElementById('detailTitle').textContent = assignment.title;
 
+              // Store assignment for printing
+              window.currentAssignment = assignment;
+
               document.getElementById('assignmentDetailContent').innerHTML = \`
                 <div class="space-y-6">
+                  <div class="flex justify-end mb-4">
+                    <button onclick="printAssignment()" class="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition text-sm">
+                      <i class="fas fa-print mr-2"></i>출력
+                    </button>
+                  </div>
+
+                  \${assignment.access_code ? \`
+                  <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white">
+                    <div class="flex items-center justify-between">
+                      <div>
+                        <h3 class="font-bold text-lg mb-2"><i class="fas fa-key mr-2"></i>학생 접속 코드</h3>
+                        <p class="text-blue-100 text-sm">이 코드를 학생들에게 공유하세요</p>
+                      </div>
+                      <div class="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg px-8 py-4">
+                        <div class="text-4xl font-bold tracking-wider">\${assignment.access_code}</div>
+                      </div>
+                    </div>
+                  </div>
+                  \` : ''}
+
                   <div class="bg-gray-50 rounded-lg p-6">
                     <h3 class="font-bold text-gray-900 mb-2">과제 설명</h3>
                     <p class="text-gray-700">\${assignment.description}</p>
@@ -4045,6 +5155,20 @@ app.get('/my-page', (c) => {
                       \${assignment.due_date ? \`<div><i class="fas fa-clock mr-2 text-orange-600"></i>마감: \${new Date(assignment.due_date).toLocaleDateString('ko-KR')}</div>\` : ''}
                     </div>
                   </div>
+
+                  \${assignment.prompts && assignment.prompts.length > 0 ? \`
+                  <div class="bg-blue-50 rounded-lg p-6">
+                    <h3 class="font-bold text-gray-900 mb-3">제시문</h3>
+                    <div class="space-y-3">
+                      \${assignment.prompts.map((prompt, idx) => \`
+                        <div class="bg-white border border-blue-200 rounded-lg p-4">
+                          <div class="font-semibold text-blue-900 mb-2">제시문 \${idx + 1}</div>
+                          <div class="text-gray-700 whitespace-pre-wrap">\${prompt}</div>
+                        </div>
+                      \`).join('')}
+                    </div>
+                  </div>
+                  \` : ''}
 
                   <div>
                     <h3 class="font-bold text-gray-900 mb-3">평가 루브릭 (\${assignment.rubrics.length}개 기준)</h3>
@@ -4430,6 +5554,42 @@ app.get('/my-page', (c) => {
                 { name: '증거 활용 능력', description: '관련 증거를 활용하여 충분하고 적절한 근거를 제시하며, 표절을 피하고 허용 가능한 인용 형식을 사용합니다.', order: 2 },
                 { name: '일관성과 구성', description: '과제에 대한 수용 가능한 집중도를 유지하고, 체계적이고 논리적인 구조로 글을 구성합니다.', order: 3 },
                 { name: '언어 사용과 규칙', description: '적절한 어휘와 문장 구조를 사용하며, 문법과 맞춤법 규칙을 준수합니다.', order: 4 }
+              ],
+              nyregents_analytical: [
+                { name: '내용 및 분석', description: '4점: 분석 기준을 명확히 설정하는 논리적인 중심 아이디어와 글쓰기 전략을 제시하고, 저자가 중심 아이디어를 전개하기 위해 글쓰기 전략을 사용한 방식을 깊이 있게 분석합니다.', order: 1 },
+                { name: '증거 활용 능력', description: '4점: 분석을 뒷받침하기 위해 구체적이고 관련성 있는 증거를 효과적으로 활용하여 아이디어를 명확하고 일관되게 제시합니다.', order: 2 },
+                { name: '일관성, 구성 및 스타일', description: '4점: 아이디어와 정보를 논리적으로 구성하여 일관되고 연결된 응답을 생성하며, 정확한 언어와 건전한 구조를 사용하여 형식적인 스타일을 확립하고 유지합니다.', order: 3 },
+                { name: '규칙 숙달도', description: '4점: 표준어 문법, 용법, 구두점, 철자법의 규칙 숙달도가 뛰어나며 오류가 드물게 나타납니다.', order: 4 }
+              ],
+              ny_middle: [
+                { name: '내용 및 분석', description: '4점: 과제의 목적과 논리적으로 연결되는 방식으로 주제를 설득력 있게 명확히 제시하며, 텍스트에 대한 통찰력 있는 분석을 보여줍니다.', order: 1 },
+                { name: '증거 활용 능력', description: '4점: 주제와 관련된 잘 선택된 사실, 정의, 구체적인 세부 사항, 인용문 또는 텍스트의 다른 정보와 예시를 활용하여 주제를 전개하며, 다양하고 관련성 있는 증거를 지속적으로 사용합니다.', order: 2 },
+                { name: '일관성, 구성 및 문체', description: '4점: 적절한 다양한 전환을 능숙하게 사용하여 통일된 전체를 만들고 의미를 강화하는 명확한 구성을 보여주며, 학년에 적합하고 문체적으로 정교한 언어를 사용하여 뚜렷한 어조를 유지하고 형식적인 문체를 확립합니다.', order: 3 },
+                { name: '규칙 준수', description: '4점: 학년 수준에 맞는 규칙 숙달도를 보여주며 오류가 거의 없습니다.', order: 4 }
+              ],
+              ny_elementary: [
+                { name: '내용 및 분석', description: '4점: 과제와 목적에 논리적으로 부합하는 방식으로 주제를 명확히 제시하며, 텍스트에 대한 통찰력 있는 이해와 분석을 보여줍니다.', order: 1 },
+                { name: '증거 활용 능력', description: '4점: 텍스트에서 관련성 있고 잘 선택된 사실, 정의, 구체적 세부사항, 인용문 또는 기타 정보와 예시를 활용하여 주제를 전개하며, 다양하고 관련성 있는 증거의 사용을 지속합니다.', order: 2 },
+                { name: '일관성, 구성 및 문체', description: '4점: 명확하고 목적에 부합하는 구성을 보여주며, 학년 수준에 맞는 단어와 구문을 사용하여 아이디어를 능숙하게 연결하고, 학년 수준에 맞는 문체적으로 정교한 언어와 분야별 전문 용어를 사용합니다.', order: 3 },
+                { name: '규칙 준수', description: '4점: 학년 수준에 맞는 규칙 숙달도를 보여주며 오류가 거의 없습니다.', order: 4 }
+              ],
+              ib_myp_highschool: [
+                { name: '지식과 이해', description: '4점: 과학적 지식을 개괄적으로 설명하고, 익숙한 상황과 익숙하지 않은 상황 모두에서 문제 해결 및 해결책을 제안하며, 정보를 해석하여 과학적으로 뒷받침되는 판단을 내릴 수 있습니다.', order: 1 },
+                { name: '조사', description: '4점: 검증 가능한 문제를 개요로 제시하고, 과학적 추론을 사용하여 예측을 제시하며, 충분하고 관련성 있는 데이터를 수집하는 방법과 변수 조작 방법을 개요로 제시하고, 논리적이고 완전하며 안전한 방법을 설계할 수 있습니다.', order: 2 },
+                { name: '의사 소통', description: '4점: 항상 명확하고 적절한 방식으로 정보와 아이디어를 전달하며, 명확하고 논리적인 구조로 효과적으로 구성하고, 적절한 관례를 사용하여 정보 출처를 일관되게 제시합니다.', order: 3 },
+                { name: '비판적 사고', description: '4점: 다양한 정보를 철저히 분석하고, 서로 다른 관점과 그 함의를 평가하며, 논리적으로 잘 구성된 증거로 뒷받침된 의견이나 결론을 제시할 수 있습니다.', order: 4 }
+              ],
+              ib_myp_middleschool: [
+                { name: '지식과 이해', description: '4점: 과학적 지식을 개괄적으로 설명하고, 익숙한 상황과 익숙하지 않은 상황 모두에서 문제 해결 및 해결책을 제안하며, 정보를 해석하여 과학적으로 뒷받침되는 판단을 내릴 수 있습니다.', order: 1 },
+                { name: '조사', description: '4점: 검증 가능한 문제를 개요로 제시하고, 과학적 추론을 사용하여 예측을 제시하며, 충분하고 관련성 있는 데이터를 수집하는 방법과 변수 조작 방법을 개요로 제시하고, 논리적이고 완전하며 안전한 방법을 설계할 수 있습니다.', order: 2 },
+                { name: '의사 소통', description: '4점: 항상 명확하고 적절한 방식으로 정보와 아이디어를 전달하며, 명확하고 논리적인 구조로 효과적으로 구성하고, 적절한 관례를 사용하여 정보 출처를 일관되게 제시합니다.', order: 3 },
+                { name: '비판적 사고', description: '4점: 다양한 정보를 철저히 분석하고, 서로 다른 관점과 그 함의를 평가하며, 논리적으로 잘 구성된 증거로 뒷받침된 의견이나 결론을 제시할 수 있습니다.', order: 4 }
+              ],
+              ib_myp_science: [
+                { name: '지식과 이해', description: '4점: 과학적 지식을 개괄적으로 설명하고, 익숙한 상황과 익숙하지 않은 상황 모두에서 문제 해결 및 해결책을 제안하며, 정보를 해석하여 과학적으로 뒷받침되는 판단을 내릴 수 있습니다.', order: 1 },
+                { name: '탐구 및 설계', description: '4점: 검증 가능한 문제를 개요로 제시하고, 과학적 추론을 사용하여 예측을 제시하며, 충분하고 관련성 있는 데이터를 수집하는 방법과 변수 조작 방법을 개요로 제시하고, 논리적이고 완전하며 안전한 방법을 설계할 수 있습니다.', order: 2 },
+                { name: '의사 소통', description: '4점: 항상 명확하고 적절한 방식으로 정보와 아이디어를 전달하며, 명확하고 논리적인 구조로 효과적으로 구성하고, 적절한 관례를 사용하여 정보 출처를 일관되게 제시합니다.', order: 3 },
+                { name: '비판적 사고', description: '4점: 다양한 정보를 철저히 분석하고, 서로 다른 관점과 그 함의를 평가하며, 논리적으로 잘 구성된 증거로 뒷받침된 의견이나 결론을 제시할 수 있습니다.', order: 4 }
               ]
             };
             return rubrics[type] || rubrics.standard;
@@ -4456,10 +5616,160 @@ app.get('/my-page', (c) => {
           }
 
           // Show/hide modals
-          function showCreateAssignmentModal() {
+          async function showCreateAssignmentModal() {
             document.getElementById('createAssignmentModal').classList.remove('hidden');
             // Default to platform rubric
             switchAssignmentRubricType('platform');
+            
+            // Load existing assignments for the dropdown
+            await populateExistingAssignments();
+          }
+          
+          // Populate existing assignments dropdown
+          async function populateExistingAssignments() {
+            try {
+              const response = await axios.get('/api/assignments');
+              const assignments = response.data;
+              
+              const select = document.getElementById('existingAssignmentSelect');
+              // Clear existing options except the first one
+              select.innerHTML = '<option value="">-- 기존 과제를 선택하세요 --</option>';
+              
+              assignments.forEach(assignment => {
+                const option = document.createElement('option');
+                option.value = assignment.id;
+                option.textContent = \`\${assignment.title} (\${new Date(assignment.created_at).toLocaleDateString('ko-KR')})\`;
+                select.appendChild(option);
+              });
+              
+              console.log('Loaded', assignments.length, 'existing assignments');
+            } catch (error) {
+              console.error('Error loading existing assignments:', error);
+            }
+          }
+          
+          // Load existing assignment data
+          async function loadExistingAssignment() {
+            const select = document.getElementById('existingAssignmentSelect');
+            const assignmentId = select.value;
+            
+            if (!assignmentId) {
+              alert('과제를 선택해주세요.');
+              return;
+            }
+            
+            try {
+              const response = await axios.get(\`/api/assignment/\${assignmentId}\`);
+              const assignment = response.data;
+              
+              console.log('Loading assignment:', assignment);
+              
+              // Fill in the form with existing assignment data
+              document.getElementById('assignmentTitle').value = assignment.title + ' (복사본)';
+              document.getElementById('assignmentDescription').value = assignment.description || '';
+              document.getElementById('assignmentGradeLevel').value = assignment.grade_level || '';
+              document.getElementById('assignmentDueDate').value = assignment.due_date ? assignment.due_date.split('T')[0] : '';
+              
+              // Load reference materials (prompts)
+              // Handle both string and already-parsed array
+              let prompts = assignment.prompts;
+              if (typeof prompts === 'string') {
+                try {
+                  prompts = JSON.parse(prompts);
+                } catch (e) {
+                  console.error('Failed to parse prompts:', e);
+                  prompts = [];
+                }
+              } else if (!Array.isArray(prompts)) {
+                prompts = [];
+              }
+              
+              const container = document.getElementById('assignmentReferenceMaterials');
+              container.innerHTML = '';
+              
+              console.log('Loaded prompts:', prompts);
+              
+              // Add reference materials
+              prompts.forEach((prompt, index) => {
+                // Handle both string and object formats
+                const promptText = typeof prompt === 'string' ? prompt : (prompt.text || '');
+                const promptImageUrl = typeof prompt === 'object' ? prompt.image_url : '';
+                
+                console.log(\`Prompt \${index}:\`, { promptText: promptText.substring(0, 50), promptImageUrl });
+                
+                const refItem = document.createElement('div');
+                refItem.className = 'reference-item';
+                refItem.innerHTML = \`
+                  <div class="flex gap-2 mb-2">
+                    <textarea class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)">\${promptText}</textarea>
+                    <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm self-start">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+                  <div class="flex gap-2">
+                    <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
+                      <i class="fas fa-image mr-1"></i>이미지 업로드
+                    </button>
+                    <span class="text-xs text-gray-500 self-center upload-status">\${promptImageUrl ? '이미지 업로드됨' : ''}</span>
+                  </div>
+                \`;
+                container.appendChild(refItem);
+                
+                // Store image URL if exists
+                if (promptImageUrl) {
+                  const textarea = refItem.querySelector('textarea');
+                  textarea.dataset.imageUrl = promptImageUrl;
+                }
+              });
+              
+              // If no prompts, add 4 empty slots
+              if (prompts.length === 0) {
+                for (let i = 0; i < 4; i++) {
+                  addReferenceMaterial();
+                }
+              }
+              
+              // Update reference count
+              updateReferenceCount();
+              
+              // Load rubric criteria
+              // Handle both string and already-parsed array
+              let criteria = assignment.rubric_criteria;
+              if (typeof criteria === 'string') {
+                try {
+                  criteria = JSON.parse(criteria);
+                } catch (e) {
+                  console.error('Failed to parse rubric_criteria:', e);
+                  criteria = [];
+                }
+              } else if (!Array.isArray(criteria)) {
+                criteria = [];
+              }
+              
+              const rubricType = assignment.rubric_type || 'platform';
+              
+              switchAssignmentRubricType(rubricType);
+              
+              if (rubricType === 'custom') {
+                const criteriaList = document.getElementById('rubricCriteriaList');
+                criteriaList.innerHTML = '';
+                criterionCounter = 0;
+                
+                criteria.forEach(criterion => {
+                  addRubricCriterion();
+                  const lastCriterion = criteriaList.lastElementChild;
+                  lastCriterion.querySelector('input[type="text"]').value = criterion.name;
+                  lastCriterion.querySelector('textarea').value = criterion.description || '';
+                });
+              }
+              
+              console.log('Assignment loaded successfully!');
+              alert(\`과제를 성공적으로 불러왔습니다!\n제목: \${assignment.title}\n제시문 수: \${prompts.length}개\n\n내용을 편집하여 사용하세요.\`);
+              
+            } catch (error) {
+              console.error('Error loading assignment:', error);
+              alert(\`과제를 불러오는데 실패했습니다.\n오류: \${error.response?.data?.error || error.message}\`);
+            }
           }
 
           function closeCreateAssignmentModal() {
@@ -4551,12 +5861,20 @@ app.get('/my-page', (c) => {
             if (count >= 11) return;
 
             const div = document.createElement('div');
-            div.className = 'reference-item flex gap-2';
+            div.className = 'reference-item';
             div.innerHTML = \`
-              <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
-              <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
-                <i class="fas fa-times"></i>
-              </button>
+              <div class="flex gap-2 mb-2">
+                <textarea class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)"></textarea>
+                <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm self-start">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+              <div class="flex gap-2">
+                <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
+                  <i class="fas fa-image mr-1"></i>이미지 업로드
+                </button>
+                <span class="text-xs text-gray-500 self-center upload-status"></span>
+              </div>
             \`;
             container.appendChild(div);
             updateReferenceCount();
@@ -4572,6 +5890,49 @@ app.get('/my-page', (c) => {
             updateReferenceCount();
           }
 
+          // Handle reference image upload
+          async function handleReferenceImageUpload(btn) {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = async (e) => {
+              const file = e.target.files[0];
+              if (!file) return;
+
+              const statusSpan = btn.parentElement.querySelector('.upload-status');
+              const textarea = btn.closest('.reference-item').querySelector('.reference-input');
+              
+              statusSpan.textContent = '업로드 중...';
+              btn.disabled = true;
+
+              try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await axios.post('/api/upload/image', formData, {
+                  headers: { 'Content-Type': 'multipart/form-data' }
+                });
+
+                if (response.data.extracted_text) {
+                  textarea.value = response.data.extracted_text;
+                  statusSpan.textContent = '✓ 텍스트 추출 완료';
+                  statusSpan.className = 'text-xs text-green-600 self-center upload-status';
+                } else {
+                  statusSpan.textContent = '✓ 업로드 완료';
+                  statusSpan.className = 'text-xs text-green-600 self-center upload-status';
+                }
+              } catch (error) {
+                console.error('Image upload error:', error);
+                statusSpan.textContent = '✗ 업로드 실패';
+                statusSpan.className = 'text-xs text-red-600 self-center upload-status';
+                alert('이미지 업로드에 실패했습니다: ' + (error.response?.data?.error || error.message));
+              } finally {
+                btn.disabled = false;
+              }
+            };
+            input.click();
+          }
+
           // Handle create assignment
           async function handleCreateAssignment(event) {
             event.preventDefault();
@@ -4580,6 +5941,12 @@ app.get('/my-page', (c) => {
             const description = document.getElementById('assignmentDescription').value;
             const grade_level = document.getElementById('assignmentGradeLevel').value;
             const due_date = document.getElementById('assignmentDueDate').value;
+
+            // Collect prompts from reference materials
+            const promptInputs = document.querySelectorAll('#assignmentReferenceMaterials .reference-input');
+            const prompts = Array.from(promptInputs)
+              .map(input => input.value.trim())
+              .filter(text => text.length > 0);
 
             // Check which rubric type is selected
             const isCustomRubric = !document.getElementById('assignmentCustomRubricContainer').classList.contains('hidden');
@@ -4610,7 +5977,8 @@ app.get('/my-page', (c) => {
                 description,
                 grade_level,
                 due_date: due_date || null,
-                rubric_criteria
+                rubric_criteria,
+                prompts
               });
 
               alert('과제가 생성되었습니다!');
@@ -5088,6 +6456,9 @@ app.get('/my-page', (c) => {
             \`;
             
             document.body.insertAdjacentHTML('beforeend', modalHTML);
+            
+            // Setup dropdown event listeners after modal is created
+            setupPrintDropdownListeners();
           }
 
           function closeGradingReviewModal() {
@@ -5098,23 +6469,67 @@ app.get('/my-page', (c) => {
             currentGradingData = null;
           }
           
-          // Toggle print dropdown menu
-          function togglePrintDropdown() {
+          // Setup print dropdown listeners
+          function setupPrintDropdownListeners() {
+            const dropdownToggle = document.querySelector('button[onclick="togglePrintDropdown()"]');
             const dropdown = document.getElementById('printDropdownMenu');
-            if (dropdown) {
-              dropdown.classList.toggle('hidden');
+            const printReportBtn = document.querySelector('button[onclick="printReport()"]');
+            const exportPdfBtn = document.querySelector('button[onclick="exportToPDF()"]');
+            
+            if (dropdownToggle && dropdown) {
+              console.log('Setting up print dropdown listeners');
+              
+              // Remove onclick attribute and use addEventListener
+              dropdownToggle.removeAttribute('onclick');
+              dropdownToggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                console.log('Dropdown toggle clicked');
+                dropdown.classList.toggle('hidden');
+              });
+              
+              // Setup print report button
+              if (printReportBtn) {
+                printReportBtn.removeAttribute('onclick');
+                printReportBtn.addEventListener('click', function(e) {
+                  e.stopPropagation();
+                  console.log('Print Report clicked');
+                  dropdown.classList.add('hidden');
+                  printFeedback();
+                });
+              }
+              
+              // Setup export to PDF button
+              if (exportPdfBtn) {
+                exportPdfBtn.removeAttribute('onclick');
+                exportPdfBtn.addEventListener('click', function(e) {
+                  e.stopPropagation();
+                  console.log('Export to PDF clicked');
+                  dropdown.classList.add('hidden');
+                  exportToPDF();
+                });
+              }
+              
+              // Close dropdown when clicking outside
+              setTimeout(() => {
+                document.addEventListener('click', function(event) {
+                  const isClickInside = dropdown.contains(event.target) || dropdownToggle.contains(event.target);
+                  if (!isClickInside && !dropdown.classList.contains('hidden')) {
+                    console.log('Closing dropdown - outside click');
+                    dropdown.classList.add('hidden');
+                  }
+                });
+              }, 100);
             }
           }
           
-          // Close dropdown when clicking outside
-          document.addEventListener('click', function(event) {
+          // Toggle print dropdown menu (kept for compatibility)
+          function togglePrintDropdown() {
             const dropdown = document.getElementById('printDropdownMenu');
-            const printButtons = event.target.closest('button[onclick*="togglePrintDropdown"], button[onclick*="printFeedback"]');
-            
-            if (dropdown && !printButtons && !dropdown.contains(event.target)) {
-              dropdown.classList.add('hidden');
+            if (dropdown) {
+              console.log('togglePrintDropdown called');
+              dropdown.classList.toggle('hidden');
             }
-          });
+          }
           
           // Print report function
           function printReport() {
@@ -5123,8 +6538,8 @@ app.get('/my-page', (c) => {
             printFeedback(); // Use existing print functionality
           }
           
-          // Export to PDF function
-          function exportToPDF() {
+          // Export to PDF function using jsPDF
+          async function exportToPDF() {
             console.log('Export to PDF clicked');
             
             if (!currentGradingData) {
@@ -5136,18 +6551,163 @@ app.get('/my-page', (c) => {
             // Close dropdown first
             togglePrintDropdown();
             
-            // Show instruction before opening print dialog
-            const proceed = confirm(
-              '브라우저 인쇄 기능을 사용하여 PDF로 저장합니다.' + '\\n\\n' +
-              '인쇄 대화상자에서 다음을 선택하세요:' + '\\n' +
-              '1. 대상/프린터: "PDF로 저장"' + '\\n' +
-              '2. 용지 크기와 여백 조정' + '\\n' +
-              '3. "저장" 버튼 클릭' + '\\n\\n' +
-              '계속하시겠습니까?'
-            );
-            
-            if (proceed) {
-              // Use the browser's print functionality
+            try {
+              // Show loading message
+              const loadingMsg = document.createElement('div');
+              loadingMsg.id = 'pdf-loading';
+              loadingMsg.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+              loadingMsg.innerHTML = \`
+                <div class="bg-white rounded-lg p-8 text-center">
+                  <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-navy-900 mx-auto mb-4"></div>
+                  <p class="text-lg font-semibold">PDF 생성 중...</p>
+                  <p class="text-sm text-gray-600 mt-2">잠시만 기다려주세요</p>
+                </div>
+              \`;
+              document.body.appendChild(loadingMsg);
+              
+              const submission = currentGradingData.submission;
+              const result = currentGradingData.result;
+              
+              // Collect current edited values
+              const totalScore = document.getElementById('editTotalScore').value;
+              const summaryEvaluation = document.getElementById('editSummaryEvaluation').value;
+              const overallComment = document.getElementById('editOverallComment').value;
+              const revisionSuggestions = document.getElementById('editRevisionSuggestions').value;
+              const nextSteps = document.getElementById('editNextSteps').value;
+              
+              // Initialize jsPDF with Korean font support
+              const { jsPDF } = window.jspdf;
+              const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+              });
+              
+              // Set up Korean font (using default unicode support)
+              doc.setFont('helvetica');
+              
+              let yPos = 20;
+              const margin = 20;
+              const pageWidth = 210;
+              const maxWidth = pageWidth - (margin * 2);
+              
+              // Title
+              doc.setFontSize(24);
+              doc.setTextColor(30, 58, 138); // Navy color
+              doc.text('AI 논술 채점 결과', margin, yPos);
+              yPos += 15;
+              
+              // Header info
+              doc.setFontSize(11);
+              doc.setTextColor(0, 0, 0);
+              doc.text(\`과제: \${submission.assignment_title}\`, margin, yPos);
+              yPos += 7;
+              doc.text(\`학생: \${submission.student_name}\`, margin, yPos);
+              yPos += 7;
+              doc.text(\`제출일: \${new Date(submission.submitted_at).toLocaleString('ko-KR')}\`, margin, yPos);
+              yPos += 12;
+              
+              // Score box
+              doc.setFillColor(30, 58, 138);
+              doc.roundedRect(margin, yPos, maxWidth, 25, 3, 3, 'F');
+              doc.setTextColor(255, 255, 255);
+              doc.setFontSize(16);
+              doc.text('전체 점수', pageWidth / 2, yPos + 8, { align: 'center' });
+              doc.setFontSize(28);
+              doc.text(\`\${totalScore} / 10\`, pageWidth / 2, yPos + 20, { align: 'center' });
+              yPos += 35;
+              
+              // Helper function to add section
+              function addSection(title, content, icon = '') {
+                if (yPos > 250) {
+                  doc.addPage();
+                  yPos = 20;
+                }
+                
+                doc.setFillColor(249, 250, 251);
+                doc.roundedRect(margin, yPos, maxWidth, 8, 2, 2, 'F');
+                doc.setFontSize(13);
+                doc.setTextColor(30, 58, 138);
+                doc.text(\`\${icon} \${title}\`, margin + 3, yPos + 6);
+                yPos += 12;
+                
+                doc.setFontSize(10);
+                doc.setTextColor(0, 0, 0);
+                const lines = doc.splitTextToSize(content, maxWidth);
+                doc.text(lines, margin, yPos);
+                yPos += (lines.length * 5) + 8;
+              }
+              
+              // Student Essay
+              addSection('학생 답안', submission.essay_text.substring(0, 500) + '...', '📄');
+              
+              // Summary Evaluation
+              addSection('종합 평가', summaryEvaluation, '📊');
+              
+              // Criterion Scores
+              if (yPos > 230) {
+                doc.addPage();
+                yPos = 20;
+              }
+              
+              doc.setFillColor(249, 250, 251);
+              doc.roundedRect(margin, yPos, maxWidth, 8, 2, 2, 'F');
+              doc.setFontSize(13);
+              doc.setTextColor(30, 58, 138);
+              doc.text('📋 평가 기준별 점수', margin + 3, yPos + 6);
+              yPos += 15;
+              
+              result.criterion_scores.forEach((criterion, index) => {
+                if (yPos > 260) {
+                  doc.addPage();
+                  yPos = 20;
+                }
+                
+                const score = document.getElementById(\`editScore_\${index}\`).value;
+                const strengths = document.getElementById(\`editStrengths_\${index}\`).value;
+                const improvements = document.getElementById(\`editImprovements_\${index}\`).value;
+                
+                doc.setFontSize(11);
+                doc.setTextColor(0, 0, 0);
+                doc.text(\`\${criterion.criterion_name}: \${score}/4\`, margin, yPos);
+                yPos += 6;
+                
+                doc.setFontSize(9);
+                doc.setTextColor(5, 150, 105);
+                doc.text('강점:', margin + 3, yPos);
+                yPos += 5;
+                doc.setTextColor(0, 0, 0);
+                const strengthLines = doc.splitTextToSize(strengths, maxWidth - 6);
+                doc.text(strengthLines, margin + 3, yPos);
+                yPos += (strengthLines.length * 4) + 3;
+                
+                doc.setTextColor(234, 88, 12);
+                doc.text('개선점:', margin + 3, yPos);
+                yPos += 5;
+                doc.setTextColor(0, 0, 0);
+                const improvementLines = doc.splitTextToSize(improvements, maxWidth - 6);
+                doc.text(improvementLines, margin + 3, yPos);
+                yPos += (improvementLines.length * 4) + 8;
+              });
+              
+              // Other sections
+              addSection('종합 의견', overallComment, '💬');
+              addSection('수정 제안', revisionSuggestions, '💡');
+              addSection('다음 단계 조언', nextSteps, '🎯');
+              
+              // Remove loading message
+              document.getElementById('pdf-loading').remove();
+              
+              // Save PDF
+              const filename = \`채점결과_\${submission.student_name}_\${new Date().toISOString().split('T')[0]}.pdf\`;
+              doc.save(filename);
+              
+              alert('PDF 파일이 다운로드되었습니다!');
+              
+            } catch (error) {
+              console.error('PDF 생성 오류:', error);
+              document.getElementById('pdf-loading')?.remove();
+              alert('PDF 생성 중 오류가 발생했습니다. 브라우저 인쇄 기능을 사용해주세요.');
               printFeedback();
             }
           }
@@ -5916,7 +7476,41 @@ app.get('/my-page', (c) => {
             \`;
           }
 
+          // Load user info and usage
+          async function loadUserInfo() {
+            try {
+              // TODO: Replace with actual API call to get user info
+              // For now, using dummy data
+              const userName = '홍길동';
+              const currentPlan = 'free'; // free, starter, basic, pro
+              const usageCount = 1; // Current usage count
+              
+              // Plan limits and names
+              const planInfo = {
+                free: { name: '무료 체험', limit: 20 },
+                starter: { name: '스타터', limit: 90 },
+                basic: { name: '베이직', limit: 300 },
+                pro: { name: '프로', limit: 600 }
+              };
+              
+              const plan = planInfo[currentPlan] || planInfo.free;
+              
+              // Update UI
+              document.getElementById('usageInfo').textContent = plan.name + ': ' + usageCount + ' / ' + plan.limit;
+              
+              // Update upgrade link
+              const upgradeLink = document.querySelector('a[href*="/pricing"]');
+              if (upgradeLink) {
+                upgradeLink.href = '/pricing?plan=' + currentPlan;
+              }
+            } catch (error) {
+              console.error('Error loading user info:', error);
+              document.getElementById('usageInfo').textContent = '무료 체험: 0 / 20';
+            }
+          }
+
           // Initial load
+          loadUserInfo();
           loadPlatformRubrics();
           loadAssignments();
         </script>
@@ -6555,6 +8149,7 @@ app.get('/admin/cms', (c) => {
                         <label class="block text-sm font-semibold text-gray-700 mb-2">카테고리</label>
                         <select id="category" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500" required>
                             <option value="rubric">루브릭</option>
+                            <option value="exam">기출 문제</option>
                             <option value="evaluation">논술 평가 자료</option>
                         </select>
                     </div>
@@ -6586,13 +8181,23 @@ app.get('/admin/cms', (c) => {
             </div>
 
             <!-- Posts List -->
-            <div class="grid md:grid-cols-2 gap-6">
+            <div class="grid md:grid-cols-3 gap-6">
                 <!-- Rubric Posts -->
                 <div>
                     <h2 class="text-2xl font-bold text-gray-900 mb-4">
                         <i class="fas fa-clipboard-list text-navy-700 mr-2"></i>루브릭
                     </h2>
                     <div id="rubricPosts" class="space-y-4">
+                        <p class="text-gray-500 text-center py-4">불러오는 중...</p>
+                    </div>
+                </div>
+                
+                <!-- Exam Posts -->
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">
+                        <i class="fas fa-file-alt text-navy-700 mr-2"></i>기출 문제
+                    </h2>
+                    <div id="examPosts" class="space-y-4">
                         <p class="text-gray-500 text-center py-4">불러오는 중...</p>
                     </div>
                 </div>
@@ -6613,6 +8218,7 @@ app.get('/admin/cms', (c) => {
         <script>
           async function loadAllPosts() {
             await loadPostsByCategory('rubric', 'rubricPosts');
+            await loadPostsByCategory('exam', 'examPosts');
             await loadPostsByCategory('evaluation', 'evaluationPosts');
           }
           
@@ -6633,15 +8239,21 @@ app.get('/admin/cms', (c) => {
                   <h3 class="font-bold text-gray-900 mb-2">\${post.title}</h3>
                   <p class="text-sm text-gray-600 mb-3">\${post.content.substring(0, 100)}...</p>
                   <div class="flex gap-2">
-                    <a href="/resource/\${post.id}" class="flex-1 text-center px-3 py-2 bg-navy-100 text-navy-800 rounded text-sm font-semibold hover:bg-navy-200 transition">
-                      보기
-                    </a>
-                    <button onclick="editPost(\${post.id})" class="px-3 py-2 bg-gray-100 text-gray-700 rounded text-sm font-semibold hover:bg-gray-200 transition">
-                      <i class="fas fa-edit"></i>
-                    </button>
-                    <button onclick="deletePost(\${post.id})" class="px-3 py-2 bg-red-100 text-red-700 rounded text-sm font-semibold hover:bg-red-200 transition">
-                      <i class="fas fa-trash"></i>
-                    </button>
+                    \${category === 'exam' ? \`
+                      <a href="\${post.file}" target="_blank" class="flex-1 text-center px-3 py-2 bg-navy-100 text-navy-800 rounded text-sm font-semibold hover:bg-navy-200 transition">
+                        <i class="fas fa-file-pdf mr-1"></i>PDF 보기
+                      </a>
+                    \` : \`
+                      <a href="/resource/\${post.id}" class="flex-1 text-center px-3 py-2 bg-navy-100 text-navy-800 rounded text-sm font-semibold hover:bg-navy-200 transition">
+                        보기
+                      </a>
+                      <button onclick="editPost(\${post.id})" class="px-3 py-2 bg-gray-100 text-gray-700 rounded text-sm font-semibold hover:bg-gray-200 transition">
+                        <i class="fas fa-edit"></i>
+                      </button>
+                      <button onclick="deletePost(\${post.id})" class="px-3 py-2 bg-red-100 text-red-700 rounded text-sm font-semibold hover:bg-red-200 transition">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    \`}
                   </div>
                 </div>
               \`).join('');
@@ -6669,6 +8281,12 @@ app.get('/admin/cms', (c) => {
             const title = document.getElementById('title').value;
             const content = document.getElementById('content').value;
             const author = document.getElementById('author').value;
+            
+            // Prevent creating/editing exam category (static files)
+            if (category === 'exam') {
+              alert('기출 문제는 정적 파일로 관리됩니다. PDF 파일을 직접 업로드하려면 관리자에게 문의하세요.');
+              return;
+            }
             
             try {
               if (postId) {
@@ -6852,10 +8470,13 @@ app.get('/student/dashboard', (c) => {
             const accessCode = document.getElementById('accessCode').value;
             const sessionId = localStorage.getItem('student_session_id');
             
+            if (!accessCode || accessCode.length !== 6) {
+              alert('6자리 액세스 코드를 입력해주세요');
+              return;
+            }
+            
             try {
-              const response = await axios.get(\`/api/student/assignment/\${accessCode}\`, {
-                headers: { 'X-Student-Session-ID': sessionId }
-              });
+              const response = await axios.get(\`/api/assignment/code/\${accessCode}\`);
               
               currentAccessCode = accessCode;
               currentAssignment = response.data;
@@ -6870,8 +8491,26 @@ app.get('/student/dashboard', (c) => {
             document.getElementById('assignmentTitle').textContent = assignment.title;
             document.getElementById('assignmentDescription').textContent = assignment.description;
             
+            // Display prompts if available
+            let promptsHTML = '';
+            if (assignment.prompts && assignment.prompts.length > 0) {
+              promptsHTML = \`
+                <div class="mb-6">
+                  <h3 class="font-semibold text-gray-800 mb-2">제시문:</h3>
+                  <div class="space-y-3">
+                    \${assignment.prompts.map((prompt, idx) => \`
+                      <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                        <div class="font-semibold text-blue-900 mb-2">제시문 \${idx + 1}</div>
+                        <div class="text-gray-700 whitespace-pre-wrap">\${prompt}</div>
+                      </div>
+                    \`).join('')}
+                  </div>
+                </div>
+              \`;
+            }
+            
             const rubricsList = document.getElementById('rubricsList');
-            rubricsList.innerHTML = assignment.rubrics.map((r, idx) => \`
+            rubricsList.innerHTML = promptsHTML + assignment.rubrics.map((r, idx) => \`
               <div class="bg-gray-50 p-3 rounded-lg">
                 <span class="font-semibold text-blue-700">\${idx + 1}. \${r.criterion_name}</span>
                 <p class="text-sm text-gray-600 mt-1">\${r.criterion_description}</p>

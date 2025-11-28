@@ -1,0 +1,43 @@
+// Terms of Service Page
+app.get('/terms', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>이용 약관 | AI 논술 평가</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    </head>
+    <body class="bg-gray-50">
+        <!-- Navigation -->
+        <nav class="bg-white border-b border-gray-200">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <a href="/" class="flex items-center">
+                        <span class="text-2xl font-bold text-navy-900">
+                            <i class="fas fa-graduation-cap mr-2"></i>AI 논술 평가
+                        </span>
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Terms Content -->
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <h1 class="text-4xl font-bold text-gray-900 mb-8 text-center">AI 논술 평가 서비스 이용약관</h1>
+            
+            <div class="bg-white rounded-lg shadow-lg p-8">
+TERMS_CONTENT_PLACEHOLDER
+            </div>
+            
+            <div class="mt-8 text-center">
+                <a href="/" class="text-blue-600 hover:text-blue-700">← 홈으로 돌아가기</a>
+            </div>
+        </div>
+    </body>
+    </html>
+  `)
+})
+
