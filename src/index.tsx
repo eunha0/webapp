@@ -2764,25 +2764,30 @@ app.get('/resources/:category', async (c) => {
                 </div>
               \`).join('');
             } else {
-              container.innerHTML = items.map(post => \`
-                <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition cursor-pointer" onclick="location.href='/resource/\${post.id}'">
-                  <div class="flex items-center justify-between">
-                    <div class="flex-1">
-                      <h2 class="text-2xl font-bold text-gray-900 mb-3 hover:text-navy-700 transition">\${post.title}</h2>
-                      <div class="flex items-center text-sm text-gray-500">
-                        <i class="fas fa-user mr-2"></i>
-                        <span>\${post.author || 'AI 논술 평가 시스템'}</span>
-                        <span class="mx-2">•</span>
-                        <i class="fas fa-calendar mr-2"></i>
-                        <span>\${new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
+              container.innerHTML = items.map(post => {
+                const hasFile = post.file && post.file.trim() !== '';
+                const onclick = hasFile ? \`openDocument('\${post.file}', '\${post.title}')\` : \`location.href='/resource/\${post.id}'\`;
+                return \`
+                  <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition cursor-pointer" onclick="\${onclick}">
+                    <div class="flex items-center justify-between">
+                      <div class="flex-1">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-3 hover:text-navy-700 transition">\${post.title}</h2>
+                        <div class="flex items-center text-sm text-gray-500">
+                          <i class="fas fa-user mr-2"></i>
+                          <span>\${post.author || 'AI 논술 평가 시스템'}</span>
+                          <span class="mx-2">•</span>
+                          <i class="fas fa-calendar mr-2"></i>
+                          <span>\${new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
+                          \${hasFile ? '<span class="mx-2">•</span><i class="fas fa-file-alt mr-2 text-navy-600"></i><span class="text-navy-600">문서</span>' : ''}
+                        </div>
+                      </div>
+                      <div>
+                        <i class="fas \${hasFile ? 'fa-eye' : 'fa-arrow-right'} text-3xl text-navy-700"></i>
                       </div>
                     </div>
-                    <div>
-                      <i class="fas fa-arrow-right text-3xl text-navy-700"></i>
-                    </div>
                   </div>
-                </div>
-              \`).join('');
+                \`;
+              }).join('');
             }
           }
           
@@ -2806,8 +2811,35 @@ app.get('/resources/:category', async (c) => {
             document.body.appendChild(modal);
           }
           
+          function openDocument(url, title) {
+            const modal = document.createElement('div');
+            modal.id = 'documentModal';
+            modal.className = 'fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4';
+            modal.innerHTML = \`
+              <div class="bg-white rounded-lg w-full max-w-6xl h-5/6 flex flex-col">
+                <div class="flex items-center justify-between p-4 border-b bg-navy-900">
+                  <h3 class="text-xl font-bold text-white truncate">\${title}</h3>
+                  <button onclick="closeDocument()" class="text-white hover:text-gray-300 text-2xl font-bold p-2 hover:bg-navy-800 rounded transition">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+                <div class="flex-1 overflow-auto bg-white">
+                  <iframe src="\${url}" class="w-full h-full border-0"></iframe>
+                </div>
+              </div>
+            \`;
+            document.body.appendChild(modal);
+          }
+          
           function closePDF() {
             const modal = document.getElementById('pdfModal');
+            if (modal) {
+              modal.remove();
+            }
+          }
+          
+          function closeDocument() {
+            const modal = document.getElementById('documentModal');
             if (modal) {
               modal.remove();
             }
@@ -2906,12 +2938,37 @@ app.get('/resource/:id', async (c) => {
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+          // Simple markdown-like formatting to HTML converter
+          function formatContent(content) {
+            return content
+              .split('\\n')
+              .map(line => {
+                // Convert **text** to <strong>text</strong>
+                line = line.replace(/\\*\\*(.*?)\\*\\*/g, '<strong class="text-navy-900 font-bold">$1</strong>');
+                
+                // Convert bullet points (•) to proper list items
+                if (line.trim().startsWith('•')) {
+                  return \`<li class="ml-4 mb-2 text-gray-700">\${line.replace('•', '').trim()}</li>\`;
+                }
+                
+                // Empty lines
+                if (line.trim() === '') {
+                  return '<div class="h-2"></div>';
+                }
+                
+                // Regular paragraphs
+                return \`<p class="mb-3 text-gray-700 leading-relaxed">\${line}</p>\`;
+              })
+              .join('');
+          }
+        
           async function loadPost() {
             try {
               const response = await axios.get('/api/resource/${id}');
               const post = response.data;
               
               const categoryName = post.category === 'rubric' ? '루브릭' : '논술 평가 자료';
+              const formattedContent = formatContent(post.content);
               
               document.getElementById('postDetail').innerHTML = \`
                 <div class="bg-white rounded-xl shadow-lg p-8">
@@ -2934,7 +2991,7 @@ app.get('/resource/:id', async (c) => {
                   
                   <div class="border-t border-gray-200 pt-8">
                     <div class="prose prose-lg max-w-none">
-                      \${post.content.split('\\n').map(p => \`<p class="mb-4 text-gray-700 leading-relaxed">\${p}</p>\`).join('')}
+                      \${formattedContent}
                     </div>
                   </div>
                   
