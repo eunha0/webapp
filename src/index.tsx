@@ -2037,14 +2037,16 @@ app.get('/', (c) => {
             z-index: 1000 !important;
             border-radius: 8px !important;
             overflow: hidden !important;
-            margin-top: 8px !important;
+            margin-top: 0px !important;
+            padding-top: 8px !important;
           }
-          .dropdown:hover .dropdown-content {
+          .dropdown:hover .dropdown-content,
+          .dropdown-content:hover {
             display: block !important;
           }
           .dropdown button {
             font-size: 1rem !important;
-            padding: 0 !important;
+            padding: 8px 0 !important;
             outline: none !important;
             background: transparent !important;
             border: none !important;
@@ -8086,6 +8088,11 @@ app.get('/admin/cms', (c) => {
         <title>관리자 페이지 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        
+        <!-- Quill Rich Text Editor -->
+        <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+        <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+        
         <script>
           tailwind.config = {
             theme: {
@@ -8166,7 +8173,9 @@ app.get('/admin/cms', (c) => {
                     
                     <div class="mb-6">
                         <label class="block text-sm font-semibold text-gray-700 mb-2">내용</label>
-                        <textarea id="content" rows="12" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500" placeholder="자료 내용을 입력하세요" required></textarea>
+                        <!-- Quill Rich Text Editor -->
+                        <div id="editor-container" style="height: 400px; background: white;"></div>
+                        <input type="hidden" id="content" required>
                     </div>
                     
                     <div class="flex gap-4">
@@ -8216,6 +8225,60 @@ app.get('/admin/cms', (c) => {
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+          // Initialize Quill Rich Text Editor
+          let quillEditor = null;
+          
+          function initializeQuill() {
+            if (quillEditor) {
+              return; // Already initialized
+            }
+            
+            quillEditor = new Quill('#editor-container', {
+              theme: 'snow',
+              modules: {
+                toolbar: [
+                  [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                  [{ 'size': ['small', false, 'large', 'huge'] }],
+                  ['bold', 'italic', 'underline', 'strike'],
+                  [{ 'color': [] }, { 'background': [] }],
+                  [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                  [{ 'align': [] }],
+                  ['link', 'image'],
+                  ['clean']
+                ]
+              },
+              placeholder: '자료 내용을 입력하세요...'
+            });
+            
+            // Custom image handler for better UX
+            quillEditor.getModule('toolbar').addHandler('image', function() {
+              const input = document.createElement('input');
+              input.setAttribute('type', 'file');
+              input.setAttribute('accept', 'image/*');
+              input.click();
+              
+              input.onchange = async () => {
+                const file = input.files[0];
+                if (file) {
+                  // Check file size (max 5MB)
+                  if (file.size > 5 * 1024 * 1024) {
+                    alert('이미지 파일은 5MB 이하여야 합니다.');
+                    return;
+                  }
+                  
+                  // Convert to base64 for embedding
+                  const reader = new FileReader();
+                  reader.onload = (e) => {
+                    const range = quillEditor.getSelection(true);
+                    quillEditor.insertEmbed(range.index, 'image', e.target.result);
+                    quillEditor.setSelection(range.index + 1);
+                  };
+                  reader.readAsDataURL(file);
+                }
+              };
+            });
+          }
+          
           async function loadAllPosts() {
             await loadPostsByCategory('rubric', 'rubricPosts');
             await loadPostsByCategory('exam', 'examPosts');
@@ -8235,25 +8298,33 @@ app.get('/admin/cms', (c) => {
               }
               
               container.innerHTML = posts.map(post => \`
-                <div class="bg-white rounded-lg shadow p-4 hover:shadow-md transition">
-                  <h3 class="font-bold text-gray-900 mb-2">\${post.title}</h3>
-                  <p class="text-sm text-gray-600 mb-3">\${post.content.substring(0, 100)}...</p>
-                  <div class="flex gap-2">
-                    \${category === 'exam' ? \`
-                      <a href="\${post.file}" target="_blank" class="flex-1 text-center px-3 py-2 bg-navy-100 text-navy-800 rounded text-sm font-semibold hover:bg-navy-200 transition">
-                        <i class="fas fa-file-pdf mr-1"></i>PDF 보기
-                      </a>
-                    \` : \`
-                      <a href="/resource/\${post.id}" class="flex-1 text-center px-3 py-2 bg-navy-100 text-navy-800 rounded text-sm font-semibold hover:bg-navy-200 transition">
-                        보기
-                      </a>
-                      <button onclick="editPost(\${post.id})" class="px-3 py-2 bg-gray-100 text-gray-700 rounded text-sm font-semibold hover:bg-gray-200 transition">
-                        <i class="fas fa-edit"></i>
-                      </button>
-                      <button onclick="deletePost(\${post.id})" class="px-3 py-2 bg-red-100 text-red-700 rounded text-sm font-semibold hover:bg-red-200 transition">
-                        <i class="fas fa-trash"></i>
-                      </button>
-                    \`}
+                <div class="bg-white rounded-lg shadow hover:shadow-md transition">
+                  <div class="p-4 flex items-center justify-between">
+                    <div class="flex-1">
+                      <h3 class="font-bold text-gray-900">\${post.title}</h3>
+                      <p class="text-sm text-gray-500 mt-1">
+                        <span>\${post.author || 'Admin'}</span>
+                        <span class="mx-2">•</span>
+                        <span>\${new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
+                      </p>
+                    </div>
+                    <div class="flex gap-2 ml-4">
+                      \${category === 'exam' ? \`
+                        <a href="\${post.file}" target="_blank" class="px-4 py-2 bg-navy-100 text-navy-800 rounded text-sm font-semibold hover:bg-navy-200 transition">
+                          <i class="fas fa-file-pdf mr-1"></i>PDF 보기
+                        </a>
+                      \` : \`
+                        <a href="/resource/\${post.id}" class="px-4 py-2 bg-navy-100 text-navy-800 rounded text-sm font-semibold hover:bg-navy-200 transition">
+                          <i class="fas fa-eye mr-1"></i>보기
+                        </a>
+                        <button onclick="editPost(\${post.id})" class="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm font-semibold hover:bg-gray-200 transition">
+                          <i class="fas fa-edit mr-1"></i>수정
+                        </button>
+                        <button onclick="deletePost(\${post.id})" class="px-4 py-2 bg-red-100 text-red-700 rounded text-sm font-semibold hover:bg-red-200 transition">
+                          <i class="fas fa-trash mr-1"></i>삭제
+                        </button>
+                      \`}
+                    </div>
                   </div>
                 </div>
               \`).join('');
@@ -8267,6 +8338,10 @@ app.get('/admin/cms', (c) => {
             document.getElementById('resourceForm').classList.remove('hidden');
             document.getElementById('postId').value = '';
             document.getElementById('postForm').reset();
+            
+            // Initialize Quill editor
+            initializeQuill();
+            quillEditor.setContents([]); // Clear editor content
           }
           
           function hideForm() {
@@ -8279,8 +8354,19 @@ app.get('/admin/cms', (c) => {
             const postId = document.getElementById('postId').value;
             const category = document.getElementById('category').value;
             const title = document.getElementById('title').value;
-            const content = document.getElementById('content').value;
             const author = document.getElementById('author').value;
+            
+            // Get content from Quill editor
+            const content = quillEditor.root.innerHTML;
+            
+            // Validate content
+            if (!content || content.trim() === '<p><br></p>' || content.trim() === '') {
+              alert('내용을 입력해주세요.');
+              return;
+            }
+            
+            // Update hidden input for form validation
+            document.getElementById('content').value = content;
             
             // Prevent creating/editing exam category (static files)
             if (category === 'exam') {
@@ -8315,8 +8401,13 @@ app.get('/admin/cms', (c) => {
               document.getElementById('postId').value = post.id;
               document.getElementById('category').value = post.category;
               document.getElementById('title').value = post.title;
-              document.getElementById('content').value = post.content;
               document.getElementById('author').value = post.author || 'Admin';
+              
+              // Initialize Quill editor and load content
+              initializeQuill();
+              
+              // Set HTML content in Quill editor
+              quillEditor.root.innerHTML = post.content;
               
               document.getElementById('resourceForm').classList.remove('hidden');
               window.scrollTo({ top: 0, behavior: 'smooth' });
