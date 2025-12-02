@@ -2117,7 +2117,7 @@ app.get('/', (c) => {
                         <a href="#faq" class="text-gray-700 hover:text-navy-700 font-medium">자주 묻는 질문</a>
                         <a href="/pricing" class="text-gray-700 hover:text-navy-700 font-medium">요금제</a>
                         <a href="/my-page" id="myPageLink" class="text-gray-700 hover:text-navy-700 font-medium" style="display: none;">나의 페이지</a>
-                        <div class="dropdown">
+                        <div class="dropdown" id="loginDropdown">
                             <button class="text-gray-700 hover:text-navy-700 font-medium cursor-pointer">
                                 로그인 <i class="fas fa-chevron-down text-xs ml-1"></i>
                             </button>
@@ -4237,6 +4237,24 @@ app.get('/pricing', (c) => {
           
           // Get current plan from URL parameter
           window.addEventListener('DOMContentLoaded', () => {
+            // Check login status and show/hide navigation links
+            const isTeacherLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+            const isStudentLoggedIn = localStorage.getItem('isStudentLoggedIn') === 'true';
+            const isLoggedIn = isTeacherLoggedIn || isStudentLoggedIn;
+            
+            const myPageLink = document.getElementById('myPageLink');
+            const loginDropdown = document.getElementById('loginDropdown');
+            
+            if (isLoggedIn) {
+              // Show "나의 페이지" and hide "로그인" dropdown
+              if (myPageLink) myPageLink.style.display = 'block';
+              if (loginDropdown) loginDropdown.style.display = 'none';
+            } else {
+              // Hide "나의 페이지" and show "로그인" dropdown
+              if (myPageLink) myPageLink.style.display = 'none';
+              if (loginDropdown) loginDropdown.style.display = 'block';
+            }
+            
             const urlParams = new URLSearchParams(window.location.search);
             const plan = urlParams.get('plan');
             if (plan) {
@@ -4732,15 +4750,6 @@ app.get('/my-page', (c) => {
             background: #94a3b8;
           }
           /* Profile dropdown styling */
-          .profile-dropdown {
-            position: relative;
-          }
-          .profile-dropdown:hover .profile-dropdown-menu {
-            display: block;
-          }
-          .profile-dropdown-menu {
-            animation: fadeIn 0.2s ease-in-out;
-          }
           @keyframes fadeIn {
             from {
               opacity: 0;
@@ -4772,11 +4781,11 @@ app.get('/my-page', (c) => {
                             <div id="usageInfo" class="text-sm font-medium text-gray-700">무료 체험: 0 / 20</div>
                             
                             <!-- Profile Dropdown -->
-                            <div class="relative profile-dropdown">
-                                <button class="w-10 h-10 bg-navy-700 rounded-full flex items-center justify-center text-white hover:bg-navy-600 transition cursor-pointer">
+                            <div class="relative">
+                                <button id="teacherProfileButton" onclick="toggleTeacherProfileMenu()" class="w-10 h-10 bg-navy-700 rounded-full flex items-center justify-center text-white hover:bg-navy-600 transition cursor-pointer">
                                     <i class="fas fa-user"></i>
                                 </button>
-                                <div class="profile-dropdown-menu hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+                                <div id="teacherProfileMenu" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
                                     <div class="py-1">
                                         <a href="/account" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center">
                                             <i class="fas fa-user-circle mr-3 text-gray-400"></i>
@@ -7831,6 +7840,23 @@ app.get('/my-page', (c) => {
 
           // Initial load
           // Logout function
+          function toggleTeacherProfileMenu() {
+            const menu = document.getElementById('teacherProfileMenu');
+            menu.classList.toggle('hidden');
+          }
+          
+          // Close profile menu when clicking outside
+          document.addEventListener('click', function(event) {
+            const profileButton = document.getElementById('teacherProfileButton');
+            const profileMenu = document.getElementById('teacherProfileMenu');
+            
+            if (profileButton && profileMenu && 
+                !profileButton.contains(event.target) && 
+                !profileMenu.contains(event.target)) {
+              profileMenu.classList.add('hidden');
+            }
+          });
+          
           function logout() {
             if (!confirm('로그아웃하시겠습니까?')) {
               return;
@@ -7845,6 +7871,7 @@ app.get('/my-page', (c) => {
             localStorage.removeItem('student_name');
             localStorage.removeItem('student_email');
             localStorage.removeItem('student_grade_level');
+            localStorage.removeItem('isStudentLoggedIn');
             
             // Redirect to home page
             window.location.href = '/';
