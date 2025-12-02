@@ -2115,9 +2115,17 @@ app.get('/', (c) => {
                             </div>
                         </div>
                         <a href="#faq" class="text-gray-700 hover:text-navy-700 font-medium">자주 묻는 질문</a>
-                        <a href="/pricing" class="text-gray-700 hover:text-navy-700 font-medium">가격</a>
-                        <a href="/my-page" class="text-gray-700 hover:text-navy-700 font-medium">나의 페이지</a>
-                        <a href="/login" class="text-gray-700 hover:text-navy-700 font-medium">로그인</a>
+                        <a href="/pricing" class="text-gray-700 hover:text-navy-700 font-medium">요금제</a>
+                        <a href="/my-page" id="myPageLink" class="text-gray-700 hover:text-navy-700 font-medium" style="display: none;">나의 페이지</a>
+                        <div class="dropdown">
+                            <button class="text-gray-700 hover:text-navy-700 font-medium cursor-pointer">
+                                로그인 <i class="fas fa-chevron-down text-xs ml-1"></i>
+                            </button>
+                            <div class="dropdown-content">
+                                <a href="/login?type=teacher"><i class="fas fa-chalkboard-teacher mr-2 text-navy-700"></i>교사</a>
+                                <a href="/login?type=student"><i class="fas fa-user-graduate mr-2 text-navy-700"></i>학생</a>
+                            </div>
+                        </div>
                         <a href="/signup" class="bg-navy-900 text-white px-6 py-2 rounded-lg font-semibold hover:bg-navy-800 hover:shadow-lg transition">
                             무료로 시작하기
                         </a>
@@ -2575,7 +2583,7 @@ app.get('/', (c) => {
                         <h4 class="font-bold mb-4">제품</h4>
                         <ul class="space-y-2 text-gray-400 text-sm">
                             <li><a href="#features" class="hover:text-white">기능</a></li>
-                            <li><a href="/pricing" class="hover:text-white">가격</a></li>
+                            <li><a href="/pricing" class="hover:text-white">요금제</a></li>
                         </ul>
                     </div>
                     <div>
@@ -2601,6 +2609,19 @@ app.get('/', (c) => {
         </footer>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script>
+          // Check if user is logged in and show "나의 페이지" link
+          function checkLoginStatus() {
+            const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+            const myPageLink = document.getElementById('myPageLink');
+            if (isLoggedIn && myPageLink) {
+              myPageLink.style.display = 'inline-block';
+            }
+          }
+          
+          // Run on page load
+          document.addEventListener('DOMContentLoaded', checkLoginStatus);
+        </script>
         <script src="/static/app.js"></script>
     </body>
     </html>
@@ -3106,6 +3127,7 @@ app.get('/student/login', (c) => {
                 localStorage.setItem('student_name', response.data.student.name);
                 localStorage.setItem('student_email', response.data.student.email);
                 localStorage.setItem('student_grade_level', response.data.student.grade_level);
+                localStorage.setItem('isLoggedIn', 'true');
                 
                 alert(\`환영합니다, \${response.data.student.name}님!\`);
                 window.location.href = '/student/dashboard';
@@ -3243,13 +3265,21 @@ app.get('/student/signup', (c) => {
 
 // Teacher Login Page
 app.get('/login', (c) => {
+  const type = c.req.query('type') || 'teacher';
+  const isTeacher = type === 'teacher';
+  const pageTitle = isTeacher ? '교사 로그인' : '학생 로그인';
+  const icon = isTeacher ? 'fa-chalkboard-teacher' : 'fa-user-graduate';
+  const alternateType = isTeacher ? 'student' : 'teacher';
+  const alternateText = isTeacher ? '학생이신가요?' : '교사이신가요?';
+  const alternateLink = isTeacher ? '학생 로그인' : '교사 로그인';
+  
   return c.html(`
     <!DOCTYPE html>
     <html lang="ko">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>로그인 | AI 논술 평가</title>
+        <title>${pageTitle} | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script>
@@ -3287,8 +3317,13 @@ app.get('/login', (c) => {
         <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
             <div class="max-w-md w-full space-y-8">
                 <div>
+                    <div class="flex justify-center mb-4">
+                        <div class="w-16 h-16 bg-navy-100 rounded-full flex items-center justify-center">
+                            <i class="fas ${icon} text-3xl text-navy-900"></i>
+                        </div>
+                    </div>
                     <h2 class="mt-6 text-center text-3xl font-bold text-gray-900">
-                        로그인
+                        ${pageTitle}
                     </h2>
                     <p class="mt-2 text-center text-sm text-gray-600">
                         또는
@@ -3297,9 +3332,9 @@ app.get('/login', (c) => {
                         </a>
                     </p>
                     <p class="mt-1 text-center text-sm text-gray-600">
-                        학생이신가요?
-                        <a href="/student/login" class="font-medium text-blue-600 hover:text-blue-700">
-                            학생 로그인
+                        ${alternateText}
+                        <a href="/login?type=${alternateType}" class="font-medium text-blue-600 hover:text-blue-700">
+                            ${alternateLink}
                         </a>
                     </p>
                 </div>
@@ -3372,6 +3407,10 @@ app.get('/login', (c) => {
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+          const urlParams = new URLSearchParams(window.location.search);
+          const loginType = urlParams.get('type') || 'teacher';
+          const isStudentLogin = loginType === 'student';
+          
           async function handleLogin(event) {
             event.preventDefault();
             
@@ -3379,19 +3418,34 @@ app.get('/login', (c) => {
             const password = document.getElementById('password').value;
             
             try {
-              const response = await axios.post('/api/auth/login', {
+              // Use different API endpoint based on login type
+              const apiEndpoint = isStudentLogin ? '/api/student/auth/login' : '/api/auth/login';
+              const response = await axios.post(apiEndpoint, {
                 email,
                 password
               });
               
               if (response.data.success) {
-                // Store session ID in localStorage
-                localStorage.setItem('session_id', response.data.session_id);
-                localStorage.setItem('user_name', response.data.user.name);
-                localStorage.setItem('user_email', response.data.user.email);
-                
-                alert(\`환영합니다, \${response.data.user.name}님!\`);
-                window.location.href = '/my-page';
+                if (isStudentLogin) {
+                  // Student login - store student session
+                  localStorage.setItem('student_session_id', response.data.session_id);
+                  localStorage.setItem('student_name', response.data.student.name);
+                  localStorage.setItem('student_email', response.data.student.email);
+                  localStorage.setItem('student_grade_level', response.data.student.grade_level);
+                  localStorage.setItem('isStudentLoggedIn', 'true');
+                  
+                  alert(\`환영합니다, \${response.data.student.name}님!\`);
+                  window.location.href = '/student/dashboard';
+                } else {
+                  // Teacher login - store teacher session
+                  localStorage.setItem('session_id', response.data.session_id);
+                  localStorage.setItem('user_name', response.data.user.name);
+                  localStorage.setItem('user_email', response.data.user.email);
+                  localStorage.setItem('isLoggedIn', 'true');
+                  
+                  alert(\`환영합니다, \${response.data.user.name}님!\`);
+                  window.location.href = '/my-page';
+                }
               }
             } catch (error) {
               alert('로그인 실패: ' + (error.response?.data?.error || error.message));
@@ -3896,7 +3950,7 @@ app.get('/pricing', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>가격 | AI 논술 평가</title>
+        <title>요금제 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script>
@@ -3987,7 +4041,7 @@ app.get('/pricing', (c) => {
             <!-- Header -->
             <div class="text-center mb-12">
                 <span class="inline-block bg-navy-100 text-navy-800 px-4 py-2 rounded-full text-sm font-semibold mb-4">
-                    가격
+                    요금제
                 </span>
                 <h1 class="text-4xl font-bold text-gray-900 mb-4">채점해야 할 분량에 따른 다양한 구독 플랜</h1>
                 <p class="text-xl text-gray-600 mb-8">
@@ -4677,6 +4731,26 @@ app.get('/my-page', (c) => {
           .reference-input::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
           }
+          /* Profile dropdown styling */
+          .profile-dropdown {
+            position: relative;
+          }
+          .profile-dropdown:hover .profile-dropdown-menu {
+            display: block;
+          }
+          .profile-dropdown-menu {
+            animation: fadeIn 0.2s ease-in-out;
+          }
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+              transform: translateY(-10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
         </style>
     </head>
     <body class="bg-gray-50">
@@ -4696,8 +4770,32 @@ app.get('/my-page', (c) => {
                         <!-- User Info & Usage -->
                         <div class="flex items-center space-x-3">
                             <div id="usageInfo" class="text-sm font-medium text-gray-700">무료 체험: 0 / 20</div>
-                            <div class="w-10 h-10 bg-navy-700 rounded-full flex items-center justify-center text-white">
-                                <i class="fas fa-user"></i>
+                            
+                            <!-- Profile Dropdown -->
+                            <div class="relative profile-dropdown">
+                                <button class="w-10 h-10 bg-navy-700 rounded-full flex items-center justify-center text-white hover:bg-navy-600 transition cursor-pointer">
+                                    <i class="fas fa-user"></i>
+                                </button>
+                                <div class="profile-dropdown-menu hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+                                    <div class="py-1">
+                                        <a href="/account" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center">
+                                            <i class="fas fa-user-circle mr-3 text-gray-400"></i>
+                                            내 계정
+                                        </a>
+                                        <a href="/pricing" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center">
+                                            <i class="fas fa-crown mr-3 text-yellow-500"></i>
+                                            내 요금제
+                                        </a>
+                                        <a href="/billing" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center border-b border-gray-100">
+                                            <i class="fas fa-credit-card mr-3 text-gray-400"></i>
+                                            구독 결제 관리
+                                        </a>
+                                        <button onclick="logout()" class="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center font-medium">
+                                            <i class="fas fa-sign-out-alt mr-3"></i>
+                                            로그아웃
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         
@@ -6988,10 +7086,14 @@ app.get('/my-page', (c) => {
           let selectedSubmissions = new Set();
 
           // Load history
+          // State for sorting
+          let sortField = 'submitted_at';
+          let sortOrder = 'desc';
+          
           async function loadHistory() {
             try {
               const response = await axios.get('/api/grading-history');
-              const history = response.data;
+              let history = response.data;
 
               const container = document.getElementById('historyList');
 
@@ -7006,88 +7108,177 @@ app.get('/my-page', (c) => {
                 return;
               }
 
-              // Create toolbar with export buttons
+              // Group submissions by assignment
+              const groupedByAssignment = {};
+              history.forEach(item => {
+                const key = item.assignment_id || item.assignment_title;
+                if (!groupedByAssignment[key]) {
+                  groupedByAssignment[key] = {
+                    title: item.assignment_title,
+                    submissions: []
+                  };
+                }
+                groupedByAssignment[key].submissions.push(item);
+              });
+
+              // Create toolbar with action buttons
               const toolbar = \`
-                <div class="bg-white rounded-lg shadow-md p-4 mb-6 flex justify-between items-center">
-                  <div class="flex items-center space-x-4">
-                    <label class="flex items-center cursor-pointer">
-                      <input type="checkbox" id="selectAll" onchange="toggleSelectAll()" class="w-5 h-5 text-navy-900 border-gray-300 rounded focus:ring-navy-500">
-                      <span class="ml-2 text-sm font-medium text-gray-700">전체 선택</span>
-                    </label>
-                    <span class="text-sm text-gray-600">
-                      <span id="selectedCount">0</span>개 선택됨
-                    </span>
-                  </div>
-                  <div class="relative">
-                    <button id="exportButton" onclick="toggleExportMenu()" 
-                      class="px-6 py-2 bg-navy-900 text-white rounded-lg font-semibold hover:bg-navy-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled>
-                      <i class="fas fa-file-export mr-2"></i>출력
-                      <i class="fas fa-chevron-down ml-2 text-sm"></i>
-                    </button>
-                    <div id="exportMenu" class="hidden absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-10">
-                      <button onclick="exportToPDF()" class="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center border-b border-gray-100">
-                        <i class="fas fa-file-pdf text-red-600 mr-3"></i>
-                        <span class="font-medium">PDF (개별 출력)</span>
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+                  <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-4">
+                      <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" id="selectAll" onchange="toggleSelectAll()" class="w-4 h-4 text-navy-900 border-gray-300 rounded focus:ring-navy-500">
+                        <span class="ml-2 text-sm font-medium text-gray-700">전체 선택</span>
+                      </label>
+                      <span class="text-sm text-gray-600">
+                        <span id="selectedCount">0</span>개 선택됨
+                      </span>
+                      <button onclick="reviewSelected()" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                        클릭하여 재검토 →
                       </button>
-                      <button onclick="exportToSinglePDF()" class="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center">
-                        <i class="fas fa-file-pdf text-blue-600 mr-3"></i>
-                        <span class="font-medium">단일 PDF 파일로 내보내기</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                      <button onclick="deleteSelected()" id="deleteButton"
+                        class="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled>
+                        <i class="fas fa-trash mr-2"></i>제출물 삭제
                       </button>
+                      <div class="relative">
+                        <button id="exportButton" onclick="toggleExportMenu()" 
+                          class="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled>
+                          <i class="fas fa-print mr-2"></i>출력
+                          <i class="fas fa-chevron-down ml-2 text-xs"></i>
+                        </button>
+                        <div id="exportMenu" class="hidden absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-10">
+                          <button onclick="exportToPDF()" class="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center border-b border-gray-100">
+                            <i class="fas fa-file-pdf text-red-600 mr-3"></i>
+                            <span class="font-medium">PDF (개별 출력)</span>
+                          </button>
+                          <button onclick="exportToSinglePDF()" class="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center">
+                            <i class="fas fa-file-pdf text-blue-600 mr-3"></i>
+                            <span class="font-medium">단일 PDF 파일로 내보내기</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               \`;
 
-              container.innerHTML = toolbar + \`
-                <div class="space-y-4">
-                  \${history.map(item => \`
-                    <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition">
-                      <div class="flex items-start space-x-4">
-                        <div class="flex items-center pt-1">
-                          <input type="checkbox" 
-                            class="submission-checkbox w-5 h-5 text-navy-900 border-gray-300 rounded focus:ring-navy-500" 
-                            data-submission-id="\${item.submission_id}"
-                            onchange="updateSelection()"
-                            onclick="event.stopPropagation()">
-                        </div>
-                        <div class="flex-1 cursor-pointer" onclick="reviewSubmissionFromHistory(\${item.submission_id})">
-                          <div class="flex justify-between items-start mb-3">
-                            <div class="flex-1">
-                              <h3 class="text-lg font-bold text-gray-900 hover:text-navy-700 transition">
-                                \${item.assignment_title}
-                                <i class="fas fa-edit text-navy-600 ml-2 text-sm"></i>
-                              </h3>
-                              <p class="text-sm text-gray-600 mt-1">
-                                <i class="fas fa-user mr-2"></i>\${item.student_name}
-                                <span class="mx-2">•</span>
-                                <i class="fas fa-graduation-cap mr-2"></i>\${item.grade_level}
-                              </p>
-                            </div>
-                            <div class="text-right">
-                              <div class="text-2xl font-bold text-navy-900">\${item.overall_score}/4</div>
-                              <div class="text-xs text-gray-500 mt-1">
-                                <i class="fas fa-clock mr-1"></i>
-                                \${new Date(item.graded_at).toLocaleString('ko-KR')}
-                              </div>
-                            </div>
-                          </div>
-                          <div class="bg-gray-50 rounded-lg p-4 mt-4">
-                            <div class="text-sm font-semibold text-gray-700 mb-2">종합 피드백</div>
-                            <div class="text-sm text-gray-600">\${item.overall_feedback}</div>
-                          </div>
-                          <div class="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center">
-                            <div class="text-xs text-gray-500">
-                              <i class="fas fa-calendar mr-1"></i>
-                              제출일: \${new Date(item.submitted_at).toLocaleString('ko-KR')}
-                            </div>
-                            <button class="text-xs text-navy-700 font-semibold hover:text-navy-900 transition">
-                              클릭하여 재검토 →
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+              // Render assignments with grouped submissions
+              const assignmentsHTML = Object.values(groupedByAssignment).map(assignment => {
+                // Sort submissions based on current sort settings
+                const sortedSubmissions = [...assignment.submissions].sort((a, b) => {
+                  let comparison = 0;
+                  switch(sortField) {
+                    case 'student_name':
+                      comparison = a.student_name.localeCompare(b.student_name, 'ko');
+                      break;
+                    case 'submitted_at':
+                      comparison = new Date(a.submitted_at) - new Date(b.submitted_at);
+                      break;
+                    case 'graded_at':
+                      comparison = new Date(a.graded_at) - new Date(b.graded_at);
+                      break;
+                    case 'overall_score':
+                      comparison = a.overall_score - b.overall_score;
+                      break;
+                  }
+                  return sortOrder === 'asc' ? comparison : -comparison;
+                });
+
+                return \`
+                  <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+                    <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                      <h3 class="text-lg font-bold text-gray-900">
+                        <i class="fas fa-clipboard-list mr-2 text-navy-700"></i>
+                        \${assignment.title}
+                      </h3>
                     </div>
+                    <div class="overflow-x-auto">
+                      <table class="w-full">
+                        <thead class="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th class="px-6 py-3 text-left w-12">
+                              <input type="checkbox" class="assignment-checkbox w-4 h-4 text-navy-900 border-gray-300 rounded" 
+                                onchange="toggleAssignmentSelection(this)" data-assignment-id="\${assignment.title}">
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                              onclick="sortSubmissions('student_name')">
+                              성명
+                              <i class="fas fa-sort\${sortField === 'student_name' ? (sortOrder === 'asc' ? '-up' : '-down') : ''} ml-1 text-gray-400"></i>
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                              onclick="sortSubmissions('submitted_at')">
+                              제출일
+                              <i class="fas fa-sort\${sortField === 'submitted_at' ? (sortOrder === 'asc' ? '-up' : '-down') : ''} ml-1 text-gray-400"></i>
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                              onclick="sortSubmissions('graded_at')">
+                              채점일
+                              <i class="fas fa-sort\${sortField === 'graded_at' ? (sortOrder === 'asc' ? '-up' : '-down') : ''} ml-1 text-gray-400"></i>
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                              onclick="sortSubmissions('overall_score')">
+                              평점
+                              <i class="fas fa-sort\${sortField === 'overall_score' ? (sortOrder === 'asc' ? '-up' : '-down') : ''} ml-1 text-gray-400"></i>
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                          \${sortedSubmissions.map(item => \`
+                            <tr class="hover:bg-gray-50 cursor-pointer" onclick="reviewSubmissionFromHistory(\${item.submission_id})">
+                              <td class="px-6 py-4" onclick="event.stopPropagation()">
+                                <input type="checkbox" 
+                                  class="submission-checkbox w-4 h-4 text-navy-900 border-gray-300 rounded focus:ring-navy-500" 
+                                  data-submission-id="\${item.submission_id}"
+                                  data-assignment-id="\${assignment.title}"
+                                  onchange="updateSelection()">
+                              </td>
+                              <td class="px-6 py-4">
+                                <div class="flex items-center">
+                                  <div class="w-8 h-8 bg-navy-100 rounded-full flex items-center justify-center mr-3">
+                                    <i class="fas fa-user text-navy-700 text-xs"></i>
+                                  </div>
+                                  <div>
+                                    <div class="text-sm font-medium text-gray-900">\${item.student_name}</div>
+                                    <div class="text-xs text-gray-500">\${item.grade_level}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td class="px-6 py-4">
+                                <div class="text-sm text-gray-900">
+                                  \${new Date(item.submitted_at).toLocaleDateString('ko-KR')}
+                                </div>
+                                <div class="text-xs text-gray-500">
+                                  \${new Date(item.submitted_at).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'})}
+                                </div>
+                              </td>
+                              <td class="px-6 py-4">
+                                <div class="text-sm text-gray-900">
+                                  \${new Date(item.graded_at).toLocaleDateString('ko-KR')}
+                                </div>
+                                <div class="text-xs text-gray-500">
+                                  \${new Date(item.graded_at).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'})}
+                                </div>
+                              </td>
+                              <td class="px-6 py-4">
+                                <div class="flex items-center">
+                                  <span class="text-xl font-bold text-navy-900">\${item.overall_score}</span>
+                                  <span class="text-sm text-gray-500 ml-1">/4</span>
+                                </div>
+                              </td>
+                            </tr>
+                          \`).join('')}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                \`;
+              }).join('');
+
+              container.innerHTML = toolbar + \`<div class="space-y-6">\${assignmentsHTML}</div>\`;
                   \`).join('')}
                 </div>
               \`;
@@ -7187,7 +7378,12 @@ app.get('/my-page', (c) => {
             
             const count = selectedSubmissions.size;
             document.getElementById('selectedCount').textContent = count;
-            document.getElementById('exportButton').disabled = count === 0;
+            
+            const exportButton = document.getElementById('exportButton');
+            const deleteButton = document.getElementById('deleteButton');
+            
+            if (exportButton) exportButton.disabled = count === 0;
+            if (deleteButton) deleteButton.disabled = count === 0;
             
             // Update "select all" checkbox state
             const allCheckboxes = document.querySelectorAll('.submission-checkbox');
@@ -7195,6 +7391,71 @@ app.get('/my-page', (c) => {
             if (selectAllCheckbox) {
               selectAllCheckbox.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
               selectAllCheckbox.indeterminate = count > 0 && count < allCheckboxes.length;
+            }
+          }
+          
+          function toggleAssignmentSelection(checkbox) {
+            const assignmentId = checkbox.dataset.assignmentId;
+            const assignmentCheckboxes = document.querySelectorAll(\`.submission-checkbox[data-assignment-id="\${assignmentId}"]\`);
+            
+            assignmentCheckboxes.forEach(cb => {
+              cb.checked = checkbox.checked;
+            });
+            
+            updateSelection();
+          }
+          
+          function sortSubmissions(field) {
+            if (sortField === field) {
+              // Toggle sort order
+              sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+              // New field, default to descending
+              sortField = field;
+              sortOrder = 'desc';
+            }
+            
+            // Reload history with new sort
+            loadHistory();
+          }
+          
+          function reviewSelected() {
+            if (selectedSubmissions.size === 0) {
+              alert('선택된 제출물이 없습니다.');
+              return;
+            }
+            
+            // Open first selected submission for review
+            const firstSubmissionId = Array.from(selectedSubmissions)[0];
+            reviewSubmissionFromHistory(firstSubmissionId);
+          }
+          
+          async function deleteSelected() {
+            if (selectedSubmissions.size === 0) {
+              alert('선택된 제출물이 없습니다.');
+              return;
+            }
+            
+            const count = selectedSubmissions.size;
+            if (!confirm(\`선택된 \${count}개의 제출물을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.\`)) {
+              return;
+            }
+            
+            try {
+              const deletePromises = Array.from(selectedSubmissions).map(submissionId =>
+                axios.delete(\`/api/submissions/\${submissionId}\`)
+              );
+              
+              await Promise.all(deletePromises);
+              
+              alert(\`\${count}개의 제출물이 삭제되었습니다.\`);
+              
+              // Clear selection and reload history
+              selectedSubmissions.clear();
+              loadHistory();
+            } catch (error) {
+              console.error('삭제 실패:', error);
+              alert('제출물 삭제 중 오류가 발생했습니다.');
             }
           }
 
@@ -7569,6 +7830,37 @@ app.get('/my-page', (c) => {
           }
 
           // Initial load
+          // Logout function
+          function logout() {
+            if (!confirm('로그아웃하시겠습니까?')) {
+              return;
+            }
+            
+            // Clear all localStorage data
+            localStorage.removeItem('session_id');
+            localStorage.removeItem('user_name');
+            localStorage.removeItem('user_email');
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('student_session_id');
+            localStorage.removeItem('student_name');
+            localStorage.removeItem('student_email');
+            localStorage.removeItem('student_grade_level');
+            
+            // Redirect to home page
+            window.location.href = '/';
+          }
+          
+          // Close profile dropdown when clicking outside
+          document.addEventListener('click', function(event) {
+            const profileDropdown = document.querySelector('.profile-dropdown');
+            if (profileDropdown && !profileDropdown.contains(event.target)) {
+              const menu = document.querySelector('.profile-dropdown-menu');
+              if (menu && !menu.classList.contains('hidden')) {
+                // Optional: add logic to close dropdown
+              }
+            }
+          });
+          
           loadUserInfo();
           loadPlatformRubrics();
           loadAssignments();
@@ -8512,15 +8804,36 @@ app.get('/student/dashboard', (c) => {
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex justify-between h-16 items-center">
                     <div class="flex items-center">
-                        <span class="text-2xl font-bold text-blue-900">
-                            <i class="fas fa-graduation-cap mr-2"></i>AI 논술 평가 - 학생
-                        </span>
+                        <a href="/" class="text-2xl font-bold text-blue-900 hover:text-blue-700">
+                            <i class="fas fa-graduation-cap mr-2"></i>AI 논술 평가
+                        </a>
                     </div>
                     <div class="flex items-center space-x-4">
-                        <span id="studentName" class="text-gray-700 font-medium"></span>
-                        <button onclick="handleLogout()" class="text-gray-700 hover:text-blue-700 font-medium">
-                            <i class="fas fa-sign-out-alt mr-1"></i>로그아웃
-                        </button>
+                        <!-- User Profile Dropdown -->
+                        <div class="relative">
+                            <button id="profileButton" onclick="toggleProfileMenu()" class="flex items-center space-x-2 text-gray-700 hover:text-blue-700 font-medium">
+                                <i class="fas fa-user-circle text-2xl"></i>
+                                <span id="studentName"></span>
+                                <i class="fas fa-chevron-down text-sm"></i>
+                            </button>
+                            
+                            <!-- Dropdown Menu -->
+                            <div id="profileMenu" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                                <a href="/student/account" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-user-cog mr-2"></i>내 계정
+                                </a>
+                                <a href="/student/subscription" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-crown mr-2"></i>내 요금제
+                                </a>
+                                <a href="/student/billing" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-credit-card mr-2"></i>구독 결제 관리
+                                </a>
+                                <div class="border-t border-gray-200 my-2"></div>
+                                <button onclick="handleLogout()" class="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 font-medium">
+                                    <i class="fas fa-sign-out-alt mr-2"></i>로그아웃
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -8776,11 +9089,29 @@ app.get('/student/dashboard', (c) => {
             window.location.href = \`/student/feedback/\${submissionId}\`;
           }
           
+          function toggleProfileMenu() {
+            const menu = document.getElementById('profileMenu');
+            menu.classList.toggle('hidden');
+          }
+          
+          // Close profile menu when clicking outside
+          document.addEventListener('click', function(event) {
+            const profileButton = document.getElementById('profileButton');
+            const profileMenu = document.getElementById('profileMenu');
+            
+            if (profileButton && profileMenu && 
+                !profileButton.contains(event.target) && 
+                !profileMenu.contains(event.target)) {
+              profileMenu.classList.add('hidden');
+            }
+          });
+          
           function handleLogout() {
             localStorage.removeItem('student_session_id');
             localStorage.removeItem('student_name');
             localStorage.removeItem('student_email');
             localStorage.removeItem('student_grade_level');
+            localStorage.removeItem('isStudentLoggedIn');
             window.location.href = '/student/login';
           }
         </script>
