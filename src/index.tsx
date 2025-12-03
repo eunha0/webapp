@@ -1928,6 +1928,633 @@ app.delete('/api/admin/resource/:id', async (c) => {
   }
 })
 
+// User Guide Page
+app.get('/guide', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>사용법 안내 | AI 논술 평가</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script>
+          tailwind.config = {
+            theme: {
+              extend: {
+                colors: {
+                  navy: {
+                    50: '#f0f4ff',
+                    700: '#4338ca',
+                    800: '#3730a3',
+                    900: '#1e3a8a',
+                  }
+                }
+              }
+            }
+          }
+        </script>
+        <style>
+          .guide-section {
+            scroll-margin-top: 100px;
+          }
+          .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: #1e3a8a;
+            color: white;
+            border-radius: 50%;
+            font-weight: bold;
+            margin-right: 12px;
+          }
+          .feature-badge {
+            display: inline-block;
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-top: 8px;
+          }
+        </style>
+    </head>
+    <body class="bg-gray-50">
+        <!-- Navigation -->
+        <nav class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <a href="/" class="flex items-center">
+                        <span class="text-2xl font-bold text-navy-900">
+                            <i class="fas fa-graduation-cap mr-2"></i>AI 논술 평가
+                        </span>
+                    </a>
+                    <div class="flex items-center space-x-4">
+                        <a href="/" class="text-gray-700 hover:text-navy-700 font-medium">홈</a>
+                        <a href="/guide" class="text-navy-700 font-semibold">사용법 안내</a>
+                        <a href="/login?type=teacher" class="bg-navy-900 text-white px-6 py-2 rounded-lg font-semibold hover:bg-navy-800 transition">
+                            시작하기
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Hero Section -->
+        <div class="bg-gradient-to-r from-navy-900 to-navy-700 text-white py-12">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <h1 class="text-4xl font-bold mb-4">
+                    <i class="fas fa-book-open mr-3"></i>사용법 안내
+                </h1>
+                <p class="text-xl text-blue-100">AI 논술 채점 서비스를 처음 이용하시는 교사분들을 위한 상세 가이드</p>
+            </div>
+        </div>
+
+        <!-- Quick Navigation -->
+        <div class="bg-white border-b border-gray-200 sticky top-16 z-40">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div class="flex flex-wrap gap-3 items-center text-sm">
+                    <span class="font-semibold text-gray-700">바로가기:</span>
+                    <a href="#section-a" class="text-navy-700 hover:text-navy-900 font-medium">A. 과제 관리</a>
+                    <span class="text-gray-300">•</span>
+                    <a href="#section-b" class="text-navy-700 hover:text-navy-900 font-medium">B. 학생 답안 관리</a>
+                    <span class="text-gray-300">•</span>
+                    <a href="#section-c" class="text-navy-700 hover:text-navy-900 font-medium">C. 액세스 코드</a>
+                    <span class="text-gray-300">•</span>
+                    <a href="#section-d" class="text-navy-700 hover:text-navy-900 font-medium">D. AI 채점</a>
+                    <span class="text-gray-300">•</span>
+                    <a href="#section-e" class="text-navy-700 hover:text-navy-900 font-medium">E. 채점 이력</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            
+            <!-- Section A: 과제 관리 -->
+            <section id="section-a" class="guide-section mb-16">
+                <div class="bg-white rounded-xl shadow-lg p-8">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-6 border-b-4 border-navy-700 pb-3">
+                        A. 과제 관리
+                    </h2>
+
+                    <!-- A-1: 새 과제 만들기 -->
+                    <div class="mb-10">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-plus-circle text-navy-700 mr-3"></i>
+                            새 과제 만들기
+                        </h3>
+                        
+                        <div class="space-y-4 ml-8">
+                            <div class="flex items-start">
+                                <span class="step-number">1</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium">"새 과제 만들기" 버튼 클릭</p>
+                                    <p class="text-gray-600 text-sm mt-1">나의 페이지 우측 상단에 있는 파란색 버튼을 클릭하세요.</p>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start">
+                                <span class="step-number">2</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium mb-2">과제 정보 입력</p>
+                                    <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
+                                        <li><strong>제목:</strong> 예) "AI 시대의 윤리적 과제"</li>
+                                        <li><strong>설명:</strong> 예) "인공지능 발달이 가져올 윤리적 문제에 대해 논술하시오"</li>
+                                        <li><strong>학년 수준:</strong> 드롭다운에서 선택 (초등/중등/고등)</li>
+                                        <li><strong>마감일:</strong> 날짜 선택 (선택사항)</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start">
+                                <span class="step-number">3</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium mb-2">제시문 추가 <span class="feature-badge"><i class="fas fa-image mr-1"></i>이미지 업로드 지원</span></p>
+                                    <ul class="list-disc list-inside text-gray-600 space-y-2 ml-4">
+                                        <li>4개 기본 제시문 입력 필드 제공 (최대 11개까지 추가 가능)</li>
+                                        <li>각 제시문에 텍스트 직접 입력 또는 이미지 업로드</li>
+                                    </ul>
+                                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-3">
+                                        <p class="font-semibold text-blue-900 mb-2"><i class="fas fa-magic mr-2"></i>이미지 업로드 기능</p>
+                                        <ul class="list-disc list-inside text-blue-800 text-sm space-y-1 ml-4">
+                                            <li>"이미지 업로드" 버튼 클릭</li>
+                                            <li>이미지 파일 선택 (JPG, PNG, WebP, 최대 10MB)</li>
+                                            <li>자동 OCR 처리로 텍스트 추출</li>
+                                            <li>추출된 텍스트가 입력 필드에 자동 삽입</li>
+                                            <li>처리 시간: 약 5-10초</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start">
+                                <span class="step-number">4</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium mb-2">루브릭 기준 설정</p>
+                                    <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
+                                        <li>기본 4개 기준 자동 추가</li>
+                                        <li>"평가 기준 추가" 버튼으로 추가 가능</li>
+                                        <li>각 기준마다 이름과 설명 입력</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start">
+                                <span class="step-number">5</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium">"과제 생성" 버튼 클릭</p>
+                                    <p class="text-gray-600 text-sm mt-1">모든 정보 입력 후 과제를 생성합니다.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- A-2: 과제 상세 정보 확인 및 출력 -->
+                    <div class="mb-6">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-info-circle text-navy-700 mr-3"></i>
+                            과제 상세 정보 확인 및 출력
+                        </h3>
+                        
+                        <div class="space-y-4 ml-8">
+                            <div class="flex items-start">
+                                <span class="step-number">1</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium">과제 카드 클릭</p>
+                                    <p class="text-gray-600 text-sm mt-1">과제 목록에서 원하는 과제를 클릭하면 상세 정보 모달이 열립니다.</p>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start">
+                                <span class="step-number">2</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium mb-2">표시되는 정보</p>
+                                    <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
+                                        <li>과제 제목 및 설명</li>
+                                        <li>제시문 (입력된 경우 모두 표시)</li>
+                                        <li>평가 루브릭 (기준 및 설명)</li>
+                                        <li>학생 액세스 코드 (생성된 경우)</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start">
+                                <span class="step-number">3</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium mb-2">출력 기능 <span class="feature-badge"><i class="fas fa-print mr-1"></i>인쇄 가능</span></p>
+                                    <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
+                                        <li>모달 우측 상단 "출력" 버튼 클릭</li>
+                                        <li>새 창에서 과제 전체 정보 표시</li>
+                                        <li>내용 확인 후 "출력" 버튼으로 인쇄</li>
+                                        <li>포함 항목: 과제 제목, 설명, 제시문, 평가 루브릭, 학생 액세스 코드</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start">
+                                <span class="step-number">4</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium">과제 삭제</p>
+                                    <p class="text-gray-600 text-sm mt-1">
+                                        <i class="fas fa-exclamation-triangle text-yellow-600 mr-1"></i>
+                                        "삭제" 버튼 클릭 시 과제와 관련된 학생 제출물도 함께 삭제됩니다.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section B: 학생 답안 관리 -->
+            <section id="section-b" class="guide-section mb-16">
+                <div class="bg-white rounded-xl shadow-lg p-8">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-6 border-b-4 border-navy-700 pb-3">
+                        B. 학생 답안 관리
+                    </h2>
+
+                    <!-- B-1: 텍스트로 답안 추가 -->
+                    <div class="mb-10">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-keyboard text-navy-700 mr-3"></i>
+                            텍스트로 답안 추가
+                        </h3>
+                        
+                        <div class="space-y-4 ml-8">
+                            <div class="flex items-start">
+                                <span class="step-number">1</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium">과제 카드 클릭하여 상세 페이지 열기</p>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start">
+                                <span class="step-number">2</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium">"답안지 추가" 버튼 클릭</p>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start">
+                                <span class="step-number">3</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium mb-2">학생 정보 입력</p>
+                                    <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
+                                        <li>학생 이름</li>
+                                        <li>논술 내용 (텍스트 입력)</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start">
+                                <span class="step-number">4</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium">"추가" 버튼 클릭</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- B-2: 파일로 답안 추가 -->
+                    <div class="mb-6">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-file-upload text-navy-700 mr-3"></i>
+                            파일로 답안 추가 <span class="feature-badge"><i class="fas fa-robot mr-1"></i>AI OCR 지원</span>
+                        </h3>
+                        
+                        <div class="space-y-4 ml-8">
+                            <div class="flex items-start">
+                                <span class="step-number">1</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium">"파일 선택" 탭 클릭</p>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start">
+                                <span class="step-number">2</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium mb-2">지원 파일 형식</p>
+                                    <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
+                                        <li><strong>이미지:</strong> JPG, PNG, WebP (최대 10MB)</li>
+                                        <li><strong>PDF:</strong> 텍스트/이미지 기반 PDF (최대 10MB)</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start">
+                                <span class="step-number">3</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium mb-2">파일 업로드 프로세스</p>
+                                    <ol class="list-decimal list-inside text-gray-600 space-y-1 ml-4">
+                                        <li>파일 선택 또는 드래그앤드롭</li>
+                                        <li>파일 미리보기 확인</li>
+                                        <li>"AI로 논술 채점하기" 버튼 클릭</li>
+                                        <li>자동으로 텍스트 추출 진행</li>
+                                        <li>추출된 텍스트로 채점 진행</li>
+                                    </ol>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start">
+                                <span class="step-number">4</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium mb-2">처리 시간</p>
+                                    <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
+                                        <li>이미지 OCR: 5-10초</li>
+                                        <li>텍스트 PDF: 3-5초</li>
+                                        <li>이미지 PDF OCR: 10-15초</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section C: 액세스 코드 생성 및 공유 -->
+            <section id="section-c" class="guide-section mb-16">
+                <div class="bg-white rounded-xl shadow-lg p-8">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-6 border-b-4 border-navy-700 pb-3">
+                        C. 액세스 코드 생성 및 공유
+                    </h2>
+
+                    <div class="space-y-4 ml-8">
+                        <div class="flex items-start">
+                            <span class="step-number">1</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700 font-medium">과제 상세 페이지에서 "액세스 코드 생성" 버튼 클릭</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <span class="step-number">2</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700 font-medium">6자리 숫자 코드 자동 생성</p>
+                                <p class="text-gray-600 text-sm mt-1">예시: 123456</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <span class="step-number">3</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700 font-medium mb-2">학생들에게 코드 공유 방법</p>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
+                                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                        <p class="font-semibold text-blue-900 mb-2">
+                                            <i class="fas fa-desktop mr-2"></i>화면 공유
+                                        </p>
+                                        <p class="text-sm text-blue-800">과제 상세 모달에서 직접 코드 표시</p>
+                                    </div>
+                                    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                                        <p class="font-semibold text-green-900 mb-2">
+                                            <i class="fas fa-print mr-2"></i>인쇄물 배포
+                                        </p>
+                                        <p class="text-sm text-green-800">"출력" 버튼으로 액세스 코드 포함하여 인쇄</p>
+                                    </div>
+                                    <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                        <p class="font-semibold text-purple-900 mb-2">
+                                            <i class="fas fa-share-alt mr-2"></i>디지털 공유
+                                        </p>
+                                        <p class="text-sm text-purple-800">코드 복사하여 이메일/메신저로 전송</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <span class="step-number">4</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700 font-medium">학생들이 코드로 과제 접근 및 제출</p>
+                                <p class="text-gray-600 text-sm mt-1">학생 대시보드에서 액세스 코드를 입력하면 과제에 접근하여 답안을 제출할 수 있습니다.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section D: AI 채점 및 피드백 검토 -->
+            <section id="section-d" class="guide-section mb-16">
+                <div class="bg-white rounded-xl shadow-lg p-8">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-6 border-b-4 border-navy-700 pb-3">
+                        D. AI 채점 및 피드백 검토
+                    </h2>
+
+                    <div class="space-y-4 ml-8">
+                        <div class="flex items-start">
+                            <span class="step-number">1</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700 font-medium">과제 상세 페이지에서 제출물 목록 확인</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <span class="step-number">2</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700 font-medium">"채점하기" 버튼 클릭</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <span class="step-number">3</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700 font-medium">AI 채점 진행</p>
+                                <p class="text-gray-600 text-sm mt-1">
+                                    <i class="fas fa-clock mr-1"></i>소요 시간: 약 10-30초
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <span class="step-number">4</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700 font-medium mb-2">채점 결과 검토 모달 (Split-Screen Layout)</p>
+                                <div class="bg-gray-50 border border-gray-300 rounded-lg p-4 mt-3">
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <p class="font-semibold text-gray-900 mb-2">
+                                                <i class="fas fa-file-alt text-blue-600 mr-2"></i>왼쪽 패널
+                                            </p>
+                                            <ul class="list-disc list-inside text-gray-600 text-sm space-y-1 ml-4">
+                                                <li>학생 답안 전체 내용</li>
+                                                <li>읽기 전용</li>
+                                                <li>스크롤 가능</li>
+                                            </ul>
+                                        </div>
+                                        <div>
+                                            <p class="font-semibold text-gray-900 mb-2">
+                                                <i class="fas fa-edit text-green-600 mr-2"></i>오른쪽 패널
+                                            </p>
+                                            <ul class="list-disc list-inside text-gray-600 text-sm space-y-1 ml-4">
+                                                <li>피드백 및 평가 (편집 가능)</li>
+                                                <li>전체 점수 수정 (0-10점)</li>
+                                                <li>종합 평가 편집</li>
+                                                <li>기준별 점수 및 피드백 수정</li>
+                                                <li>종합 의견, 수정 제안, 다음 단계 조언 편집</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <span class="step-number">5</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700 font-medium mb-2">검토 후 3가지 옵션</p>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
+                                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                        <p class="font-semibold text-blue-900 mb-2">
+                                            <i class="fas fa-print mr-2"></i>출력
+                                        </p>
+                                        <p class="text-sm text-blue-800">채점 결과 및 피드백을 별도 창에서 출력/저장</p>
+                                    </div>
+                                    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                                        <p class="font-semibold text-green-900 mb-2">
+                                            <i class="fas fa-save mr-2"></i>저장하고 완료
+                                        </p>
+                                        <p class="text-sm text-green-800">수정된 피드백을 데이터베이스에 저장</p>
+                                    </div>
+                                    <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                                        <p class="font-semibold text-gray-900 mb-2">
+                                            <i class="fas fa-times mr-2"></i>취소
+                                        </p>
+                                        <p class="text-sm text-gray-700">변경사항 없이 모달 닫기</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <span class="step-number">6</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700 font-medium mb-2">상세 피드백 자동 생성</p>
+                                <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
+                                    <li>각 기준별 긍정적 피드백</li>
+                                    <li>개선이 필요한 부분</li>
+                                    <li>구체적인 개선 방법 (단계별)</li>
+                                    <li>학년에 맞는 톤 조정 (초등/중등/고등)</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section E: 채점 이력 확인 및 일괄 출력 -->
+            <section id="section-e" class="guide-section mb-16">
+                <div class="bg-white rounded-xl shadow-lg p-8">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-6 border-b-4 border-navy-700 pb-3">
+                        E. 채점 이력 확인 및 일괄 출력
+                    </h2>
+
+                    <div class="space-y-4 ml-8">
+                        <div class="flex items-start">
+                            <span class="step-number">1</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700 font-medium">"채점 이력" 탭 클릭</p>
+                                <p class="text-gray-600 text-sm mt-1">나의 페이지 상단 탭에서 "채점 이력"을 선택하세요.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <span class="step-number">2</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700 font-medium mb-2">모든 채점 완료된 답안 확인</p>
+                                <p class="text-gray-600 text-sm mb-2">다음 정보가 표시됩니다:</p>
+                                <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
+                                    <li>과제 제목</li>
+                                    <li>학생 이름</li>
+                                    <li>점수</li>
+                                    <li>종합 피드백</li>
+                                    <li>제출일 및 채점일</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <span class="step-number">3</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700 font-medium mb-2">답안 재검토 기능</p>
+                                <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
+                                    <li>답안 카드 클릭 시 Split-Screen 검토 모달 열림</li>
+                                    <li>학생 답안(좌측) + 피드백(우측) 동시 확인</li>
+                                    <li>모든 피드백 필드 수정 가능</li>
+                                    <li>수정 후 "저장하고 완료" 또는 "출력" 선택</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <span class="step-number">4</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700 font-medium mb-2">일괄 출력 기능 사용 <span class="feature-badge"><i class="fas fa-file-pdf mr-1"></i>PDF 통합 지원</span></p>
+                                <ol class="list-decimal list-inside text-gray-600 space-y-2 ml-4">
+                                    <li>각 답안 왼쪽 체크박스로 출력할 항목 선택</li>
+                                    <li>"전체 선택" 체크박스로 모든 답안 선택 가능</li>
+                                    <li>"출력" 버튼 클릭하여 드롭다운 메뉴 열기</li>
+                                </ol>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                        <p class="font-semibold text-blue-900 mb-2">
+                                            <i class="fas fa-file-alt mr-2"></i>PDF (개별 출력)
+                                        </p>
+                                        <p class="text-sm text-blue-800">각 답안을 별도 창에서 열어 개별 인쇄</p>
+                                    </div>
+                                    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                                        <p class="font-semibold text-green-900 mb-2">
+                                            <i class="fas fa-file-pdf mr-2"></i>단일 PDF 파일로 내보내기
+                                        </p>
+                                        <p class="text-sm text-green-800">모든 선택 답안을 하나의 문서로 통합하여 일괄 인쇄</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Bottom CTA -->
+            <div class="bg-gradient-to-r from-navy-900 to-navy-700 rounded-xl shadow-lg p-8 text-center text-white">
+                <h3 class="text-2xl font-bold mb-4">
+                    <i class="fas fa-rocket mr-2"></i>지금 바로 시작하세요!
+                </h3>
+                <p class="text-xl text-blue-100 mb-6">AI 논술 채점 서비스로 채점 시간을 90% 줄이세요</p>
+                <div class="flex justify-center gap-4">
+                    <a href="/login?type=teacher" class="bg-white text-navy-900 px-8 py-3 rounded-lg font-bold hover:bg-blue-50 transition">
+                        교사 로그인
+                    </a>
+                    <a href="/signup" class="bg-lime-400 text-navy-900 px-8 py-3 rounded-lg font-bold hover:bg-lime-300 transition">
+                        무료로 시작하기
+                    </a>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Footer -->
+        <footer class="bg-gray-900 text-gray-300 py-12 mt-16">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <p class="text-lg font-semibold text-white mb-2">AI 논술 평가 시스템</p>
+                <p class="text-sm">© 2024 All rights reserved.</p>
+                <div class="mt-4">
+                    <a href="/" class="text-blue-400 hover:text-blue-300 mx-2">홈</a>
+                    <a href="/guide" class="text-blue-400 hover:text-blue-300 mx-2">사용법</a>
+                    <a href="/pricing" class="text-blue-400 hover:text-blue-300 mx-2">요금제</a>
+                </div>
+            </div>
+        </footer>
+
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    </body>
+    </html>
+  `)
+})
+
 // Frontend Route
 app.get('/', (c) => {
   return c.html(`
@@ -2114,6 +2741,7 @@ app.get('/', (c) => {
                                 <a href="/resources/evaluation"><i class="fas fa-book mr-2 text-navy-700"></i>논술 평가 자료</a>
                             </div>
                         </div>
+                        <a href="/guide" class="text-gray-700 hover:text-navy-700 font-medium">사용법 안내</a>
                         <a href="#faq" class="text-gray-700 hover:text-navy-700 font-medium">자주 묻는 질문</a>
                         <a href="/pricing" class="text-gray-700 hover:text-navy-700 font-medium">요금제</a>
                         <a href="/my-page" id="myPageLink" class="text-gray-700 hover:text-navy-700 font-medium" style="display: none;">나의 페이지</a>
