@@ -2729,8 +2729,8 @@ app.get('/', (c) => {
                         </span>
                     </div>
                     <div class="hidden md:flex items-center space-x-8">
-                        <a href="#how-it-works" class="text-gray-700 hover:text-navy-700 font-medium">작동 방식</a>
                         <a href="#features" class="text-gray-700 hover:text-navy-700 font-medium">기능</a>
+                        <a href="/guide" class="text-gray-700 hover:text-navy-700 font-medium">사용법 안내</a>
                         <div class="dropdown">
                             <button class="text-gray-700 hover:text-navy-700 font-medium cursor-pointer">
                                 평가 관련 자료 <i class="fas fa-chevron-down text-xs ml-1"></i>
@@ -2741,7 +2741,6 @@ app.get('/', (c) => {
                                 <a href="/resources/evaluation"><i class="fas fa-book mr-2 text-navy-700"></i>논술 평가 자료</a>
                             </div>
                         </div>
-                        <a href="/guide" class="text-gray-700 hover:text-navy-700 font-medium">사용법 안내</a>
                         <a href="#faq" class="text-gray-700 hover:text-navy-700 font-medium">자주 묻는 질문</a>
                         <a href="/pricing" class="text-gray-700 hover:text-navy-700 font-medium">요금제</a>
                         <a href="/my-page" id="myPageLink" class="text-gray-700 hover:text-navy-700 font-medium" style="display: none;">나의 페이지</a>
