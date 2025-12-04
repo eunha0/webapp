@@ -2055,6 +2055,9 @@ app.get('/guide', (c) => {
                                 <div class="flex-1">
                                     <p class="text-gray-700 font-medium">"새 과제 만들기" 버튼 클릭</p>
                                     <p class="text-gray-600 text-sm mt-1">나의 페이지 우측 상단에 있는 파란색 버튼을 클릭하세요.</p>
+                                    <div class="mt-3 border border-gray-300 rounded-lg overflow-hidden">
+                                        <img src="/guide-screenshots/step1-my-page.png" alt="나의 페이지 - 새 과제 만들기 버튼" class="w-full">
+                                    </div>
                                 </div>
                             </div>
 
@@ -2063,11 +2066,14 @@ app.get('/guide', (c) => {
                                 <div class="flex-1">
                                     <p class="text-gray-700 font-medium mb-2">과제 정보 입력</p>
                                     <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
-                                        <li><strong>제목:</strong> 예) "AI 시대의 윤리적 과제"</li>
-                                        <li><strong>설명:</strong> 예) "인공지능 발달이 가져올 윤리적 문제에 대해 논술하시오"</li>
+                                        <li><strong>제목:</strong> 예) "제2차 세계 대전의 원인"</li>
+                                        <li><strong>설명:</strong> 예) "1939년 시작된 제2차 세계대전은... 결론을 논술하시오"</li>
                                         <li><strong>학년 수준:</strong> 드롭다운에서 선택 (초등/중등/고등)</li>
                                         <li><strong>마감일:</strong> 날짜 선택 (선택사항)</li>
                                     </ul>
+                                    <div class="mt-3 border border-gray-300 rounded-lg overflow-hidden">
+                                        <img src="/guide-screenshots/step2-create-assignment.png" alt="과제 정보 입력 화면" class="w-full">
+                                    </div>
                                 </div>
                             </div>
 
@@ -2089,6 +2095,9 @@ app.get('/guide', (c) => {
                                             <li>처리 시간: 약 5-10초</li>
                                         </ul>
                                     </div>
+                                    <div class="mt-3 border border-gray-300 rounded-lg overflow-hidden">
+                                        <img src="/guide-screenshots/step3-add-prompts.png" alt="제시문 추가 및 루브릭 설정" class="w-full">
+                                    </div>
                                 </div>
                             </div>
 
@@ -2101,6 +2110,9 @@ app.get('/guide', (c) => {
                                         <li>"평가 기준 추가" 버튼으로 추가 가능</li>
                                         <li>각 기준마다 이름과 설명 입력</li>
                                     </ul>
+                                    <div class="mt-3 border border-gray-300 rounded-lg overflow-hidden">
+                                        <img src="/guide-screenshots/step6-rubric-criteria.png" alt="루브릭 평가 기준 설정" class="w-full">
+                                    </div>
                                 </div>
                             </div>
 
@@ -2109,6 +2121,9 @@ app.get('/guide', (c) => {
                                 <div class="flex-1">
                                     <p class="text-gray-700 font-medium">"과제 생성" 버튼 클릭</p>
                                     <p class="text-gray-600 text-sm mt-1">모든 정보 입력 후 과제를 생성합니다.</p>
+                                    <div class="mt-3 border border-gray-300 rounded-lg overflow-hidden">
+                                        <img src="/guide-screenshots/step4-assignment-created.png" alt="과제 생성 완료" class="w-full">
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2140,6 +2155,9 @@ app.get('/guide', (c) => {
                                         <li>평가 루브릭 (기준 및 설명)</li>
                                         <li>학생 액세스 코드 (생성된 경우)</li>
                                     </ul>
+                                    <div class="mt-3 border border-gray-300 rounded-lg overflow-hidden">
+                                        <img src="/guide-screenshots/step5-assignment-detail.png" alt="과제 상세 정보 확인" class="w-full">
+                                    </div>
                                 </div>
                             </div>
 
@@ -2269,6 +2287,12 @@ app.get('/guide', (c) => {
                                         <li>텍스트 PDF: 3-5초</li>
                                         <li>이미지 PDF OCR: 10-15초</li>
                                     </ul>
+                                    <div class="mt-3 border border-gray-300 rounded-lg overflow-hidden">
+                                        <img src="/guide-screenshots/step7-add-submission-file.png" alt="파일로 답안 추가" class="w-full">
+                                    </div>
+                                    <div class="mt-3 border border-gray-300 rounded-lg overflow-hidden">
+                                        <img src="/guide-screenshots/step8-text-input.png" alt="텍스트로 답안 추가" class="w-full">
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2399,6 +2423,12 @@ app.get('/guide', (c) => {
                                         </div>
                                     </div>
                                 </div>
+                                <div class="mt-3 border border-gray-300 rounded-lg overflow-hidden">
+                                    <img src="/guide-screenshots/step10-grading-settings.png" alt="채점 설정" class="w-full">
+                                </div>
+                                <div class="mt-3 border border-gray-300 rounded-lg overflow-hidden">
+                                    <img src="/guide-screenshots/step11-grading-result.png" alt="채점 결과 검토" class="w-full">
+                                </div>
                             </div>
                         </div>
 
@@ -2473,6 +2503,9 @@ app.get('/guide', (c) => {
                                     <li>종합 피드백</li>
                                     <li>제출일 및 채점일</li>
                                 </ul>
+                                <div class="mt-3 border border-gray-300 rounded-lg overflow-hidden">
+                                    <img src="/guide-screenshots/step9-grading-history.png" alt="채점 이력 확인" class="w-full">
+                                </div>
                             </div>
                         </div>
 
