@@ -2122,7 +2122,7 @@ app.get('/guide', (c) => {
                                     <p class="text-gray-700 font-medium">"과제 생성" 버튼 클릭</p>
                                     <p class="text-gray-600 text-sm mt-1">모든 정보 입력 후 과제를 생성합니다.</p>
                                     <div class="mt-3 flex justify-center">
-                                        <img src="/guide-screenshots/step4-assignment-created.png" alt="과제 생성 완료" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
+                                        <img src="/guide-screenshots/step5-assignment-modal.png" alt="과제 생성 모달" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
                                     </div>
                                 </div>
                             </div>
@@ -2142,6 +2142,9 @@ app.get('/guide', (c) => {
                                 <div class="flex-1">
                                     <p class="text-gray-700 font-medium">과제 카드 클릭</p>
                                     <p class="text-gray-600 text-sm mt-1">과제 목록에서 원하는 과제를 클릭하면 상세 정보 모달이 열립니다.</p>
+                                    <div class="mt-3 flex justify-center">
+                                        <img src="/guide-screenshots/step4-assignment-created.png" alt="과제 생성 완료" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
+                                    </div>
                                 </div>
                             </div>
 
