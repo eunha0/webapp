@@ -7097,7 +7097,8 @@ app.get('/my-page', (c) => {
                   submissionId: submissionId,
                   submission: submissionData,
                   result: response.data.grading_result,
-                  detailedFeedback: response.data.detailed_feedback
+                  detailedFeedback: response.data.detailed_feedback,
+                  fromHistory: false  // Mark that this was opened from assignment view
                 };
                 
                 // Show review modal
@@ -7765,7 +7766,13 @@ app.get('/my-page', (c) => {
               if (response.data.success) {
                 alert('피드백이 저장되었습니다!');
                 closeGradingReviewModal();
-                viewAssignment(currentAssignmentId);
+                
+                // If opened from grading history, reload history instead of viewAssignment
+                if (currentGradingData.fromHistory) {
+                  loadHistory();
+                } else if (currentAssignmentId) {
+                  viewAssignment(currentAssignmentId);
+                }
               } else {
                 throw new Error('피드백 저장 실패');
               }
@@ -8037,7 +8044,8 @@ app.get('/my-page', (c) => {
                     areas_for_improvement: criterion.improvement_areas || ''
                   }))
                 },
-                detailedFeedback: feedback
+                detailedFeedback: feedback,
+                fromHistory: true  // Mark that this was opened from grading history
               };
               
               // Show the review modal
