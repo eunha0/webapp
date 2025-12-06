@@ -1089,6 +1089,8 @@ app.post('/api/student/submit', async (c) => {
     const { access_code, essay_text } = await c.req.json()
     const db = c.env.DB
     
+    console.log('[DEBUG] Student submit - access_code:', access_code, 'student_id:', student.id)
+    
     // Find assignment by access code
     const assignment = await db.prepare(
       `SELECT a.id FROM assignments a
@@ -1096,8 +1098,20 @@ app.post('/api/student/submit', async (c) => {
        WHERE ac.access_code = ?`
     ).bind(access_code).first()
     
+    console.log('[DEBUG] Assignment found:', assignment)
+    
     if (!assignment) {
-      return c.json({ error: '유효하지 않은 액세스 코드입니다' }, 404)
+      // Check if code exists at all
+      const codeExists = await db.prepare(
+        'SELECT access_code, assignment_id FROM assignment_access_codes WHERE access_code = ?'
+      ).bind(access_code).first()
+      
+      console.log('[DEBUG] Code exists check:', codeExists)
+      
+      return c.json({ 
+        error: '유효하지 않은 액세스 코드입니다',
+        debug: codeExists ? '코드는 존재하나 과제를 찾을 수 없습니다' : '액세스 코드가 존재하지 않습니다'
+      }, 404)
     }
     
     // Check if student already submitted
@@ -9712,7 +9726,11 @@ app.get('/student/dashboard', (c) => {
                 loadSubmissions();
               }
             } catch (error) {
-              alert('제출 실패: ' + (error.response?.data?.error || error.message));
+              console.error('Submit error:', error);
+              const errorMsg = error.response?.data?.error || error.message;
+              const debugInfo = error.response?.data?.debug || '';
+              
+              alert(`제출 실패: ${errorMsg}${debugInfo ? '\n\n디버그 정보: ' + debugInfo : ''}\n\n다음 사항을 확인해주세요:\n1. 액세스 코드가 올바른지 확인\n2. 로그인 상태 확인\n3. 인터넷 연결 확인`);
             }
           }
           
