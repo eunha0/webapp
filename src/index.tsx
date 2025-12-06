@@ -7765,10 +7765,15 @@ app.get('/my-page', (c) => {
               
               if (response.data.success) {
                 alert('피드백이 저장되었습니다!');
+                
+                // CRITICAL: Save fromHistory flag BEFORE closing modal
+                // closeGradingReviewModal() sets currentGradingData to null
+                const isFromHistory = currentGradingData.fromHistory;
+                
                 closeGradingReviewModal();
                 
                 // If opened from grading history, reload history instead of viewAssignment
-                if (currentGradingData.fromHistory) {
+                if (isFromHistory) {
                   loadHistory();
                 } else if (currentAssignmentId) {
                   viewAssignment(currentAssignmentId);
