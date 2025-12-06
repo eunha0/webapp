@@ -5960,6 +5960,7 @@ app.get('/my-page', (c) => {
 
               document.getElementById('assignmentDetailContent').innerHTML = \`
                 <div class="space-y-6">
+                  <!-- Top buttons (original) -->
                   <div class="flex justify-end mb-4">
                     <button onclick="printAssignment()" class="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition text-sm">
                       <i class="fas fa-print mr-2"></i>출력
@@ -6141,6 +6142,16 @@ app.get('/my-page', (c) => {
                         </div>
                       </form>
                     </div>
+                  </div>
+
+                  <!-- Bottom action buttons -->
+                  <div class="sticky bottom-0 bg-white border-t-2 border-gray-200 pt-4 mt-6 flex justify-end gap-3">
+                    <button onclick="closeAssignmentDetailModal()" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">
+                      <i class="fas fa-times mr-2"></i>닫기
+                    </button>
+                    <button onclick="printAssignment()" class="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition">
+                      <i class="fas fa-print mr-2"></i>출력
+                    </button>
                   </div>
                 </div>
               \`;
