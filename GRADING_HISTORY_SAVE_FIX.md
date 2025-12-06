@@ -205,8 +205,66 @@ if (response.data.success) {
 - ✅ undefined ID로 API 호출하는 문제
 - ✅ 채점 이력 워크플로우의 사용자 경험 개선
 
+## 🔧 추가 수정 (2차 수정)
+
+### 문제 발견
+첫 번째 수정 후 새로운 오류 발생:
+```
+"피드백 저장에 실패했습니다: Cannot read properties of null (reading 'fromHistory')"
+```
+
+### 원인
+```typescript
+if (response.data.success) {
+  alert('피드백이 저장되었습니다!');
+  closeGradingReviewModal();  // ❌ 여기서 currentGradingData = null 설정
+  
+  if (currentGradingData.fromHistory) {  // ❌ null.fromHistory 접근 시도
+    loadHistory();
+  }
+}
+```
+
+**실행 순서 문제:**
+1. `closeGradingReviewModal()` 호출
+2. 함수 내부에서 `currentGradingData = null` 설정
+3. 이후 `currentGradingData.fromHistory` 접근 시도
+4. **null 참조 오류 발생!**
+
+### 해결 (최종)
+```typescript
+if (response.data.success) {
+  alert('피드백이 저장되었습니다!');
+  
+  // ✅ CRITICAL: Save fromHistory flag BEFORE closing modal
+  // closeGradingReviewModal() sets currentGradingData to null
+  const isFromHistory = currentGradingData.fromHistory;
+  
+  closeGradingReviewModal();  // 이제 안전하게 null로 설정
+  
+  // ✅ 저장된 로컬 변수 사용
+  if (isFromHistory) {
+    loadHistory();
+  } else if (currentAssignmentId) {
+    viewAssignment(currentAssignmentId);
+  }
+}
+```
+
+**핵심 포인트:**
+- `fromHistory` 플래그를 **모달 닫기 전에** 로컬 변수에 복사
+- 모달을 닫은 후에는 **복사된 값** 사용
+- `currentGradingData`가 null이 되어도 안전
+
+### 코드 변경 (2차)
+- **src/index.tsx:7766-7775**
+  - `const isFromHistory = currentGradingData.fromHistory` 추가
+  - `currentGradingData.fromHistory` → `isFromHistory`로 변경
+  - 상세 주석 추가
+
 ---
 
 **작업 완료 일시:** 2025-12-06  
 **작업자:** AI Assistant  
-**상태:** ✅ 완료 및 테스트 준비 완료
+**상태:** ✅ 완료 및 검증 완료 (2차 수정 완료)  
+**최종 커밋:** 6963836
