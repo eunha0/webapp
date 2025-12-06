@@ -3628,6 +3628,12 @@ app.get('/resource/:id', async (c) => {
         <script>
           // Simple markdown-like formatting to HTML converter
           function formatContent(content) {
+            // If content already contains HTML tags (rubric-container, div class, etc.), return as-is
+            if (content.includes('<div') || content.includes('rubric-container')) {
+              return content;
+            }
+            
+            // Otherwise, apply simple markdown-like formatting
             return content
               .split('\\n')
               .map(line => {
