@@ -53,6 +53,16 @@ async function requireAuth(c: any) {
   return user
 }
 
+// Helper function to convert ArrayBuffer to base64
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
+}
+
 // Enable CORS for API routes
 app.use('/api/*', cors())
 
@@ -237,25 +247,39 @@ app.post('/api/upload/image', async (c) => {
     // Log upload step
     await logProcessingStep(db, uploadedFileId, 'upload', 'completed', 'R2 업로드 및 메타데이터 저장 완료', null)
     
-    // Process image with OCR (optional - if credentials are available)
+    // Process image with OCR using free OCR.space API
     let extractedText = null
+    const startTime = Date.now()
     
-    if (credentialsJson) {
-      try {
-        const ocrResult = await processImageOCR(
-          { name: file.name, buffer: fileBuffer, type: file.type, size: file.size },
-          credentialsJson
-        )
+    try {
+      // Use free OCR.space API (no API key needed for basic usage)
+      const base64Image = arrayBufferToBase64(fileBuffer)
+      
+      const ocrFormData = new FormData()
+      ocrFormData.append('base64Image', `data:${file.type};base64,${base64Image}`)
+      ocrFormData.append('language', 'kor')
+      ocrFormData.append('isOverlayRequired', 'false')
+      ocrFormData.append('detectOrientation', 'true')
+      ocrFormData.append('scale', 'true')
+      ocrFormData.append('OCREngine', '2')
+      
+      const ocrResponse = await fetch('https://api.ocr.space/parse/image', {
+        method: 'POST',
+        body: ocrFormData
+      })
+      
+      const ocrData = await ocrResponse.json()
+      
+      if (ocrData.IsErroredOnProcessing === false && ocrData.ParsedResults && ocrData.ParsedResults.length > 0) {
+        extractedText = ocrData.ParsedResults[0].ParsedText
         
-        if (ocrResult.success && ocrResult.extractedText) {
-          extractedText = ocrResult.extractedText
-          
+        if (extractedText && extractedText.trim().length > 0) {
           // Update database with extracted text
           await db.prepare(
             `UPDATE uploaded_files 
              SET extracted_text = ?, processing_status = ?, processed_at = CURRENT_TIMESTAMP
              WHERE id = ?`
-          ).bind(ocrResult.extractedText, 'completed', uploadedFileId).run()
+          ).bind(extractedText, 'completed', uploadedFileId).run()
           
           // Log OCR step
           await logProcessingStep(
@@ -263,11 +287,55 @@ app.post('/api/upload/image', async (c) => {
             uploadedFileId,
             'ocr',
             'completed',
-            `추출된 텍스트: ${ocrResult.extractedText.length} characters`,
-            ocrResult.processingTimeMs || null
+            `추출된 텍스트: ${extractedText.length} characters (OCR.space)`,
+            Date.now() - startTime
           )
         } else {
-          // OCR failed but file upload succeeded
+          throw new Error('이미지에서 텍스트를 찾을 수 없습니다')
+        }
+      } else {
+        const errorMsg = ocrData.ErrorMessage && ocrData.ErrorMessage.length > 0 
+          ? ocrData.ErrorMessage.join(', ') 
+          : '알 수 없는 OCR 오류'
+        throw new Error(errorMsg)
+      }
+    } catch (error) {
+      console.error('OCR processing error:', error)
+      
+      // Try Google Vision API as fallback if credentials available
+      if (credentialsJson) {
+        try {
+          const ocrResult = await processImageOCR(
+            { name: file.name, buffer: fileBuffer, type: file.type, size: file.size },
+            credentialsJson
+          )
+          
+          if (ocrResult.success && ocrResult.extractedText) {
+            extractedText = ocrResult.extractedText
+            
+            // Update database with extracted text
+            await db.prepare(
+              `UPDATE uploaded_files 
+               SET extracted_text = ?, processing_status = ?, processed_at = CURRENT_TIMESTAMP
+               WHERE id = ?`
+            ).bind(ocrResult.extractedText, 'completed', uploadedFileId).run()
+            
+            // Log OCR step
+            await logProcessingStep(
+              db,
+              uploadedFileId,
+              'ocr',
+              'completed',
+              `추출된 텍스트: ${ocrResult.extractedText.length} characters (Google Vision)`,
+              ocrResult.processingTimeMs || null
+            )
+          } else {
+            throw new Error('Google Vision OCR failed')
+          }
+        } catch (googleError) {
+          console.error('Google Vision fallback also failed:', googleError)
+          
+          // Both OCR methods failed - mark as completed without text
           await db.prepare(
             `UPDATE uploaded_files 
              SET processing_status = ?, processed_at = CURRENT_TIMESTAMP
@@ -278,31 +346,28 @@ app.post('/api/upload/image', async (c) => {
             db,
             uploadedFileId,
             'ocr',
-            'skipped',
-            'OCR 처리 실패 - 파일 업로드는 성공',
-            null
+            'failed',
+            `모든 OCR 방법 실패: ${String(error)} / ${String(googleError)}`,
+            Date.now() - startTime
           )
         }
-      } catch (error) {
-        console.error('OCR processing error (non-fatal):', error)
-        // Mark as completed without OCR
+      } else {
+        // No fallback available - mark as completed without text
         await db.prepare(
           `UPDATE uploaded_files 
            SET processing_status = ?, processed_at = CURRENT_TIMESTAMP
            WHERE id = ?`
         ).bind('completed', uploadedFileId).run()
         
-        await logProcessingStep(db, uploadedFileId, 'ocr', 'skipped', 'OCR 처리 오류 - 파일 업로드는 성공', null)
+        await logProcessingStep(
+          db,
+          uploadedFileId,
+          'ocr',
+          'failed',
+          `OCR 실패: ${String(error)}`,
+          Date.now() - startTime
+        )
       }
-    } else {
-      // No OCR credentials - mark as completed without OCR
-      await db.prepare(
-        `UPDATE uploaded_files 
-         SET processing_status = ?, processed_at = CURRENT_TIMESTAMP
-         WHERE id = ?`
-      ).bind('completed', uploadedFileId).run()
-      
-      await logProcessingStep(db, uploadedFileId, 'ocr', 'skipped', 'OCR 자격 증명 없음 - 파일 업로드만 완료', null)
     }
     
     // Return success regardless of OCR status
