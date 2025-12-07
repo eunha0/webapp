@@ -91,8 +91,8 @@ app.post('/api/grade', async (c) => {
     // Create essay
     const essayId = await createEssay(db, sessionId, request.essay_text)
 
-    // Grade the essay using AI
-    const gradingResult = await gradeEssay(request)
+    // Grade the essay using Hybrid AI (GPT-4o for scoring + Claude for feedback)
+    const gradingResult = await gradeEssayHybrid(request, c.env)
 
     // Store grading result
     const resultId = await storeGradingResult(db, essayId, sessionId, gradingResult)
@@ -1295,7 +1295,7 @@ app.post('/api/submission/:id/grade', async (c) => {
     const essayId = await createEssay(db, sessionId, submission.essay_text as string)
     
     // Grade the essay using AI
-    const gradingResult = await gradeEssay(gradingRequest)
+    const gradingResult = await gradeEssayHybrid(gradingRequest, c.env)
     
     // Store grading result
     const resultId = await storeGradingResult(db, essayId, sessionId, gradingResult)

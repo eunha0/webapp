@@ -16,8 +16,10 @@
     "test": "curl http://localhost:3000"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
     "hono": "^4.10.4",
     "mime-types": "^3.0.1",
+    "openai": "^6.10.0",
     "pdfjs-dist": "^3.11.174"
   },
   "devDependencies": {
