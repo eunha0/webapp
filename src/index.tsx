@@ -5901,7 +5901,7 @@ app.get('/my-page', (c) => {
               const builtInOptions = [
                 { value: 'standard', text: '초등학생용 평가 기준' },
                 { value: 'detailed', text: '중학생용 평가 기준' },
-                { value: 'simple', text: '간단 논술 루브릭 (3개 기준)' },
+                { value: 'simple', text: '고등학생용 평가 기준' },
                 { value: 'nyregents', text: '뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)' },
                 { value: 'nyregents_analytical', text: '뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭' },
                 { value: 'ny_middle', text: '뉴욕 주 중학교 논술 루브릭' },
@@ -5926,7 +5926,7 @@ app.get('/my-page', (c) => {
                 select.innerHTML = \`
                   <option value="standard">초등학생용 평가 기준</option>
                   <option value="detailed">중학생용 평가 기준</option>
-                  <option value="simple">간단 논술 루브릭 (3개 기준)</option>
+                  <option value="simple">고등학생용 평가 기준</option>
                   <option value="nyregents">뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)</option>
                   <option value="nyregents_analytical">뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭</option>
                   <option value="ny_middle">뉴욕 주 중학교 논술 루브릭</option>
@@ -6489,9 +6489,10 @@ app.get('/my-page', (c) => {
                 { name: '표현의 정확성', description: '표준어 사용, 맞춤법, 문장의 호응 등 기본적인 국어 사용 능력을 평가합니다.', order: 4 }
               ],
               simple: [
-                { name: '내용 충실성', description: '논술 주제에 맞는 내용을 충실히 작성했습니다.', order: 1 },
-                { name: '논리성', description: '논리적으로 일관성 있게 작성했습니다.', order: 2 },
-                { name: '표현력', description: '생각을 명확하게 표현했습니다.', order: 3 }
+                { name: '통찰력 및 비판적 사고', description: '주제를 단순히 나열하지 않고, 자신만의 관점으로 심도 있게 분석하거나 비판적으로 고찰했습니다.', order: 1 },
+                { name: '논증의 체계성', description: '논지가 유기적으로 연결되며, 예상되는 반론을 고려하거나 논리적 완결성을 갖추었습니다.', order: 2 },
+                { name: '근거의 타당성 및 다양성', description: '객관적 자료, 전문가 견해 등 신뢰할 수 있는 근거를 활용하여 설등력을 높였습니다.', order: 3 },
+                { name: '문체 및 어법의 세련됨', description: '학술적 글쓰기에 적합한 어조와 세련된 문장 구사력을 보여줍니다.', order: 4 }
               ],
               nyregents: [
                 { name: '내용과 분석 (주장 제시)', description: '구체적인 주장을 제시하고, 자료와 주제를 적절히 분석하며, 반론을 평가합니다.', order: 1 },
