@@ -1025,9 +1025,9 @@ async function loadPlatformRubrics() {
     
     // Add default built-in rubrics
     const builtInOptions = [
-      { value: 'standard', text: '표준 논술 루브릭 (4개 기준)' },
-      { value: 'detailed', text: '상세 논술 루브릭 (6개 기준)' },
-      { value: 'simple', text: '간단 논술 루브릭 (3개 기준)' },
+      { value: 'standard', text: '초등학생용 평가 기준' },
+      { value: 'detailed', text: '중학생용 평가 기준' },
+      { value: 'simple', text: '고등학생용 평가 기준' },
       { value: 'nyregents', text: '뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)' },
       { value: 'nyregents_analytical', text: '뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭' },
       { value: 'ny_middle', text: '뉴욕 주 중학교 논술 루브릭' },
@@ -1050,9 +1050,9 @@ async function loadPlatformRubrics() {
     const select = document.getElementById('platformRubric');
     if (select) {
       select.innerHTML = `
-        <option value="standard">표준 논술 루브릭 (4개 기준)</option>
-        <option value="detailed">상세 논술 루브릭 (6개 기준)</option>
-        <option value="simple">간단 논술 루브릭 (3개 기준)</option>
+        <option value="standard">초등학생용 평가 기준</option>
+        <option value="detailed">중학생용 평가 기준</option>
+        <option value="simple">고등학생용 평가 기준</option>
         <option value="nyregents">뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)</option>
         <option value="nyregents_analytical">뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭</option>
         <option value="ny_middle">뉴욕 주 중학교 논술 루브릭</option>
