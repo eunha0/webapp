@@ -382,13 +382,13 @@ function getRubricCriteria() {
     const rubricType = platformSelect.value;
     
     // Define platform rubric criteria
-    if (rubricType === 'standard') {
+    if (rubricType === 'kr_elementary') {
       return defaultCriteria.map((criterion, index) => ({
         criterion_name: criterion.name,
         criterion_description: criterion.description,
         criterion_order: index + 1
       }));
-    } else if (rubricType === 'detailed') {
+    } else if (rubricType === 'kr_middle') {
       // 6 criteria for detailed rubric
       return [
         { criterion_name: '논제의 명확성', criterion_description: '논제가 명확하고 구체적으로 제시되었습니다.', criterion_order: 1 },
@@ -398,7 +398,7 @@ function getRubricCriteria() {
         { criterion_name: '언어 사용', criterion_description: '문법, 어휘, 문장 구조가 정확하고 적절합니다.', criterion_order: 5 },
         { criterion_name: '창의성과 통찰', criterion_description: '독창적인 관점과 깊이 있는 통찰을 보여줍니다.', criterion_order: 6 }
       ];
-    } else if (rubricType === 'simple') {
+    } else if (rubricType === 'kr_high') {
       // 3 criteria for simple rubric
       return [
         { criterion_name: '내용의 이해', criterion_description: '주제에 대한 이해가 정확하고 충분합니다.', criterion_order: 1 },
@@ -1025,9 +1025,9 @@ async function loadPlatformRubrics() {
     
     // Add default built-in rubrics
     const builtInOptions = [
-      { value: 'standard', text: '초등학생용 평가 기준' },
-      { value: 'detailed', text: '중학생용 평가 기준' },
-      { value: 'simple', text: '고등학생용 평가 기준' },
+      { value: 'kr_elementary', text: '초등학생용 평가 기준' },
+      { value: 'kr_middle', text: '중학생용 평가 기준' },
+      { value: 'kr_high', text: '고등학생용 평가 기준' },
       { value: 'nyregents', text: '뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)' },
       { value: 'nyregents_analytical', text: '뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭' },
       { value: 'ny_middle', text: '뉴욕 주 중학교 논술 루브릭' },
@@ -1050,9 +1050,9 @@ async function loadPlatformRubrics() {
     const select = document.getElementById('platformRubric');
     if (select) {
       select.innerHTML = `
-        <option value="standard">초등학생용 평가 기준</option>
-        <option value="detailed">중학생용 평가 기준</option>
-        <option value="simple">고등학생용 평가 기준</option>
+        <option value="kr_elementary">초등학생용 평가 기준</option>
+        <option value="kr_middle">중학생용 평가 기준</option>
+        <option value="kr_high">고등학생용 평가 기준</option>
         <option value="nyregents">뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)</option>
         <option value="nyregents_analytical">뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭</option>
         <option value="ny_middle">뉴욕 주 중학교 논술 루브릭</option>
