@@ -5899,7 +5899,7 @@ app.get('/my-page', (c) => {
               
               // Add default built-in rubrics
               const builtInOptions = [
-                { value: 'standard', text: '표준 논술 루브릭 (4개 기준)' },
+                { value: 'standard', text: '초등학생용 평가 기준' },
                 { value: 'detailed', text: '상세 논술 루브릭 (6개 기준)' },
                 { value: 'simple', text: '간단 논술 루브릭 (3개 기준)' },
                 { value: 'nyregents', text: '뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)' },
@@ -5924,7 +5924,7 @@ app.get('/my-page', (c) => {
               const select = document.getElementById('assignmentPlatformRubric');
               if (select) {
                 select.innerHTML = \`
-                  <option value="standard">표준 논술 루브릭 (4개 기준)</option>
+                  <option value="standard">초등학생용 평가 기준</option>
                   <option value="detailed">상세 논술 루브릭 (6개 기준)</option>
                   <option value="simple">간단 논술 루브릭 (3개 기준)</option>
                   <option value="nyregents">뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)</option>
@@ -6478,10 +6478,9 @@ app.get('/my-page', (c) => {
           function getPlatformRubricCriteria(type) {
             const rubrics = {
               standard: [
-                { name: '핵심 개념의 이해와 분석', description: '주요 주제를 정확하게 파악하고 깊이 있게 분석했습니다.', order: 1 },
-                { name: '증거와 사례 활용', description: '논거를 뒷받침하기 위해 구체적이고 적절한 사례를 사용했습니다.', order: 2 },
-                { name: '출처 인용의 정확성', description: '참고 자료에서 정보를 정확하게 인용했습니다.', order: 3 },
-                { name: '문법 정확성, 구성 및 흐름', description: '최소한의 문법 오류, 논리적 흐름, 다양한 문장 구조를 보여줍니다.', order: 4 }
+                { name: '내용의 풍부성', description: '자기 생각이나 느낌, 경험을 솔직하고 구체적으로 표현했습니다.', order: 1 },
+                { name: '글의 짜임', description: '처음부터 끝까지 자연스럽게 글이 흘러갑니다.', order: 2 },
+                { name: '표현과 맞춤법', description: '문장이 자연스럽고, 맞춤법과 띄어쓰기가 바릅니다.', order: 3 }
               ],
               detailed: [
                 { name: '주제 이해도', description: '논술 주제에 대한 깊이 있는 이해를 보여줍니다.', order: 1 },
