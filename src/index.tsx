@@ -1352,8 +1352,8 @@ app.post('/api/submission/:id/grade', async (c) => {
     // Store overall summary
     await db.prepare(
       `INSERT INTO submission_summary 
-       (submission_id, total_score, strengths, weaknesses, overall_comment, improvement_priority, revision_suggestions, next_steps_advice)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+       (submission_id, total_score, strengths, weaknesses, overall_comment, improvement_priority, revision_suggestions, next_steps_advice, summary_evaluation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       submissionId,
       detailedFeedback.overall_summary.total_score,
@@ -1362,7 +1362,8 @@ app.post('/api/submission/:id/grade', async (c) => {
       detailedFeedback.overall_summary.overall_comment,
       detailedFeedback.overall_summary.improvement_priority,
       gradingResult.revision_suggestions || '',
-      gradingResult.next_steps_advice || ''
+      gradingResult.next_steps_advice || '',
+      gradingResult.summary_evaluation || ''
     ).run()
     
     // Update submission with grading result
