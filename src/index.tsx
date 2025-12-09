@@ -1602,6 +1602,7 @@ app.get('/api/grading-history', async (c) => {
     const result = await db.prepare(
       `SELECT 
         s.id as submission_id,
+        s.assignment_id,
         s.student_name,
         s.submitted_at,
         a.title as assignment_title,
@@ -1616,6 +1617,21 @@ app.get('/api/grading-history', async (c) => {
        WHERE a.user_id = ? AND s.graded = 1
        ORDER BY s.submitted_at DESC`
     ).bind(user.id).all()
+    
+    // Get rubric criteria count for each assignment to calculate max score
+    const submissionsWithMaxScore = await Promise.all((result.results || []).map(async (submission: any) => {
+      const criteriaCount = await db.prepare(
+        'SELECT COUNT(*) as count FROM assignment_rubrics WHERE assignment_id = ?'
+      ).bind(submission.assignment_id).first()
+      
+      const maxScore = (criteriaCount?.count as number) || 4
+      return {
+        ...submission,
+        max_score: maxScore
+      }
+    }))
+    
+    return c.json(submissionsWithMaxScore)
     
     return c.json(result.results || [])
   } catch (error) {
@@ -7292,7 +7308,7 @@ app.get('/my-page', (c) => {
                 // Refresh grading history list if we're on that tab
                 const historyTab = document.getElementById('historyTab');
                 if (historyTab && historyTab.classList.contains('active')) {
-                  loadGradingHistory();
+                  loadHistory();
                 }
               } else {
                 throw new Error(response.data.error || '채점 실패');
@@ -8158,7 +8174,7 @@ app.get('/my-page', (c) => {
                               <td class="px-6 py-4">
                                 <div class="flex items-center">
                                   <span class="text-xl font-bold text-navy-900">\${item.overall_score}</span>
-                                  <span class="text-sm text-gray-500 ml-1">/4</span>
+                                  <span class="text-sm text-gray-500 ml-1">/\${item.max_score || 4}</span>
                                 </div>
                               </td>
                             </tr>
