@@ -1632,8 +1632,6 @@ app.get('/api/grading-history', async (c) => {
     }))
     
     return c.json(submissionsWithMaxScore)
-    
-    return c.json(result.results || [])
   } catch (error) {
     console.error('Error fetching grading history:', error)
     return c.json({ error: 'Failed to fetch grading history' }, 500)
@@ -7327,6 +7325,9 @@ app.get('/my-page', (c) => {
             const feedback = currentGradingData.detailedFeedback;
             const submission = currentGradingData.submission;
             
+            // Calculate max score based on number of rubric criteria
+            const maxScore = result.criterion_scores ? result.criterion_scores.length : 4;
+            
             // Create modal HTML with split-screen layout
             const modalHTML = \`
               <div id="gradingReviewModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -7374,9 +7375,9 @@ app.get('/my-page', (c) => {
                       <div class="flex items-center justify-between mb-3">
                         <h3 class="text-lg font-bold text-gray-900">전체 점수</h3>
                         <div class="text-3xl font-bold text-navy-700">
-                          <input type="number" id="editTotalScore" value="\${result.total_score}" min="0" max="10" step="0.1"
+                          <input type="number" id="editTotalScore" value="\${result.total_score}" min="0" max="\${maxScore}" step="0.1"
                             class="w-24 text-center border-2 border-navy-300 rounded-lg px-2 py-1" />
-                          <span class="text-2xl text-gray-600">/10</span>
+                          <span class="text-2xl text-gray-600">/\${maxScore}</span>
                         </div>
                       </div>
                       <div>
@@ -7994,6 +7995,15 @@ app.get('/my-page', (c) => {
           let selectedSubmissions = new Set();
 
           // Load history
+          // Helper function to convert UTC to KST (Korea Standard Time, UTC+9)
+          function toKST(utcDateString) {
+            if (!utcDateString) return new Date();
+            const date = new Date(utcDateString);
+            // Add 9 hours for KST
+            date.setHours(date.getHours() + 9);
+            return date;
+          }
+          
           // State for sorting
           let sortField = 'submitted_at';
           let sortOrder = 'desc';
@@ -8157,18 +8167,18 @@ app.get('/my-page', (c) => {
                               </td>
                               <td class="px-6 py-4">
                                 <div class="text-sm text-gray-900">
-                                  \${new Date(item.submitted_at).toLocaleDateString('ko-KR')}
+                                  \${toKST(item.submitted_at).toLocaleDateString('ko-KR')}
                                 </div>
                                 <div class="text-xs text-gray-500">
-                                  \${new Date(item.submitted_at).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'})}
+                                  \${toKST(item.submitted_at).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'})}
                                 </div>
                               </td>
                               <td class="px-6 py-4">
                                 <div class="text-sm text-gray-900">
-                                  \${new Date(item.graded_at).toLocaleDateString('ko-KR')}
+                                  \${toKST(item.graded_at).toLocaleDateString('ko-KR')}
                                 </div>
                                 <div class="text-xs text-gray-500">
-                                  \${new Date(item.graded_at).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'})}
+                                  \${toKST(item.graded_at).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'})}
                                 </div>
                               </td>
                               <td class="px-6 py-4">
