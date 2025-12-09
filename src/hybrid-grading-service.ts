@@ -255,7 +255,7 @@ export async function gradeEssayHybrid(
     const feedbackPrompt = generateFeedbackPrompt(request, scoringResult);
     
     const feedbackResponse = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-5-20250929', // Claude Sonnet 4.5 (latest)
       max_tokens: 4096,
       temperature: 0.7, // Higher temperature for creative feedback
       messages: [
