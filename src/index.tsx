@@ -1606,12 +1606,13 @@ app.get('/api/grading-history', async (c) => {
         s.submitted_at,
         a.title as assignment_title,
         a.grade_level,
-        gr.total_score as overall_score,
+        COALESCE(ss.total_score, gr.total_score) as overall_score,
         gr.overall_comment as overall_feedback,
         gr.graded_at
        FROM student_submissions s
        JOIN assignments a ON s.assignment_id = a.id
        LEFT JOIN grading_results gr ON s.grade_result_id = gr.id
+       LEFT JOIN submission_summary ss ON s.id = ss.submission_id
        WHERE a.user_id = ? AND s.graded = 1
        ORDER BY s.submitted_at DESC`
     ).bind(user.id).all()
@@ -6462,8 +6463,11 @@ app.get('/my-page', (c) => {
             // Close settings modal (this will set currentSubmissionIdForGrading to null)
             closeGradingSettingsModal();
             
+            // Show loading modal for regrading
+            showGradingLoadingModal();
+            
             // Start grading with settings using the stored local variable
-            await executeGrading(submissionId, feedbackLevel, strictness);
+            await executeGradingWithLoading(submissionId, feedbackLevel, strictness);
           }
           
           // Expose functions to window object for onclick handlers
@@ -7213,6 +7217,90 @@ app.get('/my-page', (c) => {
                 button.disabled = false;
                 button.innerHTML = originalText;
               }
+            }
+          }
+
+          function showGradingLoadingModal() {
+            // Create loading modal
+            const loadingModalHTML = '<div id="gradingLoadingModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">' +
+              '<div class="bg-white rounded-xl shadow-2xl p-8 max-w-md">' +
+                '<div class="text-center">' +
+                  '<div class="mb-4">' +
+                    '<i class="fas fa-spinner fa-spin text-6xl text-navy-700"></i>' +
+                  '</div>' +
+                  '<h3 class="text-2xl font-bold text-gray-900 mb-2">채점 중</h3>' +
+                  '<p class="text-gray-600">AI가 답안을 분석하고 있습니다...</p>' +
+                  '<p class="text-sm text-gray-500 mt-4">잠시만 기다려 주세요 (약 10-30초 소요)</p>' +
+                '</div>' +
+              '</div>' +
+            '</div>';
+            
+            document.body.insertAdjacentHTML('beforeend', loadingModalHTML);
+          }
+
+          function closeGradingLoadingModal() {
+            const modal = document.getElementById('gradingLoadingModal');
+            if (modal) {
+              modal.remove();
+            }
+          }
+
+          async function executeGradingWithLoading(submissionId, feedbackLevel, strictness) {
+            console.log('Execute Grading With Loading called with:', {
+              submissionId,
+              feedbackLevel,
+              strictness,
+              submissionIdType: typeof submissionId
+            });
+            
+            // Validate submission ID
+            if (!submissionId || isNaN(submissionId)) {
+              alert('유효하지 않은 답안지 ID입니다: ' + submissionId);
+              closeGradingLoadingModal();
+              return;
+            }
+
+            try {
+              // Get submission details
+              console.log('Fetching submission:', submissionId);
+              const submissionResponse = await axios.get('/api/submission/' + submissionId);
+              const submissionData = submissionResponse.data;
+              console.log('Submission data received:', submissionData);
+              
+              // Grade submission with settings
+              const response = await axios.post('/api/submission/' + submissionId + '/grade', {
+                feedback_level: feedbackLevel,
+                grading_strictness: strictness
+              });
+              
+              // Close loading modal
+              closeGradingLoadingModal();
+              
+              if (response.data.success) {
+                // Store grading data for review
+                currentGradingData = {
+                  submissionId: submissionId,
+                  submission: submissionData,
+                  result: response.data.grading_result,
+                  detailedFeedback: response.data.detailed_feedback,
+                  fromHistory: true  // Mark that this was a regrade from history
+                };
+                
+                // Show review modal
+                showGradingReviewModal();
+                
+                // Refresh grading history list if we're on that tab
+                const historyTab = document.getElementById('historyTab');
+                if (historyTab && historyTab.classList.contains('active')) {
+                  loadGradingHistory();
+                }
+              } else {
+                throw new Error(response.data.error || '채점 실패');
+              }
+            } catch (error) {
+              console.error('Error grading submission:', error);
+              closeGradingLoadingModal();
+              alert('채점에 실패했습니다: ' + (error.response?.data?.error || error.message));
             }
           }
 
