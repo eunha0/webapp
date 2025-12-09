@@ -15,8 +15,9 @@ function initializeClients(env: any) {
   });
 
   // Anthropic client for feedback generation (Claude 3.5 Sonnet)
+  // Support both ANTHROPIC_API_KEY and CLAUDE_API_KEY for flexibility
   const anthropic = new Anthropic({
-    apiKey: env.ANTHROPIC_API_KEY,
+    apiKey: env.ANTHROPIC_API_KEY || env.CLAUDE_API_KEY,
   });
 
   return { openai, anthropic };
@@ -26,50 +27,101 @@ function initializeClients(env: any) {
  * Phase 1: GPT-4o generates rubric-based scores
  */
 function generateScoringPrompt(request: GradingRequest): string {
-  const rubricTable = request.rubric_criteria
-    .map((c, i) => `${i + 1}. ${c.criterion_name}\n   ${c.criterion_description}`)
-    .join('\n\n');
+  // Format rubric as detailed JSON
+  const rubricJson = JSON.stringify({
+    total_score: request.rubric_criteria.length === 3 ? 100 : 100, // Adjust based on rubric
+    criteria: request.rubric_criteria.map(c => ({
+      category: c.criterion_name,
+      description: c.criterion_description
+    }))
+  }, null, 2);
 
-  return `You are an expert essay grader focused on ACCURATE and CONSISTENT scoring based on rubric criteria.
+  return `당신은 ${request.grade_level} 학생의 논술을 평가하는 전문 채점자입니다.
 
-Your task: Assign scores (1-4) for each criterion based ONLY on the rubric and essay quality.
+역할 정의:
+- 학년: ${request.grade_level}
+- 평가 목표: 루브릭 기준에 따라 정확하고 일관된 점수 부여
 
-INPUT PARAMETERS:
+목표(Objective):
+학생의 글을 아래 [채점 기준표(Rubric)]에 따라 분석하고, 각 기준별 점수와 총점을 제공합니다.
 
-A. Assignment Prompt:
+입력 데이터:
+
+A. 에세이 주제:
 ${request.assignment_prompt}
 
-Grade Level: ${request.grade_level}
-
-B. Rubric Criteria (Score each from 1-4):
-${rubricTable}
-
-C. Student Essay:
+B. 에세이 내용:
 ${request.essay_text}
 
-SCORING SCALE:
-- Score 4: Exceeds expectations, exceptional quality
-- Score 3: Meets expectations, proficient quality
-- Score 2: Partially meets expectations, developing quality
-- Score 1: Does not meet expectations, needs significant improvement
+C. 채점 기준표 (Rubric) - JSON 형식:
+${rubricJson}
 
-OUTPUT REQUIREMENTS (JSON only):
+채점 지침:
+1. 각 기준에 대해 1-4점 척도로 평가:
+   - 4점: 기대 이상, 탁월한 수준
+   - 3점: 기대 충족, 능숙한 수준  
+   - 2점: 기대 부분 충족, 발전 중인 수준
+   - 1점: 기대 미충족, 상당한 개선 필요
+
+2. ${request.grade_level} 학생의 발달 단계를 고려하여 평가
+3. 루브릭 기준에만 근거하여 객관적으로 평가
+4. 총점은 10점 만점으로 비례 계산
+
+출력 형식 (반드시 JSON만 반환):
 {
-  "total_score": [number out of 10],
+  "total_score": [10점 만점 기준 점수],
   "criterion_scores": [
     {
-      "criterion_name": "[Exact criterion name]",
-      "score": [1-4],
-      "brief_rationale": "[1-2 sentence explanation for this score]"
+      "criterion_name": "[정확한 기준명]",
+      "score": [1-4점],
+      "brief_rationale": "[이 점수를 부여한 이유 1-2문장]"
     }
   ]
 }
 
-Important:
-- Be CONSISTENT and OBJECTIVE in scoring
-- Base scores ONLY on rubric criteria
-- Calculate total_score out of 10 proportionally
-- Return ONLY valid JSON, no additional text`;
+중요:
+- 일관성 있고 객관적인 채점
+- 루브릭 기준에만 근거
+- 총점은 10점 만점으로 비례 계산
+- 유효한 JSON만 반환, 추가 텍스트 없음`;
+}
+
+/**
+ * Get grade-level specific tone and approach
+ */
+function getGradeLevelContext(gradeLevel: string): { 
+  role: string; 
+  tone: string; 
+  feedbackStructure: string;
+} {
+  const level = gradeLevel.toLowerCase();
+  
+  if (level.includes('초등') || level.includes('elementary')) {
+    return {
+      role: '초등학생을 위한 글쓰기 멘토 선생님',
+      tone: '친근하고 부드러운 말투로 칭찬을 많이 하며, 어려운 용어 대신 쉬운 설명을 사용합니다.',
+      feedbackStructure: '샌드위치 피드백: 칭찬 → 개선점 제시 → 구체적 예시 → 격려'
+    };
+  } else if (level.includes('중학') || level.includes('middle')) {
+    return {
+      role: '중학생을 위한 글쓰기 멘토 선생님',
+      tone: '존중하면서도 친근한 말투로 논리적 사고를 격려하며, 구체적인 예시와 함께 설명합니다.',
+      feedbackStructure: '샌드위치 피드백: 강점 인정 → 논리적 개선점 → 실천 가능한 조언 → 격려'
+    };
+  } else if (level.includes('고등') || level.includes('high')) {
+    return {
+      role: '고등학생을 위한 글쓰기 멘토 선생님',
+      tone: '존중하고 격식 있는 말투로 비판적 사고와 깊이 있는 분석을 독려하며, 학술적 글쓰기 수준을 높입니다.',
+      feedbackStructure: '샌드위치 피드백: 통찰력 인정 → 분석적 개선점 → 구체적 전략 → 학술적 성장 격려'
+    };
+  }
+  
+  // Default to middle school
+  return {
+    role: '학생을 위한 글쓰기 멘토 선생님',
+    tone: '존중하면서도 친근한 말투로 논리적 사고를 격려합니다.',
+    feedbackStructure: '샌드위치 피드백: 칭찬 → 개선점 → 구체적 예시 → 격려'
+  };
 }
 
 /**
@@ -82,52 +134,80 @@ function generateFeedbackPrompt(
   const scoresTable = scoringResult.criterion_scores
     .map((c: any) => `- ${c.criterion_name}: ${c.score}/4 (${c.brief_rationale})`)
     .join('\n');
+  
+  const gradeContext = getGradeLevelContext(request.grade_level);
+  
+  // Format rubric as JSON for structured reference
+  const rubricJson = JSON.stringify({
+    rubric_criteria: request.rubric_criteria.map(c => ({
+      criterion_name: c.criterion_name,
+      description: c.criterion_description
+    }))
+  }, null, 2);
 
-  return `You are an expert writing coach focused on providing ENCOURAGING, SPECIFIC, and ACTIONABLE feedback to help students improve their writing.
+  return `당신은 "${gradeContext.role}"입니다.
 
-CONTEXT:
+역할 정의:
+- 학년: ${request.grade_level}
+- 말투: ${gradeContext.tone}
+- 피드백 구조: ${gradeContext.feedbackStructure}
 
-Assignment Prompt:
+목표(Objective):
+학생의 글을 아래 [채점 기준표(Rubric)]에 따라 분석하고, 점수와 함께 학생이 이해하기 쉬운 피드백을 제공합니다.
+
+피드백 가이드라인:
+1. 톤(Tone):
+   - ${gradeContext.tone}
+   - 절대 비난하지 않고, 학생이 노력한 부분을 먼저 인정
+   - 기계적이지 않고 따뜻하며 인간적인 말투
+
+2. 구조(Structure) - 샌드위치 피드백:
+   ${gradeContext.feedbackStructure}
+
+3. 금지 요소:
+   - "이 글은 형편없다", "전혀 이해하지 못했다" 등 직접적 비난
+   - 기계적이고 무미건조한 말투
+   - 막연한 조언 ("더 열심히 하세요" 대신 "서론에 주장을 한 문장으로 명확히 적어보세요")
+
+입력 데이터:
+
+A. 에세이 주제:
 ${request.assignment_prompt}
 
-Grade Level: ${request.grade_level}
-
-Student Essay:
+B. 에세이 내용:
 ${request.essay_text}
 
-SCORES ASSIGNED (by another AI):
-Total Score: ${scoringResult.total_score}/10
+C. 채점 기준표 (Rubric):
+${rubricJson}
+
+D. 이미 부여된 점수 (다른 AI가 평가):
+총점: ${scoringResult.total_score}/10
 ${scoresTable}
 
-YOUR TASK:
+당신은 위 점수를 바탕으로 학생에게 따뜻하고 구체적이며 실천 가능한 피드백을 작성해야 합니다.
 
-Based on the scores and essay, generate comprehensive feedback that:
-1. Encourages the student with specific praise
-2. Provides concrete examples from their essay
-3. Offers actionable improvement suggestions
-4. Maintains a supportive, growth-oriented tone
-
-OUTPUT REQUIREMENTS (JSON only):
+출력 형식 (반드시 JSON):
 {
-  "summary_evaluation": "[2-3 sentences summarizing overall quality and achievement]",
-  "criterion_feedback": [
-    {
-      "criterion_name": "[Exact criterion name]",
-      "strengths": "[Specific positive elements with examples from essay, 2-3 sentences]",
-      "areas_for_improvement": "[Specific weaknesses with examples, 2-3 sentences]"
-    }
-  ],
-  "overall_comment": "[3-4 sentences on how well essay met assignment prompt]",
-  "revision_suggestions": "[At least 3 specific examples with quotes and detailed fix recommendations, formatted with bullet points]",
-  "next_steps_advice": "[5 practical strategies for improvement, considering student's level]"
+  "total_score": ${scoringResult.total_score},
+  "grade_level_analysis": "${request.grade_level} 학생에게 적합한 평가 및 격려 메시지",
+  "feedback_content": {
+    "warm_opening": "학생의 노력을 인정하고 격려하는 따뜻한 시작 (2-3문장)",
+    "strength_points": [
+      "구체적인 강점 1 (에세이에서 인용)",
+      "구체적인 강점 2 (에세이에서 인용)"
+    ],
+    "improvement_areas": [
+      {
+        "criterion": "개선이 필요한 기준명",
+        "specific_issue": "구체적으로 어떤 부분이 부족한지 (에세이 인용)",
+        "actionable_advice": "학생이 바로 실천할 수 있는 구체적 조언"
+      }
+    ],
+    "closing_encouragement": "다음 글쓰기를 응원하는 따뜻한 마무리 (2-3문장)"
+  }
 }
 
-Important:
-- Be ENCOURAGING and CONSTRUCTIVE
-- Cite SPECIFIC examples from the essay
-- Make suggestions ACTIONABLE and CLEAR
-- Focus on GROWTH and LEARNING
-- Return ONLY valid JSON, no additional text`;
+중요: 반드시 유효한 JSON만 반환하세요. 추가 텍스트 없이 JSON만 출력하세요.`;
 }
 
 /**
@@ -139,7 +219,7 @@ export async function gradeEssayHybrid(
 ): Promise<GradingResult> {
   try {
     // Check if AI API keys are configured
-    if (!env.OPENAI_API_KEY || !env.ANTHROPIC_API_KEY) {
+    if (!env.OPENAI_API_KEY || (!env.ANTHROPIC_API_KEY && !env.CLAUDE_API_KEY)) {
       console.log('AI API keys not configured, falling back to simulation mode');
       return simulateGrading(request);
     }
@@ -155,7 +235,7 @@ export async function gradeEssayHybrid(
       messages: [
         {
           role: 'system',
-          content: 'You are an expert essay grader focused on accurate, consistent scoring based on rubric criteria. Always respond with valid JSON only.'
+          content: '당신은 학생 논술을 루브릭 기준에 따라 정확하고 일관되게 채점하는 전문 평가자입니다. 항상 유효한 JSON 형식으로만 응답하세요.'
         },
         {
           role: 'user',
@@ -196,26 +276,77 @@ export async function gradeEssayHybrid(
     console.log('[Hybrid AI] Phase 2 complete');
 
     // Merge results: scores from GPT-4o, feedback from Claude
+    // Support both new and old feedback formats
+    const feedbackContent = feedbackResult.feedback_content || feedbackResult;
+    
+    // Build criterion scores with detailed feedback
     const criterion_scores: CriterionScore[] = scoringResult.criterion_scores.map((score: any) => {
-      const feedback = feedbackResult.criterion_feedback.find(
-        (f: any) => f.criterion_name === score.criterion_name
-      );
+      // Try to find matching improvement area from new format
+      let improvementFeedback = '';
+      let strengthsFeedback = score.brief_rationale;
+      
+      if (feedbackContent.improvement_areas && Array.isArray(feedbackContent.improvement_areas)) {
+        const improvement = feedbackContent.improvement_areas.find(
+          (area: any) => area.criterion === score.criterion_name || 
+                        area.criterion_name === score.criterion_name
+        );
+        if (improvement) {
+          improvementFeedback = improvement.actionable_advice || improvement.specific_issue || '';
+        }
+      }
+      
+      // Fallback to old format
+      if (!improvementFeedback && feedbackResult.criterion_feedback) {
+        const oldFeedback = feedbackResult.criterion_feedback.find(
+          (f: any) => f.criterion_name === score.criterion_name
+        );
+        if (oldFeedback) {
+          strengthsFeedback = oldFeedback.strengths || score.brief_rationale;
+          improvementFeedback = oldFeedback.areas_for_improvement || '';
+        }
+      }
       
       return {
         criterion_name: score.criterion_name,
         score: score.score,
-        strengths: feedback?.strengths || score.brief_rationale,
-        areas_for_improvement: feedback?.areas_for_improvement || 'Continue developing this skill.'
+        strengths: strengthsFeedback,
+        areas_for_improvement: improvementFeedback || '이 기준을 더욱 발전시켜 보세요.'
       };
     });
 
+    // Build summary evaluation
+    const summaryEvaluation = feedbackResult.grade_level_analysis || 
+                              feedbackContent.warm_opening || 
+                              feedbackResult.summary_evaluation || 
+                              '좋은 시도입니다!';
+    
+    // Build overall comment from strength points and closing
+    let overallComment = feedbackResult.overall_comment || '';
+    if (!overallComment && feedbackContent.strength_points) {
+      const strengthsText = Array.isArray(feedbackContent.strength_points) 
+        ? feedbackContent.strength_points.join(' ') 
+        : feedbackContent.strength_points;
+      const closingText = feedbackContent.closing_encouragement || '';
+      overallComment = `${strengthsText}\n\n${closingText}`;
+    }
+    
+    // Build revision suggestions
+    let revisionSuggestions = feedbackResult.revision_suggestions || '';
+    if (!revisionSuggestions && feedbackContent.improvement_areas) {
+      revisionSuggestions = Array.isArray(feedbackContent.improvement_areas)
+        ? feedbackContent.improvement_areas.map((area: any, idx: number) => 
+            `${idx + 1}. ${area.criterion || area.criterion_name}: ${area.actionable_advice || area.specific_issue}`
+          ).join('\n')
+        : '';
+    }
+
     const result: GradingResult = {
       total_score: scoringResult.total_score,
-      summary_evaluation: feedbackResult.summary_evaluation,
+      summary_evaluation: summaryEvaluation,
       criterion_scores: criterion_scores,
-      overall_comment: feedbackResult.overall_comment,
-      revision_suggestions: feedbackResult.revision_suggestions,
-      next_steps_advice: feedbackResult.next_steps_advice
+      overall_comment: overallComment || '계속해서 글쓰기 실력을 발전시켜 나가세요.',
+      revision_suggestions: revisionSuggestions || '작성한 글을 다시 읽어보며 개선점을 찾아보세요.',
+      next_steps_advice: feedbackResult.next_steps_advice || feedbackContent.closing_encouragement || '다음번에는 더 좋은 글을 작성할 수 있을 거예요!'
     };
 
     console.log('[Hybrid AI] Grading complete successfully');
