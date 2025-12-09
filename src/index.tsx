@@ -3,6 +3,7 @@ import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 import type { Bindings, GradingRequest } from './types'
 import { gradeEssay } from './grading-service'
+import { gradeEssayHybrid } from './hybrid-grading-service'
 import { generateDetailedFeedback } from './feedback-service'
 import {
   createGradingSession,
