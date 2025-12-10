@@ -8063,10 +8063,21 @@ app.get('/my-page', (c) => {
                 if (!groupedByAssignment[key]) {
                   groupedByAssignment[key] = {
                     title: item.assignment_title,
-                    submissions: []
+                    assignment_id: item.assignment_id,
+                    submissions: [],
+                    latest_submission_date: item.submitted_at // Track latest submission date for sorting
                   };
                 }
                 groupedByAssignment[key].submissions.push(item);
+                // Update latest submission date if this submission is more recent
+                if (new Date(item.submitted_at) > new Date(groupedByAssignment[key].latest_submission_date)) {
+                  groupedByAssignment[key].latest_submission_date = item.submitted_at;
+                }
+              });
+
+              // Sort assignments by latest submission date (most recent first)
+              const sortedAssignments = Object.values(groupedByAssignment).sort((a, b) => {
+                return new Date(b.latest_submission_date) - new Date(a.latest_submission_date);
               });
 
               // Create toolbar with action buttons
@@ -8114,8 +8125,8 @@ app.get('/my-page', (c) => {
                 </div>
               \`;
 
-              // Render assignments with grouped submissions
-              const assignmentsHTML = Object.values(groupedByAssignment).map(assignment => {
+              // Render assignments with grouped submissions (sorted by latest submission date)
+              const assignmentsHTML = sortedAssignments.map(assignment => {
                 // Sort submissions based on current sort settings
                 const sortedSubmissions = [...assignment.submissions].sort((a, b) => {
                   let comparison = 0;
