@@ -7626,6 +7626,10 @@ app.get('/my-page', (c) => {
               const submission = currentGradingData.submission;
               const result = currentGradingData.result;
               
+              // Calculate max score based on number of criteria
+              const criteriaCount = result.criterion_scores ? result.criterion_scores.length : 1;
+              const maxScore = criteriaCount * 4;
+              
               // Collect current edited values
               const totalScore = document.getElementById('editTotalScore').value;
               const summaryEvaluation = document.getElementById('editSummaryEvaluation').value;
@@ -7672,7 +7676,7 @@ app.get('/my-page', (c) => {
               doc.setFontSize(16);
               doc.text('전체 점수', pageWidth / 2, yPos + 8, { align: 'center' });
               doc.setFontSize(28);
-              doc.text(\`\${totalScore} / 10\`, pageWidth / 2, yPos + 20, { align: 'center' });
+              doc.text(\`\${totalScore} / \${maxScore}\`, pageWidth / 2, yPos + 20, { align: 'center' });
               yPos += 35;
               
               // Helper function to add section
@@ -7800,6 +7804,10 @@ app.get('/my-page', (c) => {
             const submission = currentGradingData.submission;
             const result = currentGradingData.result;
             
+            // Calculate max score based on number of criteria
+            const criteriaCount = result.criterion_scores ? result.criterion_scores.length : 1;
+            const maxScore = criteriaCount * 4;
+            
             // Collect current edited values
             const totalScore = document.getElementById('editTotalScore').value;
             const summaryEvaluation = document.getElementById('editSummaryEvaluation').value;
@@ -7899,7 +7907,7 @@ app.get('/my-page', (c) => {
                 
                 <div class="score-box">
                   <h2>전체 점수</h2>
-                  <div class="score">\${totalScore} / 10</div>
+                  <div class="score">\${totalScore} / \${maxScore}</div>
                 </div>
                 
                 <div class="section">
@@ -8459,6 +8467,9 @@ app.get('/my-page', (c) => {
             const summary = feedback.summary || {};
             const criteriaFeedback = feedback.criteria || [];
             
+            // Calculate max score based on number of criteria
+            const maxScore = criteriaFeedback.length * 4;
+            
             let criterionHTML = '';
             criteriaFeedback.forEach(criterion => {
               criterionHTML += \`
@@ -8544,7 +8555,7 @@ app.get('/my-page', (c) => {
                 
                 <div class="score-box">
                   <h2>전체 점수</h2>
-                  <div class="score">\${summary.total_score || 0} / 10</div>
+                  <div class="score">\${summary.total_score || 0} / \${maxScore}</div>
                 </div>
                 
                 <div class="section">
@@ -8607,6 +8618,9 @@ app.get('/my-page', (c) => {
                   \`;
                 });
                 
+                // 최대 점수 동적 계산
+                const maxScore = criteriaFeedback.length * 4;
+                
                 combinedContent += \`
                   <div class="submission-section" style="\${i > 0 ? 'page-break-before: always;' : ''}">
                     <div class="header">
@@ -8618,7 +8632,7 @@ app.get('/my-page', (c) => {
                     
                     <div class="score-box">
                       <h2>전체 점수</h2>
-                      <div class="score">\${summary.total_score || 0} / 10</div>
+                      <div class="score">\${summary.total_score || 0} / \${maxScore}</div>
                     </div>
                     
                     <div class="section">
