@@ -69,6 +69,14 @@ function switchRubricType(type) {
     platformBtn.classList.remove('active');
     customContainer.classList.remove('hidden');
     platformContainer.classList.add('hidden');
+    
+    // Add 4 default criteria if rubric container is empty
+    const rubricContainer = document.getElementById('rubricContainer');
+    if (rubricContainer && rubricContainer.children.length === 0) {
+      for (let i = 0; i < 4; i++) {
+        addCriterion();
+      }
+    }
   }
 }
 
@@ -344,15 +352,15 @@ function addCriterion(defaultName = '', defaultDescription = '') {
     </div>
     <input 
       type="text" 
-      class="criterion-name w-full px-3 py-2 border border-gray-200 rounded mb-2 text-sm" 
-      placeholder="기준 이름 (예: 논제 및 논거)"
+      class="criterion-name w-full px-3 py-2 border border-gray-200 rounded mb-2 text-sm placeholder-gray-400" 
+      placeholder="( 기준 이름 (예: 논제 및 논거) )"
       value="${defaultName}"
       required
     />
     <textarea 
-      class="criterion-description w-full px-3 py-2 border border-gray-200 rounded text-sm" 
+      class="criterion-description w-full px-3 py-2 border border-gray-200 rounded text-sm placeholder-gray-400" 
       rows="2" 
-      placeholder="기준 설명"
+      placeholder="( 기준 설명 (예: 논제가 명확하고 구체적으로 제시되었습니다.) )"
       required
     >${defaultDescription}</textarea>
   `;
