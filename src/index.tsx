@@ -2358,6 +2358,9 @@ app.get('/guide', (c) => {
                                 <span class="step-number">4</span>
                                 <div class="flex-1">
                                     <p class="text-gray-700 font-medium">"추가" 버튼 클릭</p>
+                                    <div class="mt-3 flex justify-center">
+                                        <img src="/guide-screenshots/step8-text-input.png" alt="텍스트로 답안 추가" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2414,9 +2417,6 @@ app.get('/guide', (c) => {
                                     </ul>
                                     <div class="mt-3 flex justify-center">
                                         <img src="/guide-screenshots/step7-add-submission-file.png" alt="파일로 답안 추가" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
-                                    </div>
-                                    <div class="mt-3 flex justify-center">
-                                        <img src="/guide-screenshots/step8-text-input.png" alt="텍스트로 답안 추가" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
                                     </div>
                                 </div>
                             </div>
