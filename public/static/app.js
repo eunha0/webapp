@@ -5,24 +5,8 @@ let materialCount = 0;
 const MAX_MATERIALS = 11; // 4 initial + 7 more
 
 // Default rubric criteria for World War II example
-const defaultCriteria = [
-  {
-    name: '핵심 개념의 이해와 분석',
-    description: '제2차 세계대전의 주요 원인을 정확하게 파악하고 깊이 있게 분석했습니다.'
-  },
-  {
-    name: '증거와 역사적 사례 활용',
-    description: '논거를 뒷받침하기 위해 구체적이고 적절한 역사적 사례를 사용했습니다.'
-  },
-  {
-    name: '출처 인용의 정확성',
-    description: '지정된 자료에서 정보를 정확하게 최소 두 번 인용했습니다.'
-  },
-  {
-    name: '문법 정확성, 구성 및 흐름',
-    description: '최소한의 문법 오류, 논리적 흐름, 다양한 문장 구조를 보여줍니다.'
-  }
-];
+// Default criteria removed - placeholders will guide users instead
+// Criteria will be added when user clicks "나의 루브릭" button
 
 // Initialize page
 window.addEventListener('DOMContentLoaded', () => {
@@ -32,10 +16,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Load platform rubrics
   loadPlatformRubrics();
   
-  // Add 4 default criteria for custom rubric
-  defaultCriteria.forEach(criterion => {
-    addCriterion(criterion.name, criterion.description);
-  });
+  // Don't add default criteria here - will be added when user switches to custom rubric
   
   // Add 4 initial material slots
   for (let i = 0; i < 4; i++) {
@@ -401,11 +382,12 @@ function getRubricCriteria() {
     
     // Define platform rubric criteria
     if (rubricType === 'kr_elementary') {
-      return defaultCriteria.map((criterion, index) => ({
-        criterion_name: criterion.name,
-        criterion_description: criterion.description,
-        criterion_order: index + 1
-      }));
+      return [
+        { criterion_name: '핵심 개념의 이해와 분석', criterion_description: '제2차 세계대전의 주요 원인을 정확하게 파악하고 깊이 있게 분석했습니다.', criterion_order: 1 },
+        { criterion_name: '증거와 역사적 사례 활용', criterion_description: '논거를 뒷받침하기 위해 구체적이고 적절한 역사적 사례를 사용했습니다.', criterion_order: 2 },
+        { criterion_name: '출처 인용의 정확성', criterion_description: '지정된 자료에서 정보를 정확하게 최소 두 번 인용했습니다.', criterion_order: 3 },
+        { criterion_name: '문법 정확성, 구성 및 흐름', criterion_description: '최소한의 문법 오류, 논리적 흐름, 다양한 문장 구조를 보여줍니다.', criterion_order: 4 }
+      ];
     } else if (rubricType === 'kr_middle') {
       // 6 criteria for detailed rubric
       return [
