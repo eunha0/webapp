@@ -1624,7 +1624,9 @@ app.get('/api/grading-history', async (c) => {
         'SELECT COUNT(*) as count FROM assignment_rubrics WHERE assignment_id = ?'
       ).bind(submission.assignment_id).first()
       
-      const maxScore = (criteriaCount?.count as number) || 4
+      // Each criterion is worth 4 points, so max score = criteria count × 4
+      const count = (criteriaCount?.count as number) || 1
+      const maxScore = count * 4
       return {
         ...submission,
         max_score: maxScore
@@ -7325,8 +7327,9 @@ app.get('/my-page', (c) => {
             const feedback = currentGradingData.detailedFeedback;
             const submission = currentGradingData.submission;
             
-            // Calculate max score based on number of rubric criteria
-            const maxScore = result.criterion_scores ? result.criterion_scores.length : 4;
+            // Calculate max score based on number of rubric criteria (each criterion is worth 4 points)
+            const criteriaCount = result.criterion_scores ? result.criterion_scores.length : 1;
+            const maxScore = criteriaCount * 4;
             
             // Create modal HTML with split-screen layout
             const modalHTML = \`

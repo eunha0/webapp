@@ -65,11 +65,11 @@ ${rubricJson}
 
 2. ${request.grade_level} 학생의 발달 단계를 고려하여 평가
 3. 루브릭 기준에만 근거하여 객관적으로 평가
-4. 총점은 10점 만점으로 비례 계산
+4. 총점은 각 기준 점수의 합계 (기준 개수 × 4점이 만점)
 
 출력 형식 (반드시 JSON만 반환):
 {
-  "total_score": [10점 만점 기준 점수],
+  "total_score": [모든 기준 점수의 합계],
   "criterion_scores": [
     {
       "criterion_name": "[정확한 기준명]",
@@ -82,7 +82,7 @@ ${rubricJson}
 중요:
 - 일관성 있고 객관적인 채점
 - 루브릭 기준에만 근거
-- 총점은 10점 만점으로 비례 계산
+- 총점은 각 기준 점수의 합계 (예: 4개 기준 = 최대 16점)
 - 유효한 JSON만 반환, 추가 텍스트 없음`;
 }
 
@@ -395,16 +395,18 @@ async function simulateGrading(request: GradingRequest): Promise<GradingResult> 
     };
   });
   
-  // Calculate total score
-  const totalPoints = criterion_scores.reduce((sum, c) => sum + c.score, 0);
+  // Calculate total score (sum of all criterion scores)
+  const total_score = criterion_scores.reduce((sum, c) => sum + c.score, 0);
   const maxPoints = criterion_scores.length * 4;
-  const total_score = Math.round((totalPoints / maxPoints) * 10 * 10) / 10;
+  
+  // Calculate percentage for evaluation
+  const percentage = (total_score / maxPoints) * 100;
   
   return {
     total_score,
-    summary_evaluation: `[시뮬레이션 모드] 이 에세이는 ${total_score >= 7.5 ? '강한' : total_score >= 6 ? '적절한' : '발전 중인'} 주제 이해를 보여줍니다. 약 ${wordCount}단어와 ${paragraphCount}개 문단으로 구성되어 있으며, ${total_score >= 7 ? '좋은' : '보통의'} 조직력과 분석 깊이를 보여줍니다.`,
+    summary_evaluation: `[시뮬레이션 모드] 이 에세이는 ${percentage >= 75 ? '강한' : percentage >= 60 ? '적절한' : '발전 중인'} 주제 이해를 보여줍니다. 약 ${wordCount}단어와 ${paragraphCount}개 문단으로 구성되어 있으며, ${percentage >= 70 ? '좋은' : '보통의'} 조직력과 분석 깊이를 보여줍니다.`,
     criterion_scores,
-    overall_comment: `[시뮬레이션 모드] 이 에세이는 과제 주제를 다루고 있습니다. ${total_score >= 7 ? '작성자는 개념에 대한 탄탄한 이해를 보여주며 관련 예시를 제공합니다.' : '그러나 더 깊은 분석과 구체적인 증거 제공에서 개선의 여지가 있습니다.'} 조직 구조는 ${paragraphCount >= 5 ? '효과적으로 논증을 안내합니다' : '더 명확한 문단 전환과 주제문으로 강화될 수 있습니다'}.`,
+    overall_comment: `[시뮬레이션 모드] 이 에세이는 과제 주제를 다루고 있습니다. ${percentage >= 70 ? '작성자는 개념에 대한 탄탄한 이해를 보여주며 관련 예시를 제공합니다.' : '그러나 더 깊은 분석과 구체적인 증거 제공에서 개선의 여지가 있습니다.'} 조직 구조는 ${paragraphCount >= 5 ? '효과적으로 논증을 안내합니다' : '더 명확한 문단 전환과 주제문으로 강화될 수 있습니다'}.`,
     revision_suggestions: `[시뮬레이션 모드]\n1. **인용 강화**: 더 구체적인 출처 참조를 추가하세요.\n2. **역사적 구체성**: 일반적인 표현을 구체적인 날짜, 이름, 사건으로 대체하세요.\n3. **분석 깊이**: 사건 간의 인과 관계를 강화하세요.`,
     next_steps_advice: `[시뮬레이션 모드] ${request.grade_level} 수준의 분석적 글쓰기 능력을 향상시키기 위해:\n1. 증거 통합 연습\n2. 논제 중심 글쓰기 개발\n3. 어휘력 향상\n4. 동료 평가 참여\n5. 수정 전략 수립`
   };
