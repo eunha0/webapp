@@ -6801,6 +6801,17 @@ app.get('/my-page', (c) => {
             const div = document.createElement('div');
             div.className = 'border border-gray-200 rounded-lg p-3 bg-white';
             div.id = \`criterion-\${criterionCounter}\`;
+            
+            // Define placeholders for each criterion
+            const placeholders = [
+              { name: '기준 이름(예: 핵심 개념의 이해와 분석)', description: '기준 설명(예: 제2차 세계대전의 주요 원인을 정확하게 파악하고 깊이 있게 분석합니다.)' },
+              { name: '기준 이름(예: 증거와 역사적 사례 활용)', description: '기준 설명(예: 논거를 뒷받침하기 위해 구체적이고 적절한 역사적 사례를 사용합니다.)' },
+              { name: '기준 이름(예: 출처 인용의 정확성)', description: '기준 설명(예: 지정된 자료에서 정보를 정확하게 최소 두 번 인용합니다.)' },
+              { name: '기준 이름(예: 문법 정확성, 구성 및 흐름)', description: '기준 설명(예: 최소한의 문법 오류, 논리적 흐름, 다양한 문장 구조를 보여줍니다.)' }
+            ];
+            
+            const placeholder = placeholders[(criterionCounter - 1) % 4];
+            
             div.innerHTML = \`
               <div class="flex justify-between items-center mb-2">
                 <span class="text-xs font-semibold text-gray-600">기준 \${criterionCounter}</span>
@@ -6808,8 +6819,8 @@ app.get('/my-page', (c) => {
                   <i class="fas fa-times"></i>
                 </button>
               </div>
-              <input type="text" class="criterion-name w-full px-3 py-2 border border-gray-200 rounded mb-2 text-sm placeholder-gray-400" placeholder="( 기준 이름 (예: 논제 및 논거) )" required>
-              <textarea class="criterion-description w-full px-3 py-2 border border-gray-200 rounded text-sm placeholder-gray-400" rows="2" placeholder="( 기준 설명 (예: 논제가 명확하고 구체적으로 제시되었습니다.) )" required></textarea>
+              <input type="text" class="criterion-name w-full px-3 py-2 border border-gray-200 rounded mb-2 text-sm placeholder-gray-400" placeholder="\${placeholder.name}" required>
+              <textarea class="criterion-description w-full px-3 py-2 border border-gray-200 rounded text-sm placeholder-gray-400" rows="2" placeholder="\${placeholder.description}" required></textarea>
             \`;
             container.appendChild(div);
           }
