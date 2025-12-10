@@ -3334,7 +3334,7 @@ app.get('/', (c) => {
                     </details>
                     <details class="bg-gray-50 p-6 rounded-lg">
                         <summary class="font-bold cursor-pointer">학생이 논술 답안을 어떻게 제출하나요?</summary>
-                        <p class="mt-4 text-gray-600">네! 교사가 과제를 생성하면 학생 전용 엑세스 코드가 생성됩니다. 학생들은 이 엑세스 코드를 통해 논술 답안을 간편하게 제출할 수 있습니다.</p>
+                        <p class="mt-4 text-gray-600">네! 교사가 과제를 생성하면 학생 전용 액세스 코드가 생성됩니다. 학생들은 이 액세스 코드를 통해 논술 답안을 간편하게 제출할 수 있습니다.</p>
                     </details>
                     <details class="bg-gray-50 p-6 rounded-lg">
                         <summary class="font-bold cursor-pointer">무료 체험이 가능한가요?</summary>
