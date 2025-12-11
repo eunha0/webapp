@@ -286,12 +286,14 @@ app.post('/api/upload/image', async (c) => {
         } catch (googleError) {
           console.error('Google Vision API error, trying OCR.space fallback:', googleError)
           
-          // Fallback to OCR.space
-          const base64Image = arrayBufferToBase64(fileBuffer)
+          // Fallback to OCR.space using URL instead of base64 to avoid size limits
           const ocrApiKey = c.env.OCR_SPACE_API_KEY || 'K87899142388957'
           
+          // Use R2 public URL instead of base64 to avoid 1MB limit
+          console.log('Using R2 URL for OCR.space:', r2Result.url)
+          
           const ocrFormData = new FormData()
-          ocrFormData.append('base64Image', `data:${file.type};base64,${base64Image}`)
+          ocrFormData.append('url', r2Result.url)  // Use URL instead of base64
           ocrFormData.append('language', 'kor')
           ocrFormData.append('isOverlayRequired', 'false')
           ocrFormData.append('detectOrientation', 'true')
@@ -305,7 +307,7 @@ app.post('/api/upload/image', async (c) => {
           })
           
           const ocrData = await ocrResponse.json()
-          console.log('OCR.space response:', JSON.stringify(ocrData))
+          console.log('OCR.space response (URL-based):', JSON.stringify(ocrData))
           
           if (ocrData.IsErroredOnProcessing === false && ocrData.ParsedResults && ocrData.ParsedResults.length > 0) {
             extractedText = ocrData.ParsedResults[0].ParsedText
@@ -341,11 +343,13 @@ app.post('/api/upload/image', async (c) => {
         }
       } else {
         // No Google credentials - use OCR.space as primary
-        const base64Image = arrayBufferToBase64(fileBuffer)
         const ocrApiKey = c.env.OCR_SPACE_API_KEY || 'K87899142388957'
         
+        // Use R2 public URL instead of base64 to avoid 1MB limit
+        console.log('Using R2 URL for OCR.space (primary):', r2Result.url)
+        
         const ocrFormData = new FormData()
-        ocrFormData.append('base64Image', `data:${file.type};base64,${base64Image}`)
+        ocrFormData.append('url', r2Result.url)  // Use URL instead of base64
         ocrFormData.append('language', 'kor')
         ocrFormData.append('isOverlayRequired', 'false')
         ocrFormData.append('detectOrientation', 'true')
@@ -359,7 +363,7 @@ app.post('/api/upload/image', async (c) => {
         })
         
         const ocrData = await ocrResponse.json()
-        console.log('OCR.space response (primary):', JSON.stringify(ocrData))
+        console.log('OCR.space response (URL-based, primary):', JSON.stringify(ocrData))
         
         if (ocrData.IsErroredOnProcessing === false && ocrData.ParsedResults && ocrData.ParsedResults.length > 0) {
           extractedText = ocrData.ParsedResults[0].ParsedText
