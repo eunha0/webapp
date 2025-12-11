@@ -27,12 +27,16 @@ function initializeClients(env: any) {
  * Phase 1: GPT-4o generates rubric-based scores
  */
 function generateScoringPrompt(request: GradingRequest): string {
+  // Calculate total max score
+  const totalMaxScore = request.rubric_criteria.reduce((sum, c) => sum + (c.max_score || 4), 0);
+  
   // Format rubric as detailed JSON
   const rubricJson = JSON.stringify({
-    total_score: request.rubric_criteria.length === 3 ? 100 : 100, // Adjust based on rubric
+    total_max_score: totalMaxScore,
     criteria: request.rubric_criteria.map(c => ({
       category: c.criterion_name,
-      description: c.criterion_description
+      description: c.criterion_description,
+      max_score: c.max_score || 4
     }))
   }, null, 2);
 
@@ -57,23 +61,26 @@ C. 채점 기준표 (Rubric) - JSON 형식:
 ${rubricJson}
 
 채점 지침:
-1. 각 기준에 대해 1-4점 척도로 평가:
-   - 4점: 기대 이상, 탁월한 수준
-   - 3점: 기대 충족, 능숙한 수준  
-   - 2점: 기대 부분 충족, 발전 중인 수준
-   - 1점: 기대 미충족, 상당한 개선 필요
+1. 각 기준에 대해 지정된 최대 점수(max_score) 범위 내에서 평가:
+   ${request.rubric_criteria.map((c, i) => `   기준 ${i + 1} "${c.criterion_name}": 0-${c.max_score || 4}점`).join('\n')}
+   
+   점수 기준:
+   - 최대 점수: 기대 이상, 탁월한 수준
+   - 최대의 75%: 기대 충족, 능숙한 수준  
+   - 최대의 50%: 기대 부분 충족, 발전 중인 수준
+   - 최대의 25% 이하: 기대 미충족, 상당한 개선 필요
 
 2. ${request.grade_level} 학생의 발달 단계를 고려하여 평가
 3. 루브릭 기준에만 근거하여 객관적으로 평가
-4. 총점은 각 기준 점수의 합계 (기준 개수 × 4점이 만점)
+4. 총점은 각 기준 점수의 합계 (최대 ${totalMaxScore}점)
 
 출력 형식 (반드시 JSON만 반환):
 {
-  "total_score": [모든 기준 점수의 합계],
+  "total_score": [모든 기준 점수의 합계, 최대 ${totalMaxScore}점],
   "criterion_scores": [
     {
       "criterion_name": "[정확한 기준명]",
-      "score": [1-4점],
+      "score": [해당 기준의 최대 점수 범위 내],
       "brief_rationale": "[이 점수를 부여한 이유 1-2문장]"
     }
   ]
@@ -82,7 +89,8 @@ ${rubricJson}
 중요:
 - 일관성 있고 객관적인 채점
 - 루브릭 기준에만 근거
-- 총점은 각 기준 점수의 합계 (예: 4개 기준 = 최대 16점)
+- 각 기준의 최대 점수를 초과하지 않도록 주의
+- 총점은 각 기준 점수의 합계 (최대 ${totalMaxScore}점)
 - 유효한 JSON만 반환, 추가 텍스트 없음`;
 }
 

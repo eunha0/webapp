@@ -18,6 +18,7 @@ export interface RubricCriterion {
   criterion_name: string;
   criterion_description: string;
   criterion_order: number;
+  max_score?: number; // Optional max score per criterion (default: 4)
 }
 
 export interface GradingRequest {

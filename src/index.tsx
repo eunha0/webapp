@@ -6849,7 +6849,12 @@ app.get('/my-page', (c) => {
                 </button>
               </div>
               <input type="text" class="criterion-name w-full px-3 py-2 border border-gray-200 rounded mb-2 text-sm placeholder-gray-400" placeholder="\${placeholder.name}" required>
-              <textarea class="criterion-description w-full px-3 py-2 border border-gray-200 rounded text-sm placeholder-gray-400" rows="2" placeholder="\${placeholder.description}" required></textarea>
+              <textarea class="criterion-description w-full px-3 py-2 border border-gray-200 rounded mb-2 text-sm placeholder-gray-400" rows="2" placeholder="\${placeholder.description}" required></textarea>
+              <div class="flex items-center gap-2 mt-2">
+                <label class="text-xs font-semibold text-gray-600 flex-shrink-0">최대 점수:</label>
+                <input type="number" class="criterion-max-score w-24 px-3 py-1 border border-gray-200 rounded text-sm" placeholder="4" min="1" max="100" value="4" required>
+                <span class="text-xs text-gray-500">점</span>
+              </div>
             \`;
             container.appendChild(div);
           }
@@ -6977,11 +6982,16 @@ app.get('/my-page', (c) => {
                 alert('최소 1개의 평가 기준을 추가해주세요.');
                 return;
               }
-              rubric_criteria = Array.from(criteriaElements).map((el, idx) => ({
-                name: el.querySelector('.criterion-name').value,
-                description: el.querySelector('.criterion-description').value,
-                order: idx + 1
-              }));
+              rubric_criteria = Array.from(criteriaElements).map((el, idx) => {
+                const maxScoreInput = el.querySelector('.criterion-max-score');
+                const maxScore = maxScoreInput ? parseInt(maxScoreInput.value) || 4 : 4;
+                return {
+                  name: el.querySelector('.criterion-name').value,
+                  description: el.querySelector('.criterion-description').value,
+                  order: idx + 1,
+                  max_score: maxScore
+                };
+              });
             } else {
               // Platform rubric
               const platformRubricType = document.getElementById('assignmentPlatformRubric').value;

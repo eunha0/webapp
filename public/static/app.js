@@ -349,11 +349,24 @@ function addCriterion(defaultName = '', defaultDescription = '') {
       required
     />
     <textarea 
-      class="criterion-description w-full px-3 py-2 border border-gray-200 rounded text-sm placeholder-gray-400" 
+      class="criterion-description w-full px-3 py-2 border border-gray-200 rounded mb-2 text-sm placeholder-gray-400" 
       rows="2" 
       placeholder="${placeholder.description}"
       required
     >${defaultDescription}</textarea>
+    <div class="flex items-center gap-2 mt-2">
+      <label class="text-xs font-semibold text-gray-600 flex-shrink-0">최대 점수:</label>
+      <input 
+        type="number" 
+        class="criterion-max-score w-24 px-3 py-1 border border-gray-200 rounded text-sm" 
+        placeholder="4"
+        min="1"
+        max="100"
+        value="4"
+        required
+      />
+      <span class="text-xs text-gray-500">점</span>
+    </div>
   `;
   
   container.appendChild(criterionDiv);
@@ -421,12 +434,15 @@ function getRubricCriteria() {
     criterionItems.forEach((item, index) => {
       const name = item.querySelector('.criterion-name').value.trim();
       const description = item.querySelector('.criterion-description').value.trim();
+      const maxScoreInput = item.querySelector('.criterion-max-score');
+      const maxScore = maxScoreInput ? parseInt(maxScoreInput.value) || 4 : 4;
       
       if (name && description) {
         criteria.push({
           criterion_name: name,
           criterion_description: description,
-          criterion_order: index + 1
+          criterion_order: index + 1,
+          max_score: maxScore
         });
       }
     });
