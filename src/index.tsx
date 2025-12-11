@@ -288,6 +288,7 @@ app.post('/api/upload/image', async (c) => {
           
           // Fallback to OCR.space
           const base64Image = arrayBufferToBase64(fileBuffer)
+          const ocrApiKey = c.env.OCR_SPACE_API_KEY || 'K87899142388957'
           
           const ocrFormData = new FormData()
           ocrFormData.append('base64Image', `data:${file.type};base64,${base64Image}`)
@@ -296,6 +297,7 @@ app.post('/api/upload/image', async (c) => {
           ocrFormData.append('detectOrientation', 'true')
           ocrFormData.append('scale', 'true')
           ocrFormData.append('OCREngine', '2')
+          ocrFormData.append('apikey', ocrApiKey)
           
           const ocrResponse = await fetch('https://api.ocr.space/parse/image', {
             method: 'POST',
@@ -303,6 +305,7 @@ app.post('/api/upload/image', async (c) => {
           })
           
           const ocrData = await ocrResponse.json()
+          console.log('OCR.space response:', JSON.stringify(ocrData))
           
           if (ocrData.IsErroredOnProcessing === false && ocrData.ParsedResults && ocrData.ParsedResults.length > 0) {
             extractedText = ocrData.ParsedResults[0].ParsedText
@@ -325,18 +328,21 @@ app.post('/api/upload/image', async (c) => {
                 Date.now() - startTime
               )
             } else {
+              console.error('OCR.space: Empty text extracted')
               throw new Error('OCR.space fallback: 이미지에서 텍스트를 찾을 수 없습니다')
             }
           } else {
             const errorMsg = ocrData.ErrorMessage && ocrData.ErrorMessage.length > 0 
               ? ocrData.ErrorMessage.join(', ') 
-              : 'OCR.space fallback failed'
+              : `OCR.space 오류: ${JSON.stringify(ocrData)}`
+            console.error('OCR.space failed:', errorMsg)
             throw new Error(errorMsg)
           }
         }
       } else {
         // No Google credentials - use OCR.space as primary
         const base64Image = arrayBufferToBase64(fileBuffer)
+        const ocrApiKey = c.env.OCR_SPACE_API_KEY || 'K87899142388957'
         
         const ocrFormData = new FormData()
         ocrFormData.append('base64Image', `data:${file.type};base64,${base64Image}`)
@@ -345,6 +351,7 @@ app.post('/api/upload/image', async (c) => {
         ocrFormData.append('detectOrientation', 'true')
         ocrFormData.append('scale', 'true')
         ocrFormData.append('OCREngine', '2')
+        ocrFormData.append('apikey', ocrApiKey)
         
         const ocrResponse = await fetch('https://api.ocr.space/parse/image', {
           method: 'POST',
@@ -352,6 +359,7 @@ app.post('/api/upload/image', async (c) => {
         })
         
         const ocrData = await ocrResponse.json()
+        console.log('OCR.space response (primary):', JSON.stringify(ocrData))
         
         if (ocrData.IsErroredOnProcessing === false && ocrData.ParsedResults && ocrData.ParsedResults.length > 0) {
           extractedText = ocrData.ParsedResults[0].ParsedText
@@ -374,12 +382,14 @@ app.post('/api/upload/image', async (c) => {
               Date.now() - startTime
             )
           } else {
+            console.error('OCR.space: Empty text extracted')
             throw new Error('이미지에서 텍스트를 찾을 수 없습니다')
           }
         } else {
           const errorMsg = ocrData.ErrorMessage && ocrData.ErrorMessage.length > 0 
             ? ocrData.ErrorMessage.join(', ') 
-            : '알 수 없는 OCR 오류'
+            : `OCR.space 오류: ${JSON.stringify(ocrData)}`
+          console.error('OCR.space failed:', errorMsg)
           throw new Error(errorMsg)
         }
       }
@@ -403,7 +413,19 @@ app.post('/api/upload/image', async (c) => {
       )
     }
     
-    // Return success regardless of OCR status
+    // Return response with OCR status
+    if (!extractedText || extractedText.trim().length === 0) {
+      return c.json({
+        success: false,
+        error: '이미지에서 텍스트를 추출할 수 없습니다. 이미지가 명확한지, 텍스트가 포함되어 있는지 확인해주세요.',
+        file_id: uploadedFileId,
+        file_name: file.name,
+        storage_url: r2Result.url,
+        extracted_text: null,
+        ocr_available: !!credentialsJson
+      }, 400)
+    }
+    
     return c.json({
       success: true,
       file_id: uploadedFileId,
@@ -7109,11 +7131,21 @@ app.get('/my-page', (c) => {
               if (response.data && response.data.extracted_text) {
                 return response.data.extracted_text;
               } else {
-                throw new Error('텍스트 추출에 실패했습니다.');
+                // Check if there's a specific error message from the server
+                const errorMsg = response.data?.error || '텍스트 추출에 실패했습니다. 이미지가 명확한지, 텍스트가 포함되어 있는지 확인해주세요.';
+                throw new Error(errorMsg);
               }
             } catch (error) {
               console.error('File upload error:', error);
-              throw error;
+              
+              // Extract error message from various possible sources
+              if (error.response && error.response.data && error.response.data.error) {
+                throw new Error(error.response.data.error);
+              } else if (error.message) {
+                throw new Error(error.message);
+              } else {
+                throw new Error('파일 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+              }
             }
           }
 
