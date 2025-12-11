@@ -286,14 +286,15 @@ app.post('/api/upload/image', async (c) => {
         } catch (googleError) {
           console.error('Google Vision API error, trying OCR.space fallback:', googleError)
           
-          // Fallback to OCR.space using URL instead of base64 to avoid size limits
+          // Fallback to OCR.space using file upload (supports larger files than base64)
           const ocrApiKey = c.env.OCR_SPACE_API_KEY || 'K87899142388957'
           
-          // Use R2 public URL instead of base64 to avoid 1MB limit
-          console.log('Using R2 URL for OCR.space:', r2Result.url)
+          console.log('Uploading file directly to OCR.space...')
           
+          // Create a File-like object from ArrayBuffer
+          const blob = new Blob([fileBuffer], { type: file.type })
           const ocrFormData = new FormData()
-          ocrFormData.append('url', r2Result.url)  // Use URL instead of base64
+          ocrFormData.append('file', blob, file.name)
           ocrFormData.append('language', 'kor')
           ocrFormData.append('isOverlayRequired', 'false')
           ocrFormData.append('detectOrientation', 'true')
@@ -307,7 +308,7 @@ app.post('/api/upload/image', async (c) => {
           })
           
           const ocrData = await ocrResponse.json()
-          console.log('OCR.space response (URL-based):', JSON.stringify(ocrData))
+          console.log('OCR.space response (file upload):', JSON.stringify(ocrData))
           
           if (ocrData.IsErroredOnProcessing === false && ocrData.ParsedResults && ocrData.ParsedResults.length > 0) {
             extractedText = ocrData.ParsedResults[0].ParsedText
@@ -345,11 +346,12 @@ app.post('/api/upload/image', async (c) => {
         // No Google credentials - use OCR.space as primary
         const ocrApiKey = c.env.OCR_SPACE_API_KEY || 'K87899142388957'
         
-        // Use R2 public URL instead of base64 to avoid 1MB limit
-        console.log('Using R2 URL for OCR.space (primary):', r2Result.url)
+        console.log('Uploading file directly to OCR.space (primary)...')
         
+        // Create a File-like object from ArrayBuffer
+        const blob = new Blob([fileBuffer], { type: file.type })
         const ocrFormData = new FormData()
-        ocrFormData.append('url', r2Result.url)  // Use URL instead of base64
+        ocrFormData.append('file', blob, file.name)
         ocrFormData.append('language', 'kor')
         ocrFormData.append('isOverlayRequired', 'false')
         ocrFormData.append('detectOrientation', 'true')
@@ -363,7 +365,7 @@ app.post('/api/upload/image', async (c) => {
         })
         
         const ocrData = await ocrResponse.json()
-        console.log('OCR.space response (URL-based, primary):', JSON.stringify(ocrData))
+        console.log('OCR.space response (file upload, primary):', JSON.stringify(ocrData))
         
         if (ocrData.IsErroredOnProcessing === false && ocrData.ParsedResults && ocrData.ParsedResults.length > 0) {
           extractedText = ocrData.ParsedResults[0].ParsedText
@@ -7056,6 +7058,15 @@ app.get('/my-page', (c) => {
               textInputContainer.classList.add('hidden');
               essayTextarea.required = false;
             }
+          }
+
+          // Format file size for display
+          function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
           }
 
           // Handle file selection in submission form
