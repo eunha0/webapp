@@ -2552,7 +2552,7 @@ app.get('/guide', (c) => {
                                     <img src="/guide-screenshots/step10-grading-settings.png" alt="채점 설정" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
                                 </div>
                                 <div class="mt-3 flex justify-center">
-                                    <img src="/guide-screenshots/step11-grading-result.png" alt="채점 결과 검토" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
+                                    <img src="/guide-screenshots/step10-grading-review-modal.png" alt="채점 결과 검토" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
                                 </div>
                             </div>
                         </div>
@@ -2629,7 +2629,7 @@ app.get('/guide', (c) => {
                                     <li>제출일 및 채점일</li>
                                 </ul>
                                 <div class="mt-3 flex justify-center">
-                                    <img src="/guide-screenshots/step9-grading-history.png" alt="채점 이력 확인" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
+                                    <img src="/guide-screenshots/step11-grading-history-list.png" alt="채점 이력 확인" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
                                 </div>
                             </div>
                         </div>
