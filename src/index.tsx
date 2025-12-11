@@ -7069,8 +7069,60 @@ app.get('/my-page', (c) => {
             return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
           }
 
+          // Compress image to fit OCR size limit (under 900KB)
+          async function compressImage(file, maxSizeKB = 900) {
+            return new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                  const canvas = document.createElement('canvas');
+                  let width = img.width;
+                  let height = img.height;
+                  
+                  // Calculate resize ratio to target ~800KB
+                  const fileSizeKB = file.size / 1024;
+                  if (fileSizeKB <= maxSizeKB) {
+                    // File is already small enough
+                    resolve(file);
+                    return;
+                  }
+                  
+                  // Reduce dimensions to reduce file size
+                  const scaleFactor = Math.sqrt(maxSizeKB / fileSizeKB);
+                  width = Math.floor(width * scaleFactor);
+                  height = Math.floor(height * scaleFactor);
+                  
+                  canvas.width = width;
+                  canvas.height = height;
+                  
+                  const ctx = canvas.getContext('2d');
+                  ctx.drawImage(img, 0, 0, width, height);
+                  
+                  // Convert to blob with quality adjustment
+                  canvas.toBlob(function(blob) {
+                    if (blob) {
+                      // Create a new File object with the compressed blob
+                      const compressedFile = new File([blob], file.name, {
+                        type: 'image/jpeg',
+                        lastModified: Date.now()
+                      });
+                      resolve(compressedFile);
+                    } else {
+                      reject(new Error('Failed to compress image'));
+                    }
+                  }, 'image/jpeg', 0.85); // 85% quality
+                };
+                img.onerror = reject;
+                img.src = e.target.result;
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+          }
+
           // Handle file selection in submission form
-          function handleSubmissionFileSelect(event) {
+          async function handleSubmissionFileSelect(event) {
             const file = event.target.files[0];
             if (!file) return;
             
@@ -7089,7 +7141,20 @@ app.get('/my-page', (c) => {
               return;
             }
             
-            selectedSubmissionFile = file;
+            // Compress image if it's too large for OCR
+            let processedFile = file;
+            if (file.type.startsWith('image/') && file.size > 900 * 1024) {
+              try {
+                console.log(\`Original file size: \${formatFileSize(file.size)}\`);
+                processedFile = await compressImage(file);
+                console.log(\`Compressed file size: \${formatFileSize(processedFile.size)}\`);
+              } catch (error) {
+                console.error('Failed to compress image:', error);
+                // Continue with original file if compression fails
+              }
+            }
+            
+            selectedSubmissionFile = processedFile;
             
             // Show file preview
             const filePreview = document.getElementById('submissionFilePreview');
@@ -7099,7 +7164,7 @@ app.get('/my-page', (c) => {
             const previewImg = document.getElementById('submissionPreviewImg');
             
             fileName.textContent = file.name;
-            fileSize.textContent = formatFileSize(file.size);
+            fileSize.textContent = formatFileSize(processedFile.size);
             filePreview.classList.remove('hidden');
             
             // If image, show preview
@@ -7109,7 +7174,7 @@ app.get('/my-page', (c) => {
                 previewImg.src = e.target.result;
                 imagePreview.classList.remove('hidden');
               };
-              reader.readAsDataURL(file);
+              reader.readAsDataURL(processedFile);
             } else {
               imagePreview.classList.add('hidden');
             }
