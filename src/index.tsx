@@ -2427,8 +2427,9 @@ app.get('/guide', (c) => {
                                     <ol class="list-decimal list-inside text-gray-600 space-y-1 ml-4">
                                         <li>파일 선택 또는 드래그앤드롭</li>
                                         <li>파일 미리보기 확인</li>
-                                        <li>"AI로 논술 채점하기" 버튼 클릭</li>
+                                        <li>"추가" 버튼 클릭</li>
                                         <li>자동으로 텍스트 추출 진행</li>
+                                        <li>"채점하기" 버튼 클릭</li>
                                         <li>추출된 텍스트로 채점 진행</li>
                                     </ol>
                                 </div>
