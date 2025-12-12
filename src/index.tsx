@@ -944,22 +944,11 @@ app.post('/api/assignments', async (c) => {
     const { title, description, grade_level, due_date, rubric_criteria, prompts } = await c.req.json()
     const db = c.env.DB
     
-    // Generate unique 6-digit access code
-    let accessCode = ''
-    let isUnique = false
-    while (!isUnique) {
-      accessCode = Math.floor(100000 + Math.random() * 900000).toString()
-      const existing = await db.prepare(
-        'SELECT id FROM assignments WHERE access_code = ?'
-      ).bind(accessCode).first()
-      if (!existing) isUnique = true
-    }
-    
-    // Create assignment with prompts and access code
+    // Create assignment without access code (will be generated later if needed)
     const promptsJSON = prompts ? JSON.stringify(prompts) : null
     const result = await db.prepare(
-      'INSERT INTO assignments (user_id, title, description, grade_level, due_date, prompts, access_code) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).bind(user.id, title, description, grade_level, due_date, promptsJSON, accessCode).run()
+      'INSERT INTO assignments (user_id, title, description, grade_level, due_date, prompts, access_code) VALUES (?, ?, ?, ?, ?, ?, NULL)'
+    ).bind(user.id, title, description, grade_level, due_date, promptsJSON).run()
     
     const assignmentId = result.meta.last_row_id
     
@@ -972,7 +961,7 @@ app.post('/api/assignments', async (c) => {
       }
     }
     
-    return c.json({ success: true, assignment_id: assignmentId, access_code: accessCode })
+    return c.json({ success: true, assignment_id: assignmentId })
   } catch (error) {
     console.error('Error creating assignment:', error)
     return c.json({ error: 'Failed to create assignment' }, 500)
@@ -1018,6 +1007,54 @@ app.get('/api/assignment/code/:accessCode', async (c) => {
   } catch (error) {
     console.error('Error fetching assignment by access code:', error)
     return c.json({ error: '과제를 불러오는데 실패했습니다.' }, 500)
+  }
+})
+
+/**
+ * POST /api/assignment/:id/generate-access-code - Generate access code for assignment
+ */
+app.post('/api/assignment/:id/generate-access-code', async (c) => {
+  try {
+    const user = await requireAuth(c)
+    if (!user.id) return user // Return error response
+    
+    const assignmentId = parseInt(c.req.param('id'))
+    const db = c.env.DB
+    
+    // Verify assignment ownership
+    const assignment = await db.prepare(
+      'SELECT * FROM assignments WHERE id = ? AND user_id = ?'
+    ).bind(assignmentId, user.id).first()
+    
+    if (!assignment) {
+      return c.json({ error: 'Assignment not found or access denied' }, 404)
+    }
+    
+    // Check if access code already exists
+    if (assignment.access_code) {
+      return c.json({ access_code: assignment.access_code })
+    }
+    
+    // Generate unique 6-digit access code
+    let accessCode = ''
+    let isUnique = false
+    while (!isUnique) {
+      accessCode = Math.floor(100000 + Math.random() * 900000).toString()
+      const existing = await db.prepare(
+        'SELECT id FROM assignments WHERE access_code = ?'
+      ).bind(accessCode).first()
+      if (!existing) isUnique = true
+    }
+    
+    // Update assignment with access code
+    await db.prepare(
+      'UPDATE assignments SET access_code = ? WHERE id = ?'
+    ).bind(accessCode, assignmentId).run()
+    
+    return c.json({ success: true, access_code: accessCode })
+  } catch (error) {
+    console.error('Error generating access code:', error)
+    return c.json({ error: 'Failed to generate access code' }, 500)
   }
 })
 
@@ -6120,19 +6157,37 @@ app.get('/my-page', (c) => {
                     </button>
                   </div>
 
-                  \${assignment.access_code ? \`
-                  <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white">
-                    <div class="flex items-center justify-between">
-                      <div>
-                        <h3 class="font-bold text-lg mb-2"><i class="fas fa-key mr-2"></i>학생 접속 코드</h3>
-                        <p class="text-blue-100 text-sm">이 코드를 학생들에게 공유하세요</p>
-                      </div>
-                      <div class="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg px-8 py-4">
-                        <div class="text-4xl font-bold tracking-wider">\${assignment.access_code}</div>
+                  <!-- Access Code Display -->
+                  <div id="accessCodeSection">
+                    \${assignment.access_code ? \`
+                    <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white">
+                      <div class="flex items-center justify-between">
+                        <div>
+                          <h3 class="font-bold text-lg mb-2"><i class="fas fa-key mr-2"></i>학생 접속 코드</h3>
+                          <p class="text-blue-100 text-sm">이 코드를 학생들에게 공유하세요</p>
+                        </div>
+                        <div class="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg px-8 py-4">
+                          <div class="text-4xl font-bold tracking-wider">\${assignment.access_code}</div>
+                        </div>
                       </div>
                     </div>
+                    \` : \`
+                    <div class="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-6">
+                      <div class="flex items-center justify-between">
+                        <div>
+                          <h3 class="font-bold text-lg mb-2 text-yellow-800"><i class="fas fa-info-circle mr-2"></i>액세스 코드 미생성</h3>
+                          <p class="text-yellow-700 text-sm">학생들이 과제에 접근하려면 액세스 코드를 생성하세요</p>
+                        </div>
+                        <button 
+                          onclick="generateAccessCode(\${assignmentId})" 
+                          class="px-6 py-3 bg-yellow-600 text-white rounded-lg font-semibold hover:bg-yellow-700 transition"
+                        >
+                          <i class="fas fa-key mr-2"></i>액세스 코드 생성
+                        </button>
+                      </div>
+                    </div>
+                    \`}
                   </div>
-                  \` : ''}
 
                   <div class="bg-gray-50 rounded-lg p-6">
                     <h3 class="font-bold text-gray-900 mb-2">과제 설명</h3>
@@ -6821,6 +6876,45 @@ app.get('/my-page', (c) => {
           function closeAssignmentDetailModal() {
             document.getElementById('assignmentDetailModal').classList.add('hidden');
             currentAssignmentId = null;
+          }
+
+          // Generate access code for assignment
+          async function generateAccessCode(assignmentId) {
+            try {
+              const confirmed = confirm('이 과제의 액세스 코드를 생성하시겠습니까?');
+              if (!confirmed) return;
+
+              const response = await axios.post(\`/api/assignment/\${assignmentId}/generate-access-code\`);
+              
+              if (response.data.success || response.data.access_code) {
+                const accessCode = response.data.access_code;
+                
+                // Update the access code section in the UI
+                const accessCodeSection = document.getElementById('accessCodeSection');
+                if (accessCodeSection) {
+                  accessCodeSection.innerHTML = \`
+                    <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white">
+                      <div class="flex items-center justify-between">
+                        <div>
+                          <h3 class="font-bold text-lg mb-2"><i class="fas fa-key mr-2"></i>학생 접속 코드</h3>
+                          <p class="text-blue-100 text-sm">이 코드를 학생들에게 공유하세요</p>
+                        </div>
+                        <div class="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg px-8 py-4">
+                          <div class="text-4xl font-bold tracking-wider">\${accessCode}</div>
+                        </div>
+                      </div>
+                    </div>
+                  \`;
+                }
+                
+                alert('액세스 코드가 생성되었습니다: ' + accessCode);
+              } else {
+                alert('액세스 코드 생성에 실패했습니다.');
+              }
+            } catch (error) {
+              console.error('Error generating access code:', error);
+              alert('액세스 코드 생성 중 오류가 발생했습니다.');
+            }
           }
 
           // Add rubric criterion
