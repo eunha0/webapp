@@ -537,8 +537,8 @@ document.getElementById('gradingForm').addEventListener('submit', async (e) => {
     });
     
     if (response.data.success) {
-      // Display results
-      displayResults(response.data.grading_result, response.data.essay_id);
+      // Display results with rubric criteria
+      displayResults(response.data.grading_result, response.data.essay_id, rubricCriteria);
     } else {
       throw new Error(response.data.error || 'Grading failed');
     }
@@ -554,8 +554,11 @@ document.getElementById('gradingForm').addEventListener('submit', async (e) => {
 });
 
 // Display grading results
-function displayResults(result, essayId) {
+function displayResults(result, essayId, rubricCriteria) {
   const container = document.getElementById('resultsContainer');
+  
+  // Calculate total max score from rubric criteria
+  const totalMaxScore = rubricCriteria ? rubricCriteria.reduce((sum, c) => sum + (c.max_score || 4), 0) : (result.criterion_scores.length * 4);
   
   const html = `
     <div class="bg-white rounded-xl shadow-2xl p-8 border border-gray-200 result-section mt-8">
@@ -569,7 +572,7 @@ function displayResults(result, essayId) {
         </h2>
         <div class="inline-block bg-gradient-to-r from-navy-100 to-blue-100 rounded-2xl px-10 py-6">
           <span class="text-6xl font-bold bg-gradient-to-r from-navy-700 to-navy-900 bg-clip-text text-transparent">${result.total_score}</span>
-          <span class="text-3xl text-gray-600">/10</span>
+          <span class="text-3xl text-gray-600">/${totalMaxScore}</span>
         </div>
       </div>
       
@@ -595,12 +598,16 @@ function displayResults(result, essayId) {
           상세 루브릭 점수
         </h3>
         <div class="space-y-4">
-          ${result.criterion_scores.map(score => `
+          ${result.criterion_scores.map(score => {
+            // Find the max score for this criterion
+            const criterion = rubricCriteria ? rubricCriteria.find(c => c.criterion_name === score.criterion_name) : null;
+            const maxScore = criterion?.max_score || 4;
+            return `
             <div class="criterion-card border border-gray-200 rounded-xl p-6 bg-white hover:border-navy-300">
               <div class="flex items-start justify-between mb-4">
                 <h4 class="font-bold text-gray-900 flex-1 text-lg">${score.criterion_name}</h4>
-                <div class="score-badge ${getScoreColor(score.score)}">
-                  ${score.score}/4
+                <div class="score-badge ${getScoreColorByPercentage(score.score, maxScore)}">
+                  ${score.score}/${maxScore}
                 </div>
               </div>
               <div class="grid md:grid-cols-2 gap-6 mt-4">
@@ -617,8 +624,8 @@ function displayResults(result, essayId) {
                   <p class="text-sm text-gray-700 leading-relaxed">${score.areas_for_improvement}</p>
                 </div>
               </div>
-            </div>
-          `).join('')}
+            </div>`;
+          }).join('')}
         </div>
       </div>
       
@@ -686,11 +693,20 @@ function displayResults(result, essayId) {
   container.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// Get color class based on score
+// Get color class based on score (legacy - for backward compatibility)
 function getScoreColor(score) {
   if (score === 4) return 'bg-gradient-to-r from-navy-600 to-navy-800 text-white';
   if (score === 3) return 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white';
   if (score === 2) return 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white';
+  return 'bg-gradient-to-r from-red-500 to-pink-500 text-white';
+}
+
+// Get color class based on percentage of max score
+function getScoreColorByPercentage(score, maxScore) {
+  const percentage = (score / maxScore) * 100;
+  if (percentage >= 90) return 'bg-gradient-to-r from-navy-600 to-navy-800 text-white';
+  if (percentage >= 75) return 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white';
+  if (percentage >= 50) return 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white';
   return 'bg-gradient-to-r from-red-500 to-pink-500 text-white';
 }
 
@@ -934,6 +950,9 @@ async function viewResult(essayId) {
 
 // Generate result HTML (reusable)
 function generateResultHTML(result) {
+  // Calculate total max score from criterion scores
+  const totalMaxScore = result.criterion_scores.reduce((sum, c) => sum + (c.max_score || 4), 0);
+  
   return `
     <div class="bg-white rounded-lg shadow-lg p-8">
       <!-- Header -->
@@ -943,7 +962,7 @@ function generateResultHTML(result) {
         </h2>
         <div class="inline-block bg-indigo-100 rounded-full px-8 py-4">
           <span class="text-5xl font-bold text-indigo-600">${result.total_score}</span>
-          <span class="text-2xl text-gray-600">/10</span>
+          <span class="text-2xl text-gray-600">/${totalMaxScore}</span>
         </div>
         <p class="text-sm text-gray-500 mt-3">채점일: ${new Date(result.graded_at).toLocaleString('ko-KR')}</p>
       </div>
@@ -966,12 +985,14 @@ function generateResultHTML(result) {
           기준별 상세 평가
         </h3>
         <div class="space-y-4">
-          ${result.criterion_scores.map(score => `
+          ${result.criterion_scores.map(score => {
+            const maxScore = score.max_score || 4;
+            return `
             <div class="criterion-card border border-gray-200 rounded-lg p-5 bg-white">
               <div class="flex items-start justify-between mb-3">
                 <h4 class="font-bold text-gray-800 flex-1">${score.criterion_name}</h4>
-                <div class="score-badge ${getScoreColor(score.score)}">
-                  ${score.score}/4
+                <div class="score-badge ${getScoreColorByPercentage(score.score, maxScore)}">
+                  ${score.score}/${maxScore}
                 </div>
               </div>
               <div class="grid md:grid-cols-2 gap-4 mt-4">
@@ -988,8 +1009,8 @@ function generateResultHTML(result) {
                   <p class="text-sm text-gray-700 leading-relaxed">${score.areas_for_improvement}</p>
                 </div>
               </div>
-            </div>
-          `).join('')}
+            </div>`;
+          }).join('')}
         </div>
       </div>
       

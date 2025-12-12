@@ -150,14 +150,15 @@ export async function getGradingResult(
     return null;
   }
 
-  // Get criterion scores with criterion names
+  // Get criterion scores with criterion names and max scores
   const scores = await db
     .prepare(
       `SELECT 
         cs.score,
         cs.strengths,
         cs.areas_for_improvement,
-        rc.criterion_name
+        rc.criterion_name,
+        rc.max_score
        FROM criterion_scores cs
        JOIN rubric_criteria rc ON cs.criterion_id = rc.id
        WHERE cs.result_id = ?
@@ -178,6 +179,7 @@ export async function getGradingResult(
     criterion_scores: scores.results.map((s: any) => ({
       criterion_name: s.criterion_name,
       score: s.score,
+      max_score: s.max_score || 4,
       strengths: s.strengths,
       areas_for_improvement: s.areas_for_improvement
     }))

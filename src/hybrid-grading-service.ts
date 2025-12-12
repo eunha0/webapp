@@ -139,8 +139,16 @@ function generateFeedbackPrompt(
   request: GradingRequest,
   scoringResult: any
 ): string {
+  // Calculate total max score from rubric criteria
+  const totalMaxScore = request.rubric_criteria.reduce((sum, c) => sum + (c.max_score || 4), 0);
+  
+  // Create scores table with actual max scores
   const scoresTable = scoringResult.criterion_scores
-    .map((c: any) => `- ${c.criterion_name}: ${c.score}/4 (${c.brief_rationale})`)
+    .map((c: any) => {
+      const criterion = request.rubric_criteria.find(rc => rc.criterion_name === c.criterion_name);
+      const maxScore = criterion?.max_score || 4;
+      return `- ${c.criterion_name}: ${c.score}/${maxScore} (${c.brief_rationale})`;
+    })
     .join('\n');
   
   const gradeContext = getGradeLevelContext(request.grade_level);
@@ -189,7 +197,7 @@ C. 채점 기준표 (Rubric):
 ${rubricJson}
 
 D. 이미 부여된 점수 (다른 AI가 평가):
-총점: ${scoringResult.total_score}/10
+총점: ${scoringResult.total_score}/${totalMaxScore}
 ${scoresTable}
 
 당신은 위 점수를 바탕으로 학생에게 따뜻하고 구체적이며 실천 가능한 피드백을 작성해야 합니다.
@@ -405,7 +413,8 @@ async function simulateGrading(request: GradingRequest): Promise<GradingResult> 
   
   // Calculate total score (sum of all criterion scores)
   const total_score = criterion_scores.reduce((sum, c) => sum + c.score, 0);
-  const maxPoints = criterion_scores.length * 4;
+  // Calculate max points from rubric criteria
+  const maxPoints = request.rubric_criteria.reduce((sum, c) => sum + (c.max_score || 4), 0);
   
   // Calculate percentage for evaluation
   const percentage = (total_score / maxPoints) * 100;
