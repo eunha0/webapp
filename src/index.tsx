@@ -5867,12 +5867,10 @@ app.get('/my-page', (c) => {
                             
                             <!-- Platform Rubric Container -->
                             <div id="assignmentPlatformRubricContainer">
-                                <select 
-                                    id="assignmentPlatformRubric" 
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-700 focus:border-transparent"
-                                >
-                                    <option value="">루브릭을 불러오는 중...</option>
-                                </select>
+                                <div id="platformRubricList" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <!-- Platform rubrics will be loaded here -->
+                                </div>
+                                <input type="hidden" id="selectedPlatformRubric" value="" />
                             </div>
                             
                             <!-- Custom Rubric Container -->
@@ -5896,6 +5894,31 @@ app.get('/my-page', (c) => {
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Rubric PDF Preview Modal -->
+        <div id="rubricPreviewModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+            <div class="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] mx-4 flex flex-col">
+                <!-- Modal Header -->
+                <div class="flex justify-between items-center p-6 border-b">
+                    <h2 id="rubricPreviewTitle" class="text-2xl font-bold text-gray-900"></h2>
+                    <div class="flex gap-2">
+                        <button onclick="selectCurrentRubric()" class="px-6 py-2 bg-navy-900 text-white rounded-lg hover:bg-navy-800 transition font-semibold">
+                            선택하기 →
+                        </button>
+                        <button onclick="closeRubricPreview()" class="px-4 py-2 text-gray-500 hover:text-gray-700">
+                            <i class="fas fa-times text-xl"></i> 닫기
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- PDF Content Area -->
+                <div class="flex-1 overflow-y-auto p-6">
+                    <div id="rubricPdfContainer" class="w-full">
+                        <!-- PDF will be embedded here -->
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -5975,57 +5998,93 @@ app.get('/my-page', (c) => {
           }
 
           // Load platform rubrics for assignment creation
+          // Platform rubric definitions with PDF paths
+          const platformRubricData = [
+            { value: 'standard', text: '표준 논술 루브릭(4개 기준)', pdf: '/rubric-pdfs/표준 논술 루브릭(4개 기준).pdf' },
+            { value: 'kr_elementary', text: '초등학생용 평가 기준', pdf: '/rubric-pdfs/초등학생용 평가 기준.pdf' },
+            { value: 'kr_middle', text: '중학생용 평가 기준', pdf: '/rubric-pdfs/중학생용 평가 기준.pdf' },
+            { value: 'kr_high', text: '고등학생용 평가 기준', pdf: '/rubric-pdfs/고등학생용 평가 기준.pdf' },
+            { value: 'nyregents', text: '뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭', pdf: '/rubric-pdfs/뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭.pdf' },
+            { value: 'nyregents_analytical', text: '뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭', pdf: '/rubric-pdfs/뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭.pdf' },
+            { value: 'ny_middle', text: '뉴욕 주 중학교 논술 루브릭', pdf: '/rubric-pdfs/뉴욕 주 중학교 논술 루브릭.pdf' },
+            { value: 'ny_elementary', text: '뉴욕 주 초등학교 논술 루브릭', pdf: '/rubric-pdfs/뉴욕 주 초등학교 논술 루브릭.pdf' },
+            { value: 'ib_myp_highschool', text: 'IB 중등 프로그램 고등학교 개인과 사회 논술 루브릭', pdf: '/rubric-pdfs/IB 중등 프로그램 고등학교 개인과 사회 논술 루브릭.pdf' },
+            { value: 'ib_myp_middleschool', text: 'IB 중등 프로그램 중학교 개인과 사회 논술 루브릭', pdf: '/rubric-pdfs/IB 중등 프로그램 중학교 개인과 사회 논술 루브릭.pdf' },
+            { value: 'ib_myp_science', text: 'IB 중등 프로그램 과학 논술 루브릭', pdf: '/rubric-pdfs/IB 중등 프로그램 과학 논술 루브릭.pdf' }
+          ];
+
           async function loadPlatformRubrics() {
-            try {
-              const response = await axios.get('/api/resources/rubric');
-              const rubrics = response.data;
-              
-              const select = document.getElementById('assignmentPlatformRubric');
-              
-              if (!select) return;
-              
-              // Add default built-in rubrics
-              const builtInOptions = [
-                { value: 'standard', text: '표준 논술 루브릭(4개 기준)' },
-                { value: 'kr_elementary', text: '초등학생용 평가 기준' },
-                { value: 'kr_middle', text: '중학생용 평가 기준' },
-                { value: 'kr_high', text: '고등학생용 평가 기준' },
-                { value: 'nyregents', text: '뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)' },
-                { value: 'nyregents_analytical', text: '뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭' },
-                { value: 'ny_middle', text: '뉴욕 주 중학교 논술 루브릭' },
-                { value: 'ny_elementary', text: '뉴욕 주 초등학교 논술 루브릭' },
-                { value: 'ib_myp_highschool', text: 'IB 중등 프로그램 고등학교 개인과 사회 논술 루브릭' },
-                { value: 'ib_myp_middleschool', text: 'IB 중등 프로그램 중학교 개인과 사회 논술 루브릭' },
-                { value: 'ib_myp_science', text: 'IB 중등 프로그램 과학 논술 루브릭' }
-              ];
-              
-              // All rubrics are now built-in (no database rubrics)
-              const allOptions = builtInOptions;
-              
-              select.innerHTML = allOptions.map(opt => 
-                '<option value="' + opt.value + '">' + opt.text + '</option>'
-              ).join('');
-              
-            } catch (error) {
-              console.error('Failed to load platform rubrics:', error);
-              // Keep default options on error
-              const select = document.getElementById('assignmentPlatformRubric');
-              if (select) {
-                select.innerHTML = \`
-                  <option value="standard">표준 논술 루브릭(4개 기준)</option>
-                  <option value="kr_elementary">초등학생용 평가 기준</option>
-                  <option value="kr_middle">중학생용 평가 기준</option>
-                  <option value="kr_high">고등학생용 평가 기준</option>
-                  <option value="nyregents">뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)</option>
-                  <option value="nyregents_analytical">뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭</option>
-                  <option value="ny_middle">뉴욕 주 중학교 논술 루브릭</option>
-                  <option value="ny_elementary">뉴욕 주 초등학교 논술 루브릭</option>
-                  <option value="ib_myp_highschool">IB 중등 프로그램 고등학교 개인과 사회 논술 루브릭</option>
-                  <option value="ib_myp_middleschool">IB 중등 프로그램 중학교 개인과 사회 논술 루브릭</option>
-                  <option value="ib_myp_science">IB 중등 프로그램 과학 논술 루브릭</option>
-                \`;
-              }
+            const container = document.getElementById('platformRubricList');
+            if (!container) return;
+            
+            // Create card-based rubric list
+            container.innerHTML = platformRubricData.map(rubric => \`
+              <div class="rubric-card border-2 border-gray-200 rounded-lg p-4 hover:border-navy-700 hover:shadow-md transition cursor-pointer"
+                   onclick="previewRubric('\${rubric.value}', '\${rubric.text}', '\${rubric.pdf}')">
+                <div class="flex items-center justify-between">
+                  <div class="flex-1">
+                    <h3 class="font-semibold text-gray-900">\${rubric.text}</h3>
+                    <p class="text-sm text-gray-500 mt-1">클릭하여 미리보기</p>
+                  </div>
+                  <i class="fas fa-file-pdf text-red-600 text-2xl ml-3"></i>
+                </div>
+              </div>
+            \`).join('');
+          }
+
+          // Preview rubric PDF
+          let currentRubricSelection = null;
+          
+          function previewRubric(value, text, pdfPath) {
+            currentRubricSelection = { value, text, pdfPath };
+            
+            const modal = document.getElementById('rubricPreviewModal');
+            const titleEl = document.getElementById('rubricPreviewTitle');
+            const containerEl = document.getElementById('rubricPdfContainer');
+            
+            titleEl.textContent = text;
+            containerEl.innerHTML = \`
+              <embed src="\${pdfPath}" type="application/pdf" width="100%" height="700px" 
+                     class="border border-gray-300 rounded-lg" />
+            \`;
+            
+            modal.classList.remove('hidden');
+          }
+          
+          function closeRubricPreview() {
+            const modal = document.getElementById('rubricPreviewModal');
+            modal.classList.add('hidden');
+            currentRubricSelection = null;
+          }
+          
+          function selectCurrentRubric() {
+            if (!currentRubricSelection) return;
+            
+            // Set the hidden input value
+            const hiddenInput = document.getElementById('selectedPlatformRubric');
+            hiddenInput.value = currentRubricSelection.value;
+            
+            // Highlight selected card
+            const cards = document.querySelectorAll('#platformRubricList .rubric-card');
+            cards.forEach(card => {
+              card.classList.remove('border-navy-700', 'bg-navy-50');
+              card.classList.add('border-gray-200');
+            });
+            
+            const selectedCard = Array.from(cards).find(card => 
+              card.getAttribute('onclick').includes(currentRubricSelection.value)
+            );
+            
+            if (selectedCard) {
+              selectedCard.classList.remove('border-gray-200');
+              selectedCard.classList.add('border-navy-700', 'bg-navy-50');
             }
+            
+            // Close modal
+            closeRubricPreview();
+            
+            // Show success message
+            alert(\`"\${currentRubricSelection.text}"이(가) 선택되었습니다.\`);
           }
 
           // Load assignments
@@ -6583,6 +6642,9 @@ app.get('/my-page', (c) => {
           window.printReport = printReport;
           window.exportToPDF = exportToPDF;
           window.regradeSubmission = regradeSubmission;
+          window.previewRubric = previewRubric;
+          window.closeRubricPreview = closeRubricPreview;
+          window.selectCurrentRubric = selectCurrentRubric;
 
           // Platform rubric definitions
           function getPlatformRubricCriteria(type) {
@@ -7096,7 +7158,11 @@ app.get('/my-page', (c) => {
               });
             } else {
               // Platform rubric
-              const platformRubricType = document.getElementById('assignmentPlatformRubric').value;
+              const platformRubricType = document.getElementById('selectedPlatformRubric').value;
+              if (!platformRubricType) {
+                alert('플랫폼 루브릭을 선택해주세요.');
+                return;
+              }
               rubric_criteria = getPlatformRubricCriteria(platformRubricType);
             }
 
