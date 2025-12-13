@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "vite",
     "dev:sandbox": "wrangler pages dev dist --d1=webapp-production --local --ip 0.0.0.0 --port 3000",
-    "build": "vite build && echo '{\"version\":1,\"include\":[\"/*\"],\"exclude\":[\"/static/*\",\"/exam-questions/*\",\"/guide-screenshots/*\",\"/rubric-docs/*\",\"/rubric-files/*\"]}' > dist/_routes.json",
+    "build": "vite build && echo '{\"version\":1,\"include\":[\"/*\"],\"exclude\":[\"/static/*\",\"/rubric-pdfs/*\",\"/exam-questions/*\",\"/guide-screenshots/*\",\"/rubric-docs/*\",\"/rubric-files/*\"]}' > dist/_routes.json",
     "preview": "wrangler pages dev",
     "deploy": "npm run build && wrangler pages deploy",
     "deploy:prod": "npm run build && wrangler pages deploy dist --project-name webapp",

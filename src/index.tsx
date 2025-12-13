@@ -69,6 +69,7 @@ app.use('/api/*', cors())
 
 // Serve static files
 app.use('/static/*', serveStatic({ root: './' }))
+app.use('/rubric-pdfs/*', serveStatic({ root: './' }))
 
 // API Routes
 
@@ -6042,9 +6043,12 @@ app.get('/my-page', (c) => {
             const titleEl = document.getElementById('rubricPreviewTitle');
             const containerEl = document.getElementById('rubricPdfContainer');
             
+            // Encode the PDF path to handle Korean characters
+            const encodedPath = pdfPath.split('/').map(part => encodeURIComponent(part)).join('/');
+            
             titleEl.textContent = text;
             containerEl.innerHTML = \`
-              <embed src="\${pdfPath}" type="application/pdf" width="100%" height="700px" 
+              <embed src="\${encodedPath}" type="application/pdf" width="100%" height="700px" 
                      class="border border-gray-300 rounded-lg" />
             \`;
             
