@@ -394,7 +394,14 @@ function getRubricCriteria() {
     const rubricType = platformSelect.value;
     
     // Define platform rubric criteria
-    if (rubricType === 'kr_elementary') {
+    if (rubricType === 'standard') {
+      return [
+        { criterion_name: '핵심 개념의 이해와 분석', criterion_description: '논제를 정확하게 파악하고 깊이 있게 분석했습니다.', criterion_order: 1, max_score: 4 },
+        { criterion_name: '증거와 사례 활용', criterion_description: '논거가 논리적이고 설득력이 있습니다.', criterion_order: 2, max_score: 4 },
+        { criterion_name: '출처 인용의 정확성', criterion_description: '구체적이고 적절한 사례를 효과적으로 활용했습니다.', criterion_order: 3, max_score: 4 },
+        { criterion_name: '문법 정확성, 구성 및 흐름', criterion_description: '문법, 어휘, 문장 구조가 정확하고 적절합니다.', criterion_order: 4, max_score: 4 }
+      ];
+    } else if (rubricType === 'kr_elementary') {
       return [
         { criterion_name: '핵심 개념의 이해와 분석', criterion_description: '제2차 세계대전의 주요 원인을 정확하게 파악하고 깊이 있게 분석했습니다.', criterion_order: 1 },
         { criterion_name: '증거와 역사적 사례 활용', criterion_description: '논거를 뒷받침하기 위해 구체적이고 적절한 역사적 사례를 사용했습니다.', criterion_order: 2 },
@@ -1062,6 +1069,7 @@ async function loadPlatformRubrics() {
     
     // Add default built-in rubrics
     const builtInOptions = [
+      { value: 'standard', text: '표준 논술 루브릭(4개 기준)' },
       { value: 'kr_elementary', text: '초등학생용 평가 기준' },
       { value: 'kr_middle', text: '중학생용 평가 기준' },
       { value: 'kr_high', text: '고등학생용 평가 기준' },
@@ -1087,6 +1095,7 @@ async function loadPlatformRubrics() {
     const select = document.getElementById('platformRubric');
     if (select) {
       select.innerHTML = `
+        <option value="standard">표준 논술 루브릭(4개 기준)</option>
         <option value="kr_elementary">초등학생용 평가 기준</option>
         <option value="kr_middle">중학생용 평가 기준</option>
         <option value="kr_high">고등학생용 평가 기준</option>

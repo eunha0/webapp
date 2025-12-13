@@ -5986,6 +5986,7 @@ app.get('/my-page', (c) => {
               
               // Add default built-in rubrics
               const builtInOptions = [
+                { value: 'standard', text: '표준 논술 루브릭(4개 기준)' },
                 { value: 'kr_elementary', text: '초등학생용 평가 기준' },
                 { value: 'kr_middle', text: '중학생용 평가 기준' },
                 { value: 'kr_high', text: '고등학생용 평가 기준' },
@@ -6011,6 +6012,7 @@ app.get('/my-page', (c) => {
               const select = document.getElementById('assignmentPlatformRubric');
               if (select) {
                 select.innerHTML = \`
+                  <option value="standard">표준 논술 루브릭(4개 기준)</option>
                   <option value="kr_elementary">초등학생용 평가 기준</option>
                   <option value="kr_middle">중학생용 평가 기준</option>
                   <option value="kr_high">고등학생용 평가 기준</option>
@@ -6585,6 +6587,12 @@ app.get('/my-page', (c) => {
           // Platform rubric definitions
           function getPlatformRubricCriteria(type) {
             const rubrics = {
+              standard: [
+                { name: '핵심 개념의 이해와 분석', description: '논제를 정확하게 파악하고 깊이 있게 분석했습니다.', order: 1, max_score: 4 },
+                { name: '증거와 사례 활용', description: '논거가 논리적이고 설득력이 있습니다.', order: 2, max_score: 4 },
+                { name: '출처 인용의 정확성', description: '구체적이고 적절한 사례를 효과적으로 활용했습니다.', order: 3, max_score: 4 },
+                { name: '문법 정확성, 구성 및 흐름', description: '문법, 어휘, 문장 구조가 정확하고 적절합니다.', order: 4, max_score: 4 }
+              ],
               kr_elementary: [
                 { name: '내용의 풍부성', description: '자기 생각이나 느낌, 경험을 솔직하고 구체적으로 표현했습니다.', order: 1 },
                 { name: '글의 짜임', description: '처음부터 끝까지 자연스럽게 글이 흘러갑니다.', order: 2 },
@@ -6645,7 +6653,7 @@ app.get('/my-page', (c) => {
                 { name: '비판적 사고', description: '4점: 다양한 정보를 철저히 분석하고, 서로 다른 관점과 그 함의를 평가하며, 논리적으로 잘 구성된 증거로 뒷받침된 의견이나 결론을 제시할 수 있습니다.', order: 4, max_score: 4 }
               ]
             };
-            return rubrics[type] || rubrics.kr_elementary;
+            return rubrics[type] || rubrics.standard;
           }
 
           // Rubric type switching for assignment creation
