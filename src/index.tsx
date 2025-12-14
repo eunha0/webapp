@@ -2304,7 +2304,7 @@ app.get('/guide', (c) => {
                                             <li>"선택하기 →" 버튼 클릭 → 루브릭 선택 확인</li>
                                         </ul>
                                         <div class="mt-3 flex justify-center">
-                                            <img src="/guide-screenshots/rubric-selection-platform.png" alt="플랫폼 루브릭 선택" class="w-full rounded-lg shadow-lg border border-gray-300">
+                                            <img src="/guide-screenshots/rubric-selection-platform.png" alt="플랫폼 루브릭 선택" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
                                         </div>
                                     </div>
                                     
@@ -2319,7 +2319,7 @@ app.get('/guide', (c) => {
                                             <li>"평가 기준 추가" 버튼 클릭 (상세 기준이 5개 이상일 경우)</li>
                                         </ul>
                                         <div class="mt-3 flex justify-center">
-                                            <img src="/guide-screenshots/custom-rubric-creation.png" alt="나의 루브릭 작성" class="w-full rounded-lg shadow-lg border border-gray-300">
+                                            <img src="/guide-screenshots/custom-rubric-creation.png" alt="나의 루브릭 작성" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
                                         </div>
                                     </div>
                                 </div>
