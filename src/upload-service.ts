@@ -311,7 +311,9 @@ export async function processOCRSpace(
     // Create a blob from buffer with proper type
     const blob = new Blob([file.buffer], { type: file.type });
     formData.append('file', blob, file.name);
-    formData.append('language', 'kor,eng');
+    // OCR.space language codes: kor=Korean, eng=English
+    // For Engine 2, use 'kor' for Korean
+    formData.append('language', 'kor');
     formData.append('isOverlayRequired', 'false');
     formData.append('detectOrientation', 'true');
     formData.append('scale', 'true');
