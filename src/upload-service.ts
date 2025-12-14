@@ -305,22 +305,26 @@ export async function processOCRSpace(
     // Determine file extension from filename
     const fileExtension = file.name.split('.').pop()?.toLowerCase() || 'pdf';
     
-    // Call OCR.space API
+    // OCR.space API using FormData (better compatibility)
+    const formData = new FormData();
+    
+    // Create a blob from buffer with proper type
+    const blob = new Blob([file.buffer], { type: file.type });
+    formData.append('file', blob, file.name);
+    formData.append('language', 'kor,eng');
+    formData.append('isOverlayRequired', 'false');
+    formData.append('detectOrientation', 'true');
+    formData.append('scale', 'true');
+    formData.append('OCREngine', '2');
+    formData.append('filetype', fileExtension);
+    
+    // Call OCR.space API with FormData
     const response = await fetch('https://api.ocr.space/parse/image', {
       method: 'POST',
       headers: {
         'apikey': apiKey,
-        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        base64Image: `data:${file.type};base64,${base64File}`,
-        filetype: fileExtension, // Explicitly specify file type (pdf, jpg, png, etc.)
-        language: 'kor,eng', // Korean and English
-        isOverlayRequired: false,
-        detectOrientation: true,
-        scale: true,
-        OCREngine: 2, // Engine 2 supports more languages including Korean
-      }),
+      body: formData,
     });
 
     if (!response.ok) {
