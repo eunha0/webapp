@@ -171,6 +171,9 @@ export async function processPDFExtraction(
 /**
  * Process image-based PDF using Google Vision API
  * (For PDFs that are scanned images)
+ * 
+ * Note: Google Vision API's images:annotate endpoint can handle PDF files directly
+ * It processes the first page of the PDF (or can be configured for multi-page)
  */
 export async function processImagePDFOCR(
   file: UploadedFile,
@@ -188,9 +191,10 @@ export async function processImagePDFOCR(
     // Convert ArrayBuffer to base64
     const base64Pdf = arrayBufferToBase64(file.buffer);
 
-    // Call Google Vision API with PDF and Bearer token
+    // Use images:annotate endpoint which supports PDF files
+    // This endpoint can process PDF pages as images
     const response = await fetch(
-      'https://vision.googleapis.com/v1/files:annotate',
+      'https://vision.googleapis.com/v1/images:annotate',
       {
         method: 'POST',
         headers: {
@@ -200,13 +204,13 @@ export async function processImagePDFOCR(
         body: JSON.stringify({
           requests: [
             {
-              inputConfig: {
+              image: {
                 content: base64Pdf,
-                mimeType: 'application/pdf',
               },
               features: [
                 {
                   type: 'DOCUMENT_TEXT_DETECTION',
+                  maxResults: 1,
                 },
               ],
               imageContext: {
@@ -219,36 +223,52 @@ export async function processImagePDFOCR(
     );
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Vision API error: ${JSON.stringify(errorData)}`);
+      const errorText = await response.text();
+      console.error('Vision API error response:', errorText);
+      throw new Error(`Vision API error (${response.status}): ${errorText}`);
     }
 
     const result = await response.json();
-    const responses = result.responses;
+    console.log('Vision API response:', JSON.stringify(result).substring(0, 500));
 
-    if (!responses || responses.length === 0) {
+    if (!result.responses || result.responses.length === 0) {
       return {
         success: false,
-        error: 'No text detected in PDF',
+        error: 'No response from Vision API',
         processingTimeMs: Date.now() - startTime,
       };
     }
 
-    // Combine text from all pages
+    const firstResponse = result.responses[0];
+    
+    // Check for errors in response
+    if (firstResponse.error) {
+      console.error('Vision API returned error:', firstResponse.error);
+      return {
+        success: false,
+        error: `Vision API error: ${JSON.stringify(firstResponse.error)}`,
+        processingTimeMs: Date.now() - startTime,
+      };
+    }
+
+    // Get full text from response
     let fullText = '';
-    for (const response of responses) {
-      if (response.fullTextAnnotation) {
-        fullText += response.fullTextAnnotation.text + '\n\n';
-      }
+    if (firstResponse.fullTextAnnotation) {
+      fullText = firstResponse.fullTextAnnotation.text;
+    } else if (firstResponse.textAnnotations && firstResponse.textAnnotations.length > 0) {
+      // Fallback to first text annotation (contains all text)
+      fullText = firstResponse.textAnnotations[0].description;
     }
 
-    if (!fullText.trim()) {
+    if (!fullText || !fullText.trim()) {
       return {
         success: false,
-        error: 'No text extracted from image-based PDF',
+        error: 'No text extracted from PDF',
         processingTimeMs: Date.now() - startTime,
       };
     }
+
+    console.log(`Successfully extracted ${fullText.length} characters from PDF`);
 
     return {
       success: true,
@@ -256,9 +276,11 @@ export async function processImagePDFOCR(
       processingTimeMs: Date.now() - startTime,
     };
   } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('PDF OCR error:', errorMsg);
     return {
       success: false,
-      error: `Image PDF OCR failed: ${String(error)}`,
+      error: `PDF OCR failed: ${errorMsg}`,
       processingTimeMs: Date.now() - startTime,
     };
   }
