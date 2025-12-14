@@ -302,6 +302,9 @@ export async function processOCRSpace(
     // Convert ArrayBuffer to base64
     const base64File = arrayBufferToBase64(file.buffer);
 
+    // Determine file extension from filename
+    const fileExtension = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+    
     // Call OCR.space API
     const response = await fetch('https://api.ocr.space/parse/image', {
       method: 'POST',
@@ -311,6 +314,7 @@ export async function processOCRSpace(
       },
       body: JSON.stringify({
         base64Image: `data:${file.type};base64,${base64File}`,
+        filetype: fileExtension, // Explicitly specify file type (pdf, jpg, png, etc.)
         language: 'kor,eng', // Korean and English
         isOverlayRequired: false,
         detectOrientation: true,
