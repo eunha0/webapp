@@ -6388,23 +6388,38 @@ app.get('/my-page', (c) => {
                                 id="submissionEssayFile" 
                                 accept="image/*,.pdf"
                                 class="hidden"
+                                multiple
                                 onchange="handleSubmissionFileSelect(event)"
                               />
                               <label for="submissionEssayFile" class="cursor-pointer">
                                 <div class="mb-3">
                                   <i class="fas fa-cloud-upload-alt text-5xl text-navy-700"></i>
                                 </div>
-                                <p class="text-base font-semibold text-gray-700 mb-2">파일을 선택하거나 드래그하세요</p>
+                                <p class="text-base font-semibold text-gray-700 mb-2">파일을 선택하거나 드래그하세요 (여러 파일 선택 가능)</p>
                                 <p class="text-sm text-gray-500 mb-3">
-                                  지원 형식: 이미지 (JPG, PNG), PDF (최대 10MB)
+                                  지원 형식: 이미지 (JPG, PNG), PDF (최대 10MB/파일)<br>
+                                  <span class="text-navy-700 font-medium">파일명 형식: 학생이름.pdf 또는 학생이름_답안.pdf</span>
                                 </p>
                                 <span class="inline-block bg-navy-900 text-white px-6 py-2 rounded-lg font-semibold hover:bg-navy-800 transition">
-                                  <i class="fas fa-folder-open mr-2"></i>파일 찾기
+                                  <i class="fas fa-folder-open mr-2"></i>파일 찾기 (여러 개 선택 가능)
                                 </span>
                               </label>
                             </div>
                             
-                            <!-- File Preview -->
+                            <!-- Multiple Files List -->
+                            <div id="multipleFilesContainer" class="hidden mt-4">
+                              <div class="flex justify-between items-center mb-3">
+                                <h4 class="font-semibold text-gray-900">선택된 파일 (<span id="fileCount">0</span>개)</h4>
+                                <button type="button" onclick="clearAllFiles()" class="text-sm text-red-600 hover:text-red-800">
+                                  <i class="fas fa-trash mr-1"></i>전체 삭제
+                                </button>
+                              </div>
+                              <div id="filesList" class="space-y-2 max-h-96 overflow-y-auto">
+                                <!-- File items will be added here -->
+                              </div>
+                            </div>
+                            
+                            <!-- File Preview (Legacy - for single file mode) -->
                             <div id="submissionFilePreview" class="hidden mt-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
                               <div class="flex items-center justify-between">
                                 <div class="flex items-center">
@@ -6670,6 +6685,9 @@ app.get('/my-page', (c) => {
           window.previewRubric = previewRubric;
           window.closeRubricPreview = closeRubricPreview;
           window.selectCurrentRubric = selectCurrentRubric;
+          window.updateStudentName = updateStudentName;
+          window.removeFile = removeFile;
+          window.clearAllFiles = clearAllFiles;
 
           // Platform rubric definitions
           function getPlatformRubricCriteria(type) {
@@ -7326,62 +7344,142 @@ app.get('/my-page', (c) => {
           }
 
           // Handle file selection in submission form
+          // Store multiple selected files with student names
+          let selectedSubmissionFiles = [];
+          
+          // Extract student name from filename
+          function extractStudentNameFromFilename(filename) {
+            // Remove extension
+            const nameWithoutExt = filename.replace(/\.(pdf|jpg|jpeg|png|gif|bmp|webp)$/i, '');
+            
+            // Remove common suffixes like "_답안", "_논술", "_과제" etc.
+            const cleaned = nameWithoutExt.replace(/[_\-\s]*(답안|논술|과제|제출|submission)$/i, '').trim();
+            
+            return cleaned || '학생';
+          }
+          
           async function handleSubmissionFileSelect(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+            const files = Array.from(event.target.files);
+            if (!files || files.length === 0) return;
             
-            // Validate file size (10MB)
-            if (file.size > 10 * 1024 * 1024) {
-              alert('파일 크기는 10MB 이하로 제한됩니다.');
-              event.target.value = '';
-              return;
-            }
-            
-            // Validate file type
             const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp', 'image/webp', 'application/pdf'];
-            if (!validTypes.includes(file.type)) {
-              alert('지원하지 않는 파일 형식입니다. 이미지 또는 PDF 파일을 선택해주세요.');
-              event.target.value = '';
-              return;
-            }
+            selectedSubmissionFiles = [];
             
-            // Compress image if it's too large for OCR
-            let processedFile = file;
-            if (file.type.startsWith('image/') && file.size > 900 * 1024) {
-              try {
-                console.log(\`Original file size: \${formatFileSize(file.size)}\`);
-                processedFile = await compressImage(file);
-                console.log(\`Compressed file size: \${formatFileSize(processedFile.size)}\`);
-              } catch (error) {
-                console.error('Failed to compress image:', error);
-                // Continue with original file if compression fails
+            // Validate and process each file
+            for (const file of files) {
+              // Validate file size (10MB)
+              if (file.size > 10 * 1024 * 1024) {
+                alert(\`파일 "\${file.name}"의 크기가 10MB를 초과합니다. 건너뜁니다.\`);
+                continue;
               }
+              
+              // Validate file type
+              if (!validTypes.includes(file.type)) {
+                alert(\`파일 "\${file.name}"은(는) 지원하지 않는 형식입니다. 건너뜁니다.\`);
+                continue;
+              }
+              
+              // Compress image if it's too large for OCR
+              let processedFile = file;
+              if (file.type.startsWith('image/') && file.size > 900 * 1024) {
+                try {
+                  console.log(\`Compressing \${file.name}: \${formatFileSize(file.size)}\`);
+                  processedFile = await compressImage(file);
+                  console.log(\`Compressed to: \${formatFileSize(processedFile.size)}\`);
+                } catch (error) {
+                  console.error('Failed to compress image:', error);
+                  // Continue with original file if compression fails
+                }
+              }
+              
+              // Extract student name from filename
+              const studentName = extractStudentNameFromFilename(file.name);
+              
+              selectedSubmissionFiles.push({
+                file: processedFile,
+                originalName: file.name,
+                studentName: studentName,
+                size: processedFile.size,
+                type: file.type
+              });
             }
             
-            selectedSubmissionFile = processedFile;
-            
-            // Show file preview
-            const filePreview = document.getElementById('submissionFilePreview');
-            const fileName = document.getElementById('submissionFileName');
-            const fileSize = document.getElementById('submissionFileSize');
-            const imagePreview = document.getElementById('submissionImagePreview');
-            const previewImg = document.getElementById('submissionPreviewImg');
-            
-            fileName.textContent = file.name;
-            fileSize.textContent = formatFileSize(processedFile.size);
-            filePreview.classList.remove('hidden');
-            
-            // If image, show preview
-            if (file.type.startsWith('image/')) {
-              const reader = new FileReader();
-              reader.onload = function(e) {
-                previewImg.src = e.target.result;
-                imagePreview.classList.remove('hidden');
-              };
-              reader.readAsDataURL(processedFile);
+            // Show multiple files UI
+            if (selectedSubmissionFiles.length > 0) {
+              displayMultipleFiles();
+              document.getElementById('multipleFilesContainer').classList.remove('hidden');
+              document.getElementById('submissionFilePreview').classList.add('hidden');
             } else {
-              imagePreview.classList.add('hidden');
+              alert('선택한 파일 중 유효한 파일이 없습니다.');
+              event.target.value = '';
             }
+          }
+          
+          // Display multiple files list
+          function displayMultipleFiles() {
+            const filesList = document.getElementById('filesList');
+            const fileCount = document.getElementById('fileCount');
+            
+            fileCount.textContent = selectedSubmissionFiles.length;
+            filesList.innerHTML = '';
+            
+            selectedSubmissionFiles.forEach((fileInfo, index) => {
+              const fileItem = document.createElement('div');
+              fileItem.className = 'bg-white border border-gray-200 rounded-lg p-3 flex items-center gap-3';
+              fileItem.innerHTML = \`
+                <div class="flex-shrink-0">
+                  <i class="fas \${fileInfo.type === 'application/pdf' ? 'fa-file-pdf text-red-600' : 'fa-image text-blue-600'} text-2xl"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="text-sm font-medium text-gray-900 truncate">\${fileInfo.originalName}</span>
+                    <span class="text-xs text-gray-500">(\${formatFileSize(fileInfo.size)})</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <label class="text-xs text-gray-600">학생 이름:</label>
+                    <input 
+                      type="text" 
+                      value="\${fileInfo.studentName}"
+                      onchange="updateStudentName(\${index}, this.value)"
+                      class="text-sm px-2 py-1 border border-gray-300 rounded flex-1"
+                      placeholder="학생 이름 입력"
+                    />
+                  </div>
+                </div>
+                <button 
+                  type="button"
+                  onclick="removeFile(\${index})"
+                  class="flex-shrink-0 text-red-600 hover:text-red-800 px-2"
+                >
+                  <i class="fas fa-times"></i>
+                </button>
+              \`;
+              filesList.appendChild(fileItem);
+            });
+          }
+          
+          // Update student name for a file
+          function updateStudentName(index, newName) {
+            if (selectedSubmissionFiles[index]) {
+              selectedSubmissionFiles[index].studentName = newName.trim();
+            }
+          }
+          
+          // Remove a file from the list
+          function removeFile(index) {
+            selectedSubmissionFiles.splice(index, 1);
+            if (selectedSubmissionFiles.length > 0) {
+              displayMultipleFiles();
+            } else {
+              clearAllFiles();
+            }
+          }
+          
+          // Clear all selected files
+          function clearAllFiles() {
+            selectedSubmissionFiles = [];
+            document.getElementById('submissionEssayFile').value = '';
+            document.getElementById('multipleFilesContainer').classList.add('hidden');
           }
 
           // Clear selected file in submission form
@@ -7440,38 +7538,48 @@ app.get('/my-page', (c) => {
             const student_name = document.getElementById('studentName').value;
             const isFileInput = !document.getElementById('submissionFileInputContainer').classList.contains('hidden');
             
-            let essay_text = '';
-            
             try {
               if (isFileInput) {
-                // File input mode
-                if (!selectedSubmissionFile) {
+                // Check if multiple files or single file mode
+                if (selectedSubmissionFiles.length > 0) {
+                  // Multiple files mode - batch upload
+                  await handleBatchSubmissionUpload(event);
+                } else if (selectedSubmissionFile) {
+                  // Legacy single file mode (fallback)
+                  await handleSingleSubmissionUpload(event, student_name);
+                } else {
                   alert('파일을 선택해주세요.');
                   return;
                 }
-                
-                // Show loading state
-                const submitButton = event.target.querySelector('button[type="submit"]');
-                const originalButtonText = submitButton.innerHTML;
+              } else {
+                // Text input mode
+                await handleSingleSubmissionUpload(event, student_name);
+              }
+            } catch (error) {
+              console.error('Error adding submission:', error);
+              alert('답안지 추가에 실패했습니다.');
+            }
+          }
+          
+          // Handle single submission upload (text or single file)
+          async function handleSingleSubmissionUpload(event, student_name) {
+            const isFileInput = !document.getElementById('submissionFileInputContainer').classList.contains('hidden');
+            let essay_text = '';
+            
+            const submitButton = event.target.querySelector('button[type="submit"]');
+            const originalButtonText = submitButton.innerHTML;
+            
+            try {
+              if (isFileInput && selectedSubmissionFile) {
                 submitButton.disabled = true;
                 submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>파일 처리 중...';
                 
-                try {
-                  // Upload file and extract text
-                  essay_text = await uploadSubmissionFileAndExtractText(selectedSubmissionFile);
-                  
-                  if (!essay_text || essay_text.trim() === '') {
-                    throw new Error('파일에서 텍스트를 추출할 수 없습니다.');
-                  }
-                } catch (uploadError) {
-                  submitButton.disabled = false;
-                  submitButton.innerHTML = originalButtonText;
-                  alert('파일 처리 중 오류가 발생했습니다: ' + uploadError.message);
-                  return;
-                }
+                // Upload file and extract text
+                essay_text = await uploadSubmissionFileAndExtractText(selectedSubmissionFile);
                 
-                submitButton.innerHTML = originalButtonText;
-                submitButton.disabled = false;
+                if (!essay_text || essay_text.trim() === '') {
+                  throw new Error('파일에서 텍스트를 추출할 수 없습니다.');
+                }
               } else {
                 // Text input mode
                 essay_text = document.getElementById('studentEssay').value;
@@ -7485,11 +7593,149 @@ app.get('/my-page', (c) => {
 
               alert('답안지가 추가되었습니다!');
               hideAddSubmissionForm();
-              viewAssignment(currentAssignmentId); // Reload
-            } catch (error) {
-              console.error('Error adding submission:', error);
-              alert('답안지 추가에 실패했습니다.');
+              viewAssignment(currentAssignmentId);
+            } catch (uploadError) {
+              throw uploadError;
+            } finally {
+              if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalButtonText;
+              }
             }
+          }
+          
+          // Handle batch submission upload (multiple files)
+          async function handleBatchSubmissionUpload(event) {
+            // Validate that all files have student names
+            const filesWithoutNames = selectedSubmissionFiles.filter(f => !f.studentName || f.studentName.trim() === '');
+            if (filesWithoutNames.length > 0) {
+              alert('모든 파일에 학생 이름을 입력해주세요.');
+              return;
+            }
+            
+            const submitButton = event.target.querySelector('button[type="submit"]');
+            const originalButtonText = submitButton.innerHTML;
+            submitButton.disabled = true;
+            
+            const totalFiles = selectedSubmissionFiles.length;
+            let successCount = 0;
+            let failCount = 0;
+            const errors = [];
+            
+            // Create progress modal
+            showBatchUploadProgress(totalFiles);
+            
+            try {
+              for (let i = 0; i < selectedSubmissionFiles.length; i++) {
+                const fileInfo = selectedSubmissionFiles[i];
+                
+                // Update progress
+                updateBatchUploadProgress(i + 1, totalFiles, fileInfo.studentName, fileInfo.originalName);
+                
+                try {
+                  // Upload file and extract text
+                  const essay_text = await uploadSubmissionFileAndExtractText(fileInfo.file);
+                  
+                  if (!essay_text || essay_text.trim() === '') {
+                    throw new Error('텍스트 추출 실패');
+                  }
+                  
+                  // Submit the essay
+                  await axios.post(\`/api/assignment/\${currentAssignmentId}/submission\`, {
+                    student_name: fileInfo.studentName,
+                    essay_text
+                  });
+                  
+                  successCount++;
+                } catch (fileError) {
+                  console.error(\`Error processing \${fileInfo.originalName}:\`, fileError);
+                  failCount++;
+                  errors.push({
+                    fileName: fileInfo.originalName,
+                    studentName: fileInfo.studentName,
+                    error: fileError.message
+                  });
+                }
+              }
+              
+              // Show results
+              showBatchUploadResults(successCount, failCount, errors);
+              
+              // Clean up and reload
+              hideAddSubmissionForm();
+              clearAllFiles();
+              viewAssignment(currentAssignmentId);
+              
+            } catch (error) {
+              console.error('Batch upload error:', error);
+              alert('일괄 업로드 중 오류가 발생했습니다.');
+            } finally {
+              submitButton.disabled = false;
+              submitButton.innerHTML = originalButtonText;
+              closeBatchUploadProgress();
+            }
+          }
+          
+          // Show batch upload progress modal
+          function showBatchUploadProgress(totalFiles) {
+            const modal = document.createElement('div');
+            modal.id = 'batchUploadProgressModal';
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = \`
+              <div class="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+                <h3 class="text-xl font-bold text-gray-900 mb-4">
+                  <i class="fas fa-upload mr-2 text-navy-700"></i>답안지 일괄 업로드 중
+                </h3>
+                <div class="mb-4">
+                  <div class="flex justify-between text-sm text-gray-600 mb-2">
+                    <span>진행률</span>
+                    <span id="batchProgress">0 / \${totalFiles}</span>
+                  </div>
+                  <div class="w-full bg-gray-200 rounded-full h-3">
+                    <div id="batchProgressBar" class="bg-navy-700 h-3 rounded-full transition-all" style="width: 0%"></div>
+                  </div>
+                </div>
+                <div class="text-sm text-gray-700">
+                  <p><strong>현재 처리 중:</strong></p>
+                  <p id="currentStudent" class="text-navy-700 font-medium">-</p>
+                  <p id="currentFile" class="text-gray-500 text-xs truncate mt-1">-</p>
+                </div>
+              </div>
+            \`;
+            document.body.appendChild(modal);
+          }
+          
+          // Update batch upload progress
+          function updateBatchUploadProgress(current, total, studentName, fileName) {
+            const progressText = document.getElementById('batchProgress');
+            const progressBar = document.getElementById('batchProgressBar');
+            const currentStudent = document.getElementById('currentStudent');
+            const currentFile = document.getElementById('currentFile');
+            
+            if (progressText) progressText.textContent = \`\${current} / \${total}\`;
+            if (progressBar) progressBar.style.width = \`\${(current / total) * 100}%\`;
+            if (currentStudent) currentStudent.textContent = studentName;
+            if (currentFile) currentFile.textContent = fileName;
+          }
+          
+          // Close batch upload progress modal
+          function closeBatchUploadProgress() {
+            const modal = document.getElementById('batchUploadProgressModal');
+            if (modal) modal.remove();
+          }
+          
+          // Show batch upload results
+          function showBatchUploadResults(successCount, failCount, errors) {
+            let message = \`업로드 완료!\n\n성공: \${successCount}개\`;
+            
+            if (failCount > 0) {
+              message += \`\n실패: \${failCount}개\n\n실패한 파일:\n\`;
+              errors.forEach(err => {
+                message += \`- \${err.studentName} (\${err.fileName}): \${err.error}\n\`;
+              });
+            }
+            
+            alert(message);
           }
 
           // Grade submission
