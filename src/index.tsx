@@ -2292,14 +2292,35 @@ app.get('/guide', (c) => {
                             <div class="flex items-start">
                                 <span class="step-number">4</span>
                                 <div class="flex-1">
-                                    <p class="text-gray-700 font-medium mb-2">루브릭 기준 설정</p>
-                                    <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
-                                        <li>기본 4개 기준 자동 추가</li>
-                                        <li>"평가 기준 추가" 버튼으로 추가 가능</li>
-                                        <li>각 기준마다 이름과 설명 입력</li>
-                                    </ul>
-                                    <div class="mt-3 flex justify-center">
-                                        <img src="/guide-screenshots/step6-rubric-criteria.png" alt="루브릭 평가 기준 설정" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
+                                    <p class="text-gray-700 font-medium mb-3">루브릭 기준 설정</p>
+                                    
+                                    <!-- Option A: Platform Rubric -->
+                                    <div class="mb-4 bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                        <p class="text-gray-800 font-semibold mb-2">a. 플랫폼 루브릭 중 선택</p>
+                                        <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4 text-sm">
+                                            <li>플랫폼 루브릭 탭 선택 (기본값)</li>
+                                            <li>루브릭 카드 클릭 → PDF 미리보기 모달 확인</li>
+                                            <li>PDF 내용 확인 (스크롤 가능)</li>
+                                            <li>"선택하기 →" 버튼 클릭 → 루브릭 선택 확인</li>
+                                        </ul>
+                                        <div class="mt-3 flex justify-center">
+                                            <img src="/guide-screenshots/rubric-selection-platform.png" alt="플랫폼 루브릭 선택" class="w-full rounded-lg shadow-lg border border-gray-300">
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Option B: Custom Rubric -->
+                                    <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+                                        <p class="text-gray-800 font-semibold mb-2">b. 나의 루브릭 작성</p>
+                                        <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4 text-sm">
+                                            <li>"기준 1"의 이름과 설명, 최대 점수 입력</li>
+                                            <li>"기준 2"의 이름과 설명, 최대 점수 입력</li>
+                                            <li>"기준 3"의 이름과 설명, 최대 점수 입력</li>
+                                            <li>"기준 4"의 이름과 설명, 최대 점수 입력</li>
+                                            <li>"평가 기준 추가" 버튼 클릭 (상세 기준이 5개 이상일 경우)</li>
+                                        </ul>
+                                        <div class="mt-3 flex justify-center">
+                                            <img src="/guide-screenshots/step6-rubric-criteria.png" alt="나의 루브릭 작성" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
+                                        </div>
                                     </div>
                                 </div>
                             </div>
