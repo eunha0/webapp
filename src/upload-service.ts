@@ -4,10 +4,14 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import { getAccessToken, loadServiceAccountCredentials } from './google-auth-service';
 
-// Set up PDF.js worker for Cloudflare Workers environment
-// Use CDN-hosted worker to avoid bundling issues
-if (typeof globalThis !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+// Disable PDF.js Worker for Cloudflare Workers environment
+// Cloudflare Workers doesn't support Web Workers or 'document' object
+// Use direct processing without Worker to avoid "document is not defined" error
+if (typeof globalThis !== 'undefined') {
+  // Disable worker by setting to false string
+  // This forces PDF.js to use the main thread for processing
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+  pdfjsLib.GlobalWorkerOptions.workerPort = null as any;
 }
 
 interface UploadedFile {
@@ -115,16 +119,13 @@ export async function processPDFExtraction(
   const startTime = Date.now();
 
   try {
-    // Verify Worker is configured
-    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-      console.error('PDF.js Worker not configured');
-      throw new Error('PDF.js Worker not configured');
-    }
-
-    // Load PDF document
+    // Load PDF document without Worker (Cloudflare Workers compatible)
     const loadingTask = pdfjsLib.getDocument({
       data: new Uint8Array(file.buffer),
       verbosity: 0, // Suppress warnings in production
+      useWorkerFetch: false, // Disable worker fetch for Cloudflare Workers
+      isEvalSupported: false, // Disable eval for security
+      useSystemFonts: false, // Don't rely on system fonts
     });
 
     const pdf = await loadingTask.promise;

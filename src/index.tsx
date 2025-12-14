@@ -519,49 +519,20 @@ app.post('/api/upload/pdf', async (c) => {
     // Log upload step
     await logProcessingStep(db, uploadedFileId, 'upload', 'completed', 'R2 업로드 및 메타데이터 저장 완료', null)
     
-    // Try PDF text extraction first
+    // For PDF files, use Google Vision API OCR directly
+    // PDF.js doesn't work in Cloudflare Workers environment (no 'document' object)
     try {
-      const textResult = await processPDFExtraction({ name: file.name, buffer: fileBuffer, type: file.type, size: file.size })
-      
-      if (textResult.success && textResult.extractedText && textResult.extractedText.trim().length > 100) {
-        // Text extraction successful
-        await db.prepare(
-          `UPDATE uploaded_files 
-           SET extracted_text = ?, processing_status = ?, processed_at = CURRENT_TIMESTAMP
-           WHERE id = ?`
-        ).bind(textResult.extractedText, 'completed', uploadedFileId).run()
-        
-        await logProcessingStep(
-          db,
-          uploadedFileId,
-          'pdf_text_extraction',
-          'completed',
-          `추출된 텍스트: ${textResult.extractedText.length} characters`,
-          textResult.processingTimeMs || null
-        )
-        
-        return c.json({
-          success: true,
-          file_id: uploadedFileId,
-          file_name: file.name,
-          extracted_text: textResult.extractedText,
-          method: 'text_extraction',
-          processing_time_ms: textResult.processingTimeMs
-        })
-      }
-      
-      // Text extraction failed or insufficient text, try OCR
       if (!credentialsJson) {
-        throw new Error('PDF has no extractable text and Google Service Account credentials not configured')
+        throw new Error('Google Service Account credentials not configured for PDF OCR')
       }
       
       await logProcessingStep(
         db,
         uploadedFileId,
-        'pdf_text_extraction',
-        'insufficient',
-        '텍스트 추출 부족, OCR 시도 중...',
-        textResult.processingTimeMs || null
+        'pdf_processing',
+        'started',
+        'PDF OCR 처리 시작...',
+        null
       )
       
       const ocrResult = await processImagePDFOCR(
