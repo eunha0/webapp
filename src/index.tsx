@@ -19,6 +19,7 @@ import {
   processImageOCR,
   processPDFExtraction,
   processImagePDFOCR,
+  processOCRSpace,
   logProcessingStep,
   uploadToR2,
   deleteFromR2
@@ -519,11 +520,13 @@ app.post('/api/upload/pdf', async (c) => {
     // Log upload step
     await logProcessingStep(db, uploadedFileId, 'upload', 'completed', 'R2 업로드 및 메타데이터 저장 완료', null)
     
-    // For PDF files, use Google Vision API OCR directly
-    // PDF.js doesn't work in Cloudflare Workers environment (no 'document' object)
+    // For PDF files, use OCR.space API
+    // OCR.space natively supports PDF files and works well in Cloudflare Workers
     try {
-      if (!credentialsJson) {
-        throw new Error('Google Service Account credentials not configured for PDF OCR')
+      const ocrSpaceApiKey = c.env.OCR_SPACE_API_KEY
+      
+      if (!ocrSpaceApiKey) {
+        throw new Error('OCR.space API key not configured')
       }
       
       await logProcessingStep(
@@ -531,13 +534,13 @@ app.post('/api/upload/pdf', async (c) => {
         uploadedFileId,
         'pdf_processing',
         'started',
-        'PDF OCR 처리 시작...',
+        'PDF OCR 처리 시작 (OCR.space)...',
         null
       )
       
-      const ocrResult = await processImagePDFOCR(
+      const ocrResult = await processOCRSpace(
         { name: file.name, buffer: fileBuffer, type: file.type, size: file.size },
-        credentialsJson
+        ocrSpaceApiKey
       )
       
       if (ocrResult.success && ocrResult.extractedText) {

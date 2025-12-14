@@ -1,5 +1,5 @@
 // File Upload Service
-// Handles image OCR (Google Vision) and PDF text extraction (PDF.js)
+// Handles image OCR (Google Vision and OCR.space) and PDF text extraction
 
 import * as pdfjsLib from 'pdfjs-dist';
 import { getAccessToken, loadServiceAccountCredentials } from './google-auth-service';
@@ -281,6 +281,95 @@ export async function processImagePDFOCR(
     return {
       success: false,
       error: `PDF OCR failed: ${errorMsg}`,
+      processingTimeMs: Date.now() - startTime,
+    };
+  }
+}
+
+/**
+ * Process PDF using OCR.space API
+ * OCR.space supports PDF files natively and is simpler than Google Vision
+ */
+export async function processOCRSpace(
+  file: UploadedFile,
+  apiKey: string
+): Promise<ProcessingResult> {
+  const startTime = Date.now();
+
+  try {
+    console.log(`Processing file with OCR.space: ${file.name} (${file.size} bytes)`);
+
+    // Convert ArrayBuffer to base64
+    const base64File = arrayBufferToBase64(file.buffer);
+
+    // Call OCR.space API
+    const response = await fetch('https://api.ocr.space/parse/image', {
+      method: 'POST',
+      headers: {
+        'apikey': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        base64Image: `data:${file.type};base64,${base64File}`,
+        language: 'kor,eng', // Korean and English
+        isOverlayRequired: false,
+        detectOrientation: true,
+        scale: true,
+        OCREngine: 2, // Engine 2 supports more languages including Korean
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OCR.space API error response:', errorText);
+      throw new Error(`OCR.space API error (${response.status}): ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log('OCR.space response:', JSON.stringify(result).substring(0, 500));
+
+    // Check for API errors
+    if (result.IsErroredOnProcessing) {
+      const errorMsg = result.ErrorMessage?.[0] || 'Unknown OCR.space error';
+      console.error('OCR.space processing error:', errorMsg);
+      return {
+        success: false,
+        error: `OCR.space error: ${errorMsg}`,
+        processingTimeMs: Date.now() - startTime,
+      };
+    }
+
+    // Extract text from all pages
+    let fullText = '';
+    if (result.ParsedResults && result.ParsedResults.length > 0) {
+      for (const page of result.ParsedResults) {
+        if (page.ParsedText) {
+          fullText += page.ParsedText + '\n\n';
+        }
+      }
+    }
+
+    if (!fullText || !fullText.trim()) {
+      return {
+        success: false,
+        error: 'No text extracted from file',
+        processingTimeMs: Date.now() - startTime,
+      };
+    }
+
+    console.log(`Successfully extracted ${fullText.length} characters with OCR.space`);
+
+    return {
+      success: true,
+      extractedText: fullText.trim(),
+      processingTimeMs: Date.now() - startTime,
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('OCR.space error:', errorMsg);
+    return {
+      success: false,
+      error: `OCR.space failed: ${errorMsg}`,
       processingTimeMs: Date.now() - startTime,
     };
   }
