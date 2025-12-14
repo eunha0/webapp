@@ -6350,7 +6350,9 @@ app.get('/my-page', (c) => {
                       <h4 class="font-semibold text-gray-900 mb-4">새 답안지 추가</h4>
                       <form onsubmit="handleAddSubmission(event)">
                         <div class="space-y-3">
-                          <input type="text" id="studentName" placeholder="학생 이름" class="w-full px-4 py-2 border border-gray-300 rounded-lg" required>
+                          <div id="studentNameContainer">
+                            <input type="text" id="studentName" placeholder="학생 이름" class="w-full px-4 py-2 border border-gray-300 rounded-lg" required>
+                          </div>
                           
                           <!-- Essay Input Type Tabs -->
                           <div>
@@ -7253,6 +7255,7 @@ app.get('/my-page', (c) => {
             document.getElementById('studentName').value = '';
             document.getElementById('studentEssay').value = '';
             clearSubmissionFile();
+            clearAllFiles();
             switchSubmissionInputType('text');
           }
 
@@ -7266,6 +7269,8 @@ app.get('/my-page', (c) => {
             const textInputContainer = document.getElementById('submissionTextInputContainer');
             const fileInputContainer = document.getElementById('submissionFileInputContainer');
             const essayTextarea = document.getElementById('studentEssay');
+            const studentNameContainer = document.getElementById('studentNameContainer');
+            const studentNameInput = document.getElementById('studentName');
             
             if (type === 'text') {
               textInputBtn.classList.add('active', 'bg-navy-900', 'text-white', 'border-navy-900');
@@ -7273,12 +7278,23 @@ app.get('/my-page', (c) => {
               textInputContainer.classList.remove('hidden');
               fileInputContainer.classList.add('hidden');
               essayTextarea.required = true;
+              
+              // Show student name field for text input
+              if (studentNameContainer) studentNameContainer.classList.remove('hidden');
+              if (studentNameInput) studentNameInput.setAttribute('required', 'required');
+              
+              // Clear multiple files if any
+              clearAllFiles();
             } else {
               fileInputBtn.classList.add('active', 'bg-navy-900', 'text-white', 'border-navy-900');
               textInputBtn.classList.remove('active', 'bg-navy-900', 'text-white', 'border-navy-900');
               fileInputContainer.classList.remove('hidden');
               textInputContainer.classList.add('hidden');
               essayTextarea.required = false;
+              
+              // Show student name field initially (will be hidden if multiple files selected)
+              if (studentNameContainer) studentNameContainer.classList.remove('hidden');
+              if (studentNameInput) studentNameInput.setAttribute('required', 'required');
             }
           }
 
@@ -7409,6 +7425,12 @@ app.get('/my-page', (c) => {
               displayMultipleFiles();
               document.getElementById('multipleFilesContainer').classList.remove('hidden');
               document.getElementById('submissionFilePreview').classList.add('hidden');
+              
+              // Hide student name field for multiple files (names are in the file list)
+              const studentNameContainer = document.getElementById('studentNameContainer');
+              const studentNameInput = document.getElementById('studentName');
+              if (studentNameContainer) studentNameContainer.classList.add('hidden');
+              if (studentNameInput) studentNameInput.removeAttribute('required');
             } else {
               alert('선택한 파일 중 유효한 파일이 없습니다.');
               event.target.value = '';
@@ -7480,6 +7502,12 @@ app.get('/my-page', (c) => {
             selectedSubmissionFiles = [];
             document.getElementById('submissionEssayFile').value = '';
             document.getElementById('multipleFilesContainer').classList.add('hidden');
+            
+            // Show student name field again
+            const studentNameContainer = document.getElementById('studentNameContainer');
+            const studentNameInput = document.getElementById('studentName');
+            if (studentNameContainer) studentNameContainer.classList.remove('hidden');
+            if (studentNameInput) studentNameInput.setAttribute('required', 'required');
           }
 
           // Clear selected file in submission form
