@@ -4,6 +4,12 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import { getAccessToken, loadServiceAccountCredentials } from './google-auth-service';
 
+// Set up PDF.js worker for Cloudflare Workers environment
+// Use CDN-hosted worker to avoid bundling issues
+if (typeof globalThis !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+}
+
 interface UploadedFile {
   name: string;
   type: string;
@@ -109,9 +115,16 @@ export async function processPDFExtraction(
   const startTime = Date.now();
 
   try {
+    // Verify Worker is configured
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      console.error('PDF.js Worker not configured');
+      throw new Error('PDF.js Worker not configured');
+    }
+
     // Load PDF document
     const loadingTask = pdfjsLib.getDocument({
       data: new Uint8Array(file.buffer),
+      verbosity: 0, // Suppress warnings in production
     });
 
     const pdf = await loadingTask.promise;
@@ -144,9 +157,11 @@ export async function processPDFExtraction(
       processingTimeMs: Date.now() - startTime,
     };
   } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('PDF extraction error:', errorMsg);
     return {
       success: false,
-      error: `PDF processing failed: ${String(error)}`,
+      error: `PDF processing failed: ${errorMsg}`,
       processingTimeMs: Date.now() - startTime,
     };
   }
