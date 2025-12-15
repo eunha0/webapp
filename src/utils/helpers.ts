@@ -38,24 +38,57 @@ export function generateUUID(): string {
 }
 
 /**
- * Hash password (simple implementation - use bcrypt in production)
+ * Hash password using bcryptjs (PRODUCTION-READY)
+ * Uses 12 rounds (recommended by OWASP)
  */
 export async function hashPassword(password: string): Promise<string> {
-  // For Cloudflare Workers, use Web Crypto API
-  const encoder = new TextEncoder()
-  const data = encoder.encode(password)
-  const hash = await crypto.subtle.digest('SHA-256', data)
-  return Array.from(new Uint8Array(hash))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
+  const bcrypt = await import('bcryptjs')
+  return await bcrypt.hash(password, 12)
 }
 
 /**
- * Verify password hash
+ * Verify password hash using bcryptjs
  */
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const passwordHash = await hashPassword(password)
-  return passwordHash === hash
+  const bcrypt = await import('bcryptjs')
+  return await bcrypt.compare(password, hash)
+}
+
+/**
+ * Validate password strength (OWASP compliant)
+ */
+export function validatePassword(password: string): { valid: boolean; errors: string[] } {
+  const errors: string[] = []
+  
+  if (!password || password.length < 8) {
+    errors.push('비밀번호는 최소 8자 이상이어야 합니다')
+  }
+  if (password.length > 128) {
+    errors.push('비밀번호는 최대 128자까지 가능합니다')
+  }
+  if (!/[A-Z]/.test(password)) {
+    errors.push('대문자를 1개 이상 포함해야 합니다')
+  }
+  if (!/[a-z]/.test(password)) {
+    errors.push('소문자를 1개 이상 포함해야 합니다')
+  }
+  if (!/[0-9]/.test(password)) {
+    errors.push('숫자를 1개 이상 포함해야 합니다')
+  }
+  if (!/[!@#$%^&*()_+\-=\[\]{};:'",.<>?]/.test(password)) {
+    errors.push('특수문자를 1개 이상 포함해야 합니다')
+  }
+  
+  // Check for common weak passwords
+  const commonPasswords = ['password', 'password123', '12345678', 'qwerty', 'abc123']
+  if (commonPasswords.includes(password.toLowerCase())) {
+    errors.push('흔한 비밀번호는 사용할 수 없습니다')
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors
+  }
 }
 
 /**
