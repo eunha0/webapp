@@ -20,7 +20,7 @@
     "hono": "^4.10.4",
     "mime-types": "^3.0.1",
     "openai": "^6.10.0",
-    "pdfjs-dist": "^3.11.174"
+    "pdfjs-dist": "^4.10.38"
   },
   "devDependencies": {
     "@hono/vite-build": "^1.2.0",
