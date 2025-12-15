@@ -1,0 +1,13 @@
+# npm audit report
+
+pdfjs-dist  <=4.1.392
+Severity: high
+PDF.js vulnerable to arbitrary JavaScript execution upon opening a malicious PDF - https://github.com/advisories/GHSA-wgrm-67xf-hhpq
+fix available via `npm audit fix --force`
+Will install pdfjs-dist@5.4.449, which is a breaking change
+node_modules/pdfjs-dist
+
+1 high severity vulnerability
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force

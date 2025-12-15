@@ -5,7 +5,8 @@
   },
   "extends": [
     "eslint:recommended",
-    "plugin:@typescript-eslint/recommended"
+    "plugin:@typescript-eslint/recommended",
+    "plugin:security/recommended"
   ],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
@@ -14,7 +15,9 @@
   },
   "plugins": [
     "@typescript-eslint",
-    "import"
+    "import",
+    "security",
+    "no-secrets"
   ],
   "rules": {
     "no-duplicate-imports": "error",
@@ -36,7 +39,23 @@
       "skipComments": true
     }],
     "complexity": ["warn", 15],
-    "no-console": "off"
+    "no-console": "off",
+    "security/detect-object-injection": "warn",
+    "security/detect-non-literal-regexp": "warn",
+    "security/detect-non-literal-fs-filename": "warn",
+    "security/detect-eval-with-expression": "error",
+    "security/detect-no-csrf-before-method-override": "error",
+    "security/detect-buffer-noassert": "error",
+    "security/detect-child-process": "warn",
+    "security/detect-disable-mustache-escape": "error",
+    "security/detect-possible-timing-attacks": "warn",
+    "security/detect-pseudoRandomBytes": "error",
+    "security/detect-unsafe-regex": "error",
+    "no-secrets/no-secrets": ["error", {
+      "tolerance": 5.0,
+      "ignoreContent": "^EXAMPLE_",
+      "ignoreIdentifiers": ["BASE64", "base64", "token"]
+    }]
   },
   "ignorePatterns": [
     "node_modules/",

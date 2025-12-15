@@ -1,0 +1,56 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "pdfjs-dist": {
+      "name": "pdfjs-dist",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        {
+          "source": 1104044,
+          "name": "pdfjs-dist",
+          "dependency": "pdfjs-dist",
+          "title": "PDF.js vulnerable to arbitrary JavaScript execution upon opening a malicious PDF",
+          "url": "https://github.com/advisories/GHSA-wgrm-67xf-hhpq",
+          "severity": "high",
+          "cwe": [
+            "CWE-754"
+          ],
+          "cvss": {
+            "score": 8.8,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H"
+          },
+          "range": "<=4.1.392"
+        }
+      ],
+      "effects": [],
+      "range": "<=4.1.392",
+      "nodes": [
+        "node_modules/pdfjs-dist"
+      ],
+      "fixAvailable": {
+        "name": "pdfjs-dist",
+        "version": "5.4.449",
+        "isSemVerMajor": true
+      }
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 1,
+      "critical": 0,
+      "total": 1
+    },
+    "dependencies": {
+      "prod": 26,
+      "dev": 466,
+      "optional": 152,
+      "peer": 2,
+      "peerOptional": 0,
+      "total": 541
+    }
+  }
+}
