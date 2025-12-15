@@ -1,0 +1,94 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Copy/Paste Detector Report</title><link href="styles/tailwind.css" rel="stylesheet"><link href="styles/prism.css" rel="stylesheet"></head><body class="bg-gray-100"><header class="bg-white shadow py-4"><div class="container mx-auto px-4"><h1 class="text-3xl font-semibold text-gray-800">jscpd - copy/paste report</h1></div></header><main class="container mx-auto my-8 p-4 bg-white shadow rounded"><section class="mb-8" id="dashboard"><h2 class="text-2xl font-semibold text-gray-700 mb-4">Dashboard</h2><div class="grid grid-cols-4 gap-4"><div class="bg-blue-200 p-4 rounded text-center"><h3 class="text-lg font-semibold text-blue-800 mb-2">Total Files</h3><span class="text-4xl font-bold text-blue-800">8</span></div><div class="bg-green-200 p-4 rounded text-center"><h3 class="text-lg font-semibold text-green-800 mb-2">Total Lines of Code</h3><span class="text-4xl font-bold text-green-800">1917</span></div><div class="bg-yellow-200 p-4 rounded text-center"><h3 class="text-lg font-semibold text-yellow-800 mb-2">Number of Clones</h3><span class="text-4xl font-bold text-yellow-800">9</span></div><div class="bg-red-200 p-4 rounded text-center"><h3 class="text-lg font-semibold text-red-800 mb-2">Duplicated Lines</h3><span class="text-4xl font-bold text-red-800">85 (4.43%)</span></div></div></section><section class="mb-8" id="formats"><h2 class="text-2xl font-semibold text-gray-700 mb-4">Formats with Duplications</h2><table class="w-full table-auto"><thead><tr class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal"><th class="py-3 px-6 text-left">Format</th><th class="py-3 px-6 text-left">Files</th><th class="py-3 px-6 text-left">Lines</th><th class="py-3 px-6 text-left">Clones</th><th class="py-3 px-6 text-left">Duplicated Lines</th><th class="py-3 px-6 text-left">Duplicated Tokens</th></tr></thead><tbody><tr class="bg-white border-b border-gray-200 text-gray-800 text-sm"><td class="py-3 px-6"><a class="text-blue-600 hover:underline" href="#typescript-clones">typescript</a></td><td class="py-3 px-6">7</td><td class="py-3 px-6">1905</td><td class="py-3 px-6">9</td><td class="py-3 px-6">85</td><td class="py-3 px-6">760</td></tr><tr class="bg-white border-b border-gray-200 text-gray-800 text-sm"><td class="py-3 px-6"><a class="text-blue-600 hover:underline" href="#tsx-clones">tsx</a></td><td class="py-3 px-6">1</td><td class="py-3 px-6">12</td><td class="py-3 px-6">0</td><td class="py-3 px-6">0</td><td class="py-3 px-6">0</td></tr></tbody></table></section><section class="mb-8" id="txt-clones"><a name="typescript-clones"></a><h2 class="text-2xl font-semibold text-gray-700 mb-4">typescript</h2><div class="divide-y divide-gray-200 border-b-2"><div class="py-4"><p class="text-gray-600">/home/user/webapp-ai/src/upload-service.ts (Line 178:19 - Line 192:10), /home/user/webapp-ai/src/upload-service.ts (Line 34:16 - Line 48:12)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn0" onclick="toggleCodeBlock('cloneGroup0', 'expandBtn0', 'collapseBtn0')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn0" onclick="toggleCodeBlock('cloneGroup0', 'expandBtn0', 'collapseBtn0')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup0"><code class="language-typescript text-sm text-gray-800">(
+  file: UploadedFile,
+  credentialsJson: string
+): Promise&lt;ProcessingResult&gt; {
+  const startTime = Date.now();
+
+  try {
+    // Load service account credentials from JSON string
+    const credentials = await loadServiceAccountCredentials(credentialsJson);
+    
+    // Get OAuth 2.0 access token
+    const accessToken = await getAccessToken(credentials);
+
+    // Convert ArrayBuffer to base64
+    const base64Pdf</code></pre></div><div class="py-4"><p class="text-gray-600">/home/user/webapp-ai/src/upload-service.ts (Line 195:49 - Line 208:10), /home/user/webapp-ai/src/upload-service.ts (Line 50:44 - Line 63:12)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn1" onclick="toggleCodeBlock('cloneGroup1', 'expandBtn1', 'collapseBtn1')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn1" onclick="toggleCodeBlock('cloneGroup1', 'expandBtn1', 'collapseBtn1')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup1"><code class="language-typescript text-sm text-gray-800">
+    const response = await fetch(
+      'https://vision.googleapis.com/v1/images:annotate',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              image: {
+                content: base64Pdf</code></pre></div><div class="py-4"><p class="text-gray-600">/home/user/webapp-ai/src/upload-service.ts (Line 271:2 - Line 280:17), /home/user/webapp-ai/src/upload-service.ts (Line 153:2 - Line 162:24)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn2" onclick="toggleCodeBlock('cloneGroup2', 'expandBtn2', 'collapseBtn2')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn2" onclick="toggleCodeBlock('cloneGroup2', 'expandBtn2', 'collapseBtn2')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup2"><code class="language-typescript text-sm text-gray-800">
+
+    return {
+      success: true,
+      extractedText: fullText.trim(),
+      processingTimeMs: Date.now() - startTime,
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('PDF OCR error:'</code></pre></div><div class="py-4"><p class="text-gray-600">/home/user/webapp-ai/src/upload-service.ts (Line 370:28 - Line 379:19), /home/user/webapp-ai/src/upload-service.ts (Line 271:22 - Line 162:24)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn3" onclick="toggleCodeBlock('cloneGroup3', 'expandBtn3', 'collapseBtn3')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn3" onclick="toggleCodeBlock('cloneGroup3', 'expandBtn3', 'collapseBtn3')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup3"><code class="language-typescript text-sm text-gray-800">);
+
+    return {
+      success: true,
+      extractedText: fullText.trim(),
+      processingTimeMs: Date.now() - startTime,
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('OCR.space error:'</code></pre></div><div class="py-4"><p class="text-gray-600">/home/user/webapp-ai/src/grading-service.ts (Line 96:2 - Line 104:46), /home/user/webapp-ai/src/hybrid-grading-service.ts (Line 385:3 - Line 393:4)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn4" onclick="toggleCodeBlock('cloneGroup4', 'expandBtn4', 'collapseBtn4')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn4" onclick="toggleCodeBlock('cloneGroup4', 'expandBtn4', 'collapseBtn4')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup4"><code class="language-typescript text-sm text-gray-800">
+  // Analyze essay characteristics
+  const wordCount = request.essay_text.trim().split(/\s+/).length;
+  const paragraphCount = request.essay_text.trim().split(/\n\n+/).length;
+  const sentenceCount = request.essay_text.trim().split(/[.!?]+/).length;
+  
+  // Simulate criterion scoring
+  const criterion_scores: CriterionScore[] = request.rubric_criteria.map((criterion, index) =&gt; {
+    // Vary scores based on essay characteristics</code></pre></div><div class="py-4"><p class="text-gray-600">/home/user/webapp-ai/src/grading-service.ts (Line 114:28 - Line 126:25), /home/user/webapp-ai/src/hybrid-grading-service.ts (Line 402:2 - Line 414:55)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn5" onclick="toggleCodeBlock('cloneGroup5', 'expandBtn5', 'collapseBtn5')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn5" onclick="toggleCodeBlock('cloneGroup5', 'expandBtn5', 'collapseBtn5')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup5"><code class="language-typescript text-sm text-gray-800">
+      score = sentenceCount &gt;= 10 ? 3 : 2;
+    }
+    
+    return {
+      criterion_name: criterion.criterion_name,
+      score: score,
+      strengths: generateStrengths(criterion.criterion_name, score, request.essay_text),
+      areas_for_improvement: generateImprovements(criterion.criterion_name, score, request.essay_text)
+    };
+  });
+  
+  // Calculate total score</code></pre></div><div class="py-4"><p class="text-gray-600">/home/user/webapp-ai/src/grading-service.ts (Line 137:925 - Line 146:25), /home/user/webapp-ai/src/hybrid-grading-service.ts (Line 428:95 - Line 437:3)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn6" onclick="toggleCodeBlock('cloneGroup6', 'expandBtn6', 'collapseBtn6')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn6" onclick="toggleCodeBlock('cloneGroup6', 'expandBtn6', 'collapseBtn6')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup6"><code class="language-typescript text-sm text-gray-800">
+  };
+}
+
+function generateStrengths(criterionName: string, score: number, essayText: string): string {
+  const excerptLength = 100;
+  const excerpt = essayText.substring(0, excerptLength) + (essayText.length &gt; excerptLength ? '...' : '');
+  
+  if (score &gt;= 3) {
+    return `The essay demonstrates </code></pre></div><div class="py-4"><p class="text-gray-600">/home/user/webapp-ai/src/grading-service.ts (Line 148:94 - Line 154:138), /home/user/webapp-ai/src/hybrid-grading-service.ts (Line 439:51 - Line 445:14)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn7" onclick="toggleCodeBlock('cloneGroup7', 'expandBtn7', 'collapseBtn7')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn7" onclick="toggleCodeBlock('cloneGroup7', 'expandBtn7', 'collapseBtn7')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup7"><code class="language-typescript text-sm text-gray-800">;
+  }
+}
+
+function generateImprovements(criterionName: string, score: number, essayText: string): string {
+  if (score === 4) {
+    return `While performance is strong, consider adding even more nuanced analysis and exploring counterarguments to achieve exceptional depth in &quot;</code></pre></div><div class="py-4"><p class="text-gray-600">/home/user/webapp-ai/src/feedback-service.ts (Line 158:22 - Line 163:22), /home/user/webapp-ai/src/feedback-service.ts (Line 104:10 - Line 109:10)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn8" onclick="toggleCodeBlock('cloneGroup8', 'expandBtn8', 'collapseBtn8')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn8" onclick="toggleCodeBlock('cloneGroup8', 'expandBtn8', 'collapseBtn8')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup8"><code class="language-typescript text-sm text-gray-800">: string },
+  description: string,
+  tone: string,
+  feedbackLevel: string = 'detailed'
+): string {
+  const { criterion_name, score: points, areas_for_improvement</code></pre></div><!-- Add more clone groups for .txt format as needed         // Add more clone groups for .txt format as needed--></div><a name="tsx-clones"></a><h2 class="text-2xl font-semibold text-gray-700 mb-4">tsx</h2><div class="divide-y divide-gray-200 border-b-2"><!-- Add more clone groups for .txt format as needed         // Add more clone groups for .txt format as needed--></div></section><!-- Add more sections for other formats and clone groups as needed--></main><footer class="bg-white shadow mt-8 py-4"><div class="container mx-auto px-4 text-center"><p class="text-sm text-gray-600">This report is generated by jscpd, an open-source copy/paste detector.</p><p class="text-sm text-gray-600">jscpd is licensed under the MIT License.</p><a class="text-blue-500 text-sm" href="https://github.com/kucherenko/jscpd" target="_blank" rel="noopener noreferrer">View jscpd on GitHub</a></div></footer><script src="js/prism.js"></script><script>function toggleCodeBlock(codeBlockId, expandBtnId, collapseBtnId) {
+  const codeBlock = document.getElementById(codeBlockId);
+  const expandBtn = document.getElementById(expandBtnId);
+  const collapseBtn = document.getElementById(collapseBtnId);
+
+  codeBlock.classList.toggle('hidden');
+  expandBtn.classList.toggle('hidden');
+  collapseBtn.classList.toggle('hidden');
+}</script></body></html>

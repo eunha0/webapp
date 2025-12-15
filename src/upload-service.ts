@@ -2,7 +2,13 @@
 // Handles image OCR (Google Vision and OCR.space) and PDF text extraction
 
 import * as pdfjsLib from 'pdfjs-dist';
-import { getAccessToken, loadServiceAccountCredentials } from './google-auth-service';
+import {
+  arrayBufferToBase64,
+  callVisionAPI,
+  extractTextFromVisionResponse,
+  createTextDetectionRequest,
+  createDocumentTextDetectionRequest
+} from './utils/vision-api';
 
 // Disable PDF.js Worker for Cloudflare Workers environment
 // Cloudflare Workers doesn't support Web Workers or 'document' object
@@ -30,6 +36,7 @@ interface ProcessingResult {
 
 /**
  * Process image file using Google Cloud Vision API with Service Account
+ * Refactored to use common callVisionAPI function
  */
 export async function processImageOCR(
   file: UploadedFile,
@@ -38,63 +45,25 @@ export async function processImageOCR(
   const startTime = Date.now();
 
   try {
-    // Load service account credentials from JSON string
-    const credentials = await loadServiceAccountCredentials(credentialsJson);
-    
-    // Get OAuth 2.0 access token
-    const accessToken = await getAccessToken(credentials);
-
     // Convert ArrayBuffer to base64
     const base64Image = arrayBufferToBase64(file.buffer);
 
-    // Call Google Vision API with Bearer token
-    const response = await fetch(
-      'https://vision.googleapis.com/v1/images:annotate',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          requests: [
-            {
-              image: {
-                content: base64Image,
-              },
-              features: [
-                {
-                  type: 'TEXT_DETECTION',
-                  maxResults: 1,
-                },
-              ],
-              imageContext: {
-                languageHints: ['ko', 'en'], // Korean and English
-              },
-            },
-          ],
-        }),
-      }
-    );
+    // Create Vision API request for text detection
+    const requestBody = createTextDetectionRequest(base64Image);
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Vision API error: ${JSON.stringify(errorData)}`);
-    }
+    // Call Vision API using common function
+    const result = await callVisionAPI('images:annotate', requestBody, credentialsJson);
 
-    const result = await response.json();
-    const annotations = result.responses[0]?.textAnnotations;
+    // Extract text from response
+    const extractedText = extractTextFromVisionResponse(result);
 
-    if (!annotations || annotations.length === 0) {
+    if (!extractedText) {
       return {
         success: false,
         error: 'No text detected in image',
         processingTimeMs: Date.now() - startTime,
       };
     }
-
-    // First annotation contains the full text
-    const extractedText = annotations[0].description;
 
     return {
       success: true,
@@ -171,6 +140,7 @@ export async function processPDFExtraction(
 /**
  * Process image-based PDF using Google Vision API
  * (For PDFs that are scanned images)
+ * Refactored to use common callVisionAPI function
  * 
  * Note: Google Vision API's images:annotate endpoint can handle PDF files directly
  * It processes the first page of the PDF (or can be configured for multi-page)
@@ -182,83 +152,18 @@ export async function processImagePDFOCR(
   const startTime = Date.now();
 
   try {
-    // Load service account credentials from JSON string
-    const credentials = await loadServiceAccountCredentials(credentialsJson);
-    
-    // Get OAuth 2.0 access token
-    const accessToken = await getAccessToken(credentials);
-
     // Convert ArrayBuffer to base64
     const base64Pdf = arrayBufferToBase64(file.buffer);
 
-    // Use images:annotate endpoint which supports PDF files
-    // This endpoint can process PDF pages as images
-    const response = await fetch(
-      'https://vision.googleapis.com/v1/images:annotate',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          requests: [
-            {
-              image: {
-                content: base64Pdf,
-              },
-              features: [
-                {
-                  type: 'DOCUMENT_TEXT_DETECTION',
-                  maxResults: 1,
-                },
-              ],
-              imageContext: {
-                languageHints: ['ko', 'en'],
-              },
-            },
-          ],
-        }),
-      }
-    );
+    // Create Vision API request for document text detection
+    const requestBody = createDocumentTextDetectionRequest(base64Pdf);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Vision API error response:', errorText);
-      throw new Error(`Vision API error (${response.status}): ${errorText}`);
-    }
-
-    const result = await response.json();
+    // Call Vision API using common function
+    const result = await callVisionAPI('images:annotate', requestBody, credentialsJson);
     console.log('Vision API response:', JSON.stringify(result).substring(0, 500));
 
-    if (!result.responses || result.responses.length === 0) {
-      return {
-        success: false,
-        error: 'No response from Vision API',
-        processingTimeMs: Date.now() - startTime,
-      };
-    }
-
-    const firstResponse = result.responses[0];
-    
-    // Check for errors in response
-    if (firstResponse.error) {
-      console.error('Vision API returned error:', firstResponse.error);
-      return {
-        success: false,
-        error: `Vision API error: ${JSON.stringify(firstResponse.error)}`,
-        processingTimeMs: Date.now() - startTime,
-      };
-    }
-
-    // Get full text from response
-    let fullText = '';
-    if (firstResponse.fullTextAnnotation) {
-      fullText = firstResponse.fullTextAnnotation.text;
-    } else if (firstResponse.textAnnotations && firstResponse.textAnnotations.length > 0) {
-      // Fallback to first text annotation (contains all text)
-      fullText = firstResponse.textAnnotations[0].description;
-    }
+    // Extract text from response using common function
+    const fullText = extractTextFromVisionResponse(result);
 
     if (!fullText || !fullText.trim()) {
       return {
@@ -413,17 +318,7 @@ export function validateFile(
   return { valid: true };
 }
 
-/**
- * Helper: Convert ArrayBuffer to base64
- */
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
+// arrayBufferToBase64 function removed - now imported from utils/vision-api.ts
 
 /**
  * Helper: Generate unique storage key

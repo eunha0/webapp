@@ -1,0 +1,474 @@
+{
+  "statistics": {
+    "detectionDate": "2025-12-15T04:29:32.051Z",
+    "formats": {
+      "typescript": {
+        "sources": {
+          "/home/user/webapp-ai/src/upload-service.ts": {
+            "lines": 519,
+            "tokens": 3811,
+            "sources": 1,
+            "clones": 8,
+            "duplicatedLines": 90,
+            "duplicatedTokens": 700,
+            "percentage": 17.34,
+            "percentageTokens": 18.37,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "/home/user/webapp-ai/src/types.ts": {
+            "lines": 65,
+            "tokens": 392,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "/home/user/webapp-ai/src/hybrid-grading-service.ts": {
+            "lines": 456,
+            "tokens": 3207,
+            "sources": 1,
+            "clones": 4,
+            "duplicatedLines": 35,
+            "duplicatedTokens": 358,
+            "percentage": 7.68,
+            "percentageTokens": 11.16,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "/home/user/webapp-ai/src/grading-service.ts": {
+            "lines": 165,
+            "tokens": 1137,
+            "sources": 1,
+            "clones": 4,
+            "duplicatedLines": 35,
+            "duplicatedTokens": 358,
+            "percentage": 21.21,
+            "percentageTokens": 31.49,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "/home/user/webapp-ai/src/google-auth-service.ts": {
+            "lines": 184,
+            "tokens": 1234,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "/home/user/webapp-ai/src/feedback-service.ts": {
+            "lines": 258,
+            "tokens": 2263,
+            "sources": 1,
+            "clones": 2,
+            "duplicatedLines": 10,
+            "duplicatedTokens": 104,
+            "percentage": 3.88,
+            "percentageTokens": 4.6,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "/home/user/webapp-ai/src/db-service.ts": {
+            "lines": 258,
+            "tokens": 1317,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          }
+        },
+        "total": {
+          "lines": 1905,
+          "tokens": 13361,
+          "sources": 7,
+          "clones": 9,
+          "duplicatedLines": 85,
+          "duplicatedTokens": 760,
+          "percentage": 4.46,
+          "percentageTokens": 5.69,
+          "newDuplicatedLines": 0,
+          "newClones": 0
+        }
+      },
+      "tsx": {
+        "sources": {
+          "/home/user/webapp-ai/src/renderer.tsx": {
+            "lines": 12,
+            "tokens": 94,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          }
+        },
+        "total": {
+          "lines": 12,
+          "tokens": 94,
+          "sources": 1,
+          "clones": 0,
+          "duplicatedLines": 0,
+          "duplicatedTokens": 0,
+          "percentage": 0,
+          "percentageTokens": 0,
+          "newDuplicatedLines": 0,
+          "newClones": 0
+        }
+      }
+    },
+    "total": {
+      "lines": 1917,
+      "tokens": 13455,
+      "sources": 8,
+      "clones": 9,
+      "duplicatedLines": 85,
+      "duplicatedTokens": 760,
+      "percentage": 4.43,
+      "percentageTokens": 5.65,
+      "newDuplicatedLines": 0,
+      "newClones": 0
+    }
+  },
+  "duplicates": [
+    {
+      "format": "typescript",
+      "lines": 15,
+      "fragment": "(\n  file: UploadedFile,\n  credentialsJson: string\n): Promise<ProcessingResult> {\n  const startTime = Date.now();\n\n  try {\n    // Load service account credentials from JSON string\n    const credentials = await loadServiceAccountCredentials(credentialsJson);\n    \n    // Get OAuth 2.0 access token\n    const accessToken = await getAccessToken(credentials);\n\n    // Convert ArrayBuffer to base64\n    const base64Pdf",
+      "tokens": 0,
+      "firstFile": {
+        "name": "/home/user/webapp-ai/src/upload-service.ts",
+        "start": 178,
+        "end": 192,
+        "startLoc": {
+          "line": 178,
+          "column": 19,
+          "position": 1197
+        },
+        "endLoc": {
+          "line": 192,
+          "column": 10,
+          "position": 1287
+        }
+      },
+      "secondFile": {
+        "name": "/home/user/webapp-ai/src/upload-service.ts",
+        "start": 34,
+        "end": 48,
+        "startLoc": {
+          "line": 34,
+          "column": 16,
+          "position": 178
+        },
+        "endLoc": {
+          "line": 48,
+          "column": 12,
+          "position": 268
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 14,
+      "fragment": "\n    const response = await fetch(\n      'https://vision.googleapis.com/v1/images:annotate',\n      {\n        method: 'POST',\n        headers: {\n          'Content-Type': 'application/json',\n          'Authorization': `Bearer ${accessToken}`,\n        },\n        body: JSON.stringify({\n          requests: [\n            {\n              image: {\n                content: base64Pdf",
+      "tokens": 0,
+      "firstFile": {
+        "name": "/home/user/webapp-ai/src/upload-service.ts",
+        "start": 195,
+        "end": 208,
+        "startLoc": {
+          "line": 195,
+          "column": 49,
+          "position": 1305
+        },
+        "endLoc": {
+          "line": 208,
+          "column": 10,
+          "position": 1389
+        }
+      },
+      "secondFile": {
+        "name": "/home/user/webapp-ai/src/upload-service.ts",
+        "start": 50,
+        "end": 63,
+        "startLoc": {
+          "line": 50,
+          "column": 44,
+          "position": 283
+        },
+        "endLoc": {
+          "line": 63,
+          "column": 12,
+          "position": 367
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 10,
+      "fragment": "\n\n    return {\n      success: true,\n      extractedText: fullText.trim(),\n      processingTimeMs: Date.now() - startTime,\n    };\n  } catch (error) {\n    const errorMsg = error instanceof Error ? error.message : String(error);\n    console.error('PDF OCR error:'",
+      "tokens": 0,
+      "firstFile": {
+        "name": "/home/user/webapp-ai/src/upload-service.ts",
+        "start": 271,
+        "end": 280,
+        "startLoc": {
+          "line": 271,
+          "column": 2,
+          "position": 1901
+        },
+        "endLoc": {
+          "line": 280,
+          "column": 17,
+          "position": 1988
+        }
+      },
+      "secondFile": {
+        "name": "/home/user/webapp-ai/src/upload-service.ts",
+        "start": 153,
+        "end": 162,
+        "startLoc": {
+          "line": 153,
+          "column": 2,
+          "position": 1046
+        },
+        "endLoc": {
+          "line": 162,
+          "column": 24,
+          "position": 1133
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 10,
+      "fragment": ");\n\n    return {\n      success: true,\n      extractedText: fullText.trim(),\n      processingTimeMs: Date.now() - startTime,\n    };\n  } catch (error) {\n    const errorMsg = error instanceof Error ? error.message : String(error);\n    console.error('OCR.space error:'",
+      "tokens": 0,
+      "firstFile": {
+        "name": "/home/user/webapp-ai/src/upload-service.ts",
+        "start": 370,
+        "end": 379,
+        "startLoc": {
+          "line": 370,
+          "column": 28,
+          "position": 2740
+        },
+        "endLoc": {
+          "line": 379,
+          "column": 19,
+          "position": 2829
+        }
+      },
+      "secondFile": {
+        "name": "/home/user/webapp-ai/src/upload-service.ts",
+        "start": 271,
+        "end": 162,
+        "startLoc": {
+          "line": 271,
+          "column": 22,
+          "position": 1899
+        },
+        "endLoc": {
+          "line": 162,
+          "column": 24,
+          "position": 1133
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 9,
+      "fragment": "\n  // Analyze essay characteristics\n  const wordCount = request.essay_text.trim().split(/\\s+/).length;\n  const paragraphCount = request.essay_text.trim().split(/\\n\\n+/).length;\n  const sentenceCount = request.essay_text.trim().split(/[.!?]+/).length;\n  \n  // Simulate criterion scoring\n  const criterion_scores: CriterionScore[] = request.rubric_criteria.map((criterion, index) => {\n    // Vary scores based on essay characteristics",
+      "tokens": 0,
+      "firstFile": {
+        "name": "/home/user/webapp-ai/src/grading-service.ts",
+        "start": 96,
+        "end": 104,
+        "startLoc": {
+          "line": 96,
+          "column": 2,
+          "position": 260
+        },
+        "endLoc": {
+          "line": 104,
+          "column": 46,
+          "position": 368
+        }
+      },
+      "secondFile": {
+        "name": "/home/user/webapp-ai/src/hybrid-grading-service.ts",
+        "start": 385,
+        "end": 393,
+        "startLoc": {
+          "line": 385,
+          "column": 3,
+          "position": 2318
+        },
+        "endLoc": {
+          "line": 393,
+          "column": 4,
+          "position": 2426
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 13,
+      "fragment": "\n      score = sentenceCount >= 10 ? 3 : 2;\n    }\n    \n    return {\n      criterion_name: criterion.criterion_name,\n      score: score,\n      strengths: generateStrengths(criterion.criterion_name, score, request.essay_text),\n      areas_for_improvement: generateImprovements(criterion.criterion_name, score, request.essay_text)\n    };\n  });\n  \n  // Calculate total score",
+      "tokens": 0,
+      "firstFile": {
+        "name": "/home/user/webapp-ai/src/grading-service.ts",
+        "start": 114,
+        "end": 126,
+        "startLoc": {
+          "line": 114,
+          "column": 28,
+          "position": 528
+        },
+        "endLoc": {
+          "line": 126,
+          "column": 25,
+          "position": 626
+        }
+      },
+      "secondFile": {
+        "name": "/home/user/webapp-ai/src/hybrid-grading-service.ts",
+        "start": 402,
+        "end": 414,
+        "startLoc": {
+          "line": 402,
+          "column": 2,
+          "position": 2575
+        },
+        "endLoc": {
+          "line": 414,
+          "column": 55,
+          "position": 2673
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 10,
+      "fragment": "\n  };\n}\n\nfunction generateStrengths(criterionName: string, score: number, essayText: string): string {\n  const excerptLength = 100;\n  const excerpt = essayText.substring(0, excerptLength) + (essayText.length > excerptLength ? '...' : '');\n  \n  if (score >= 3) {\n    return `The essay demonstrates ",
+      "tokens": 0,
+      "firstFile": {
+        "name": "/home/user/webapp-ai/src/grading-service.ts",
+        "start": 137,
+        "end": 146,
+        "startLoc": {
+          "line": 137,
+          "column": 925,
+          "position": 835
+        },
+        "endLoc": {
+          "line": 146,
+          "column": 25,
+          "position": 936
+        }
+      },
+      "secondFile": {
+        "name": "/home/user/webapp-ai/src/hybrid-grading-service.ts",
+        "start": 428,
+        "end": 437,
+        "startLoc": {
+          "line": 428,
+          "column": 95,
+          "position": 2902
+        },
+        "endLoc": {
+          "line": 437,
+          "column": 3,
+          "position": 3003
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 7,
+      "fragment": ";\n  }\n}\n\nfunction generateImprovements(criterionName: string, score: number, essayText: string): string {\n  if (score === 4) {\n    return `While performance is strong, consider adding even more nuanced analysis and exploring counterarguments to achieve exceptional depth in \"",
+      "tokens": 0,
+      "firstFile": {
+        "name": "/home/user/webapp-ai/src/grading-service.ts",
+        "start": 148,
+        "end": 154,
+        "startLoc": {
+          "line": 148,
+          "column": 94,
+          "position": 992
+        },
+        "endLoc": {
+          "line": 154,
+          "column": 138,
+          "position": 1043
+        }
+      },
+      "secondFile": {
+        "name": "/home/user/webapp-ai/src/hybrid-grading-service.ts",
+        "start": 439,
+        "end": 445,
+        "startLoc": {
+          "line": 439,
+          "column": 51,
+          "position": 3059
+        },
+        "endLoc": {
+          "line": 445,
+          "column": 14,
+          "position": 3110
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 6,
+      "fragment": ": string },\n  description: string,\n  tone: string,\n  feedbackLevel: string = 'detailed'\n): string {\n  const { criterion_name, score: points, areas_for_improvement",
+      "tokens": 0,
+      "firstFile": {
+        "name": "/home/user/webapp-ai/src/feedback-service.ts",
+        "start": 158,
+        "end": 163,
+        "startLoc": {
+          "line": 158,
+          "column": 22,
+          "position": 1250
+        },
+        "endLoc": {
+          "line": 163,
+          "column": 22,
+          "position": 1302
+        }
+      },
+      "secondFile": {
+        "name": "/home/user/webapp-ai/src/feedback-service.ts",
+        "start": 104,
+        "end": 109,
+        "startLoc": {
+          "line": 104,
+          "column": 10,
+          "position": 717
+        },
+        "endLoc": {
+          "line": 109,
+          "column": 10,
+          "position": 769
+        }
+      }
+    }
+  ],
+  "filename": "/home/user/webapp-ai/node_modules/@jscpd/html-reporter/dist/templates/main.pug"
+}
