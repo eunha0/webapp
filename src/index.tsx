@@ -5587,6 +5587,9 @@ app.get('/my-page', (c) => {
             min-height: 120px;
             scrollbar-width: thin;
             scrollbar-color: #cbd5e1 #f1f5f9;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
           }
           .reference-input::-webkit-scrollbar {
             width: 8px;
