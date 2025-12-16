@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, GradingRequest } from '../types'
-import { gradeEssayHybrid } from '../grading-service'
+import { gradeEssayHybrid } from '../hybrid-grading-service'
 import {
   createGradingSession,
   createEssay,
