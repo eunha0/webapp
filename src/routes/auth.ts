@@ -142,10 +142,11 @@ auth.post('/login', asyncHandler(async (c) => {
     'INSERT INTO security_logs (event_type, user_id, ip_address, details, created_at) VALUES (?, ?, ?, ?, ?)'
   ).bind('login_success', user.id, clientIP, JSON.stringify({ email: email.toLowerCase() }), new Date().toISOString()).run()
   
-  // Set secure cookie
+  // Set secure cookie (secure: false for local development)
+  const isProduction = c.req.url.includes('pages.dev') || c.req.url.includes('https://')
   setCookie(c, 'session_id', sessionId, {
     httpOnly: true,        // Prevents JavaScript access (XSS protection)
-    secure: true,          // HTTPS only
+    secure: isProduction,  // HTTPS only in production
     sameSite: 'Strict',    // CSRF protection
     maxAge: 24 * 60 * 60,  // 24 hours
     path: '/'
@@ -153,6 +154,7 @@ auth.post('/login', asyncHandler(async (c) => {
   
   return c.json({
     success: true,
+    session_id: sessionId,  // Include session_id for frontend compatibility
     user: {
       id: user.id,
       name: user.name,
@@ -321,10 +323,11 @@ auth.post('/student/login', asyncHandler(async (c) => {
     'INSERT INTO security_logs (event_type, user_id, ip_address, details, created_at) VALUES (?, ?, ?, ?, ?)'
   ).bind('student_login_success', student.id, clientIP, JSON.stringify({ email: email.toLowerCase(), type: 'student' }), new Date().toISOString()).run()
   
-  // Set secure cookie
+  // Set secure cookie (secure: false for local development)
+  const isProduction = c.req.url.includes('pages.dev') || c.req.url.includes('https://')
   setCookie(c, 'student_session_id', sessionId, {
     httpOnly: true,
-    secure: true,
+    secure: isProduction,  // HTTPS only in production
     sameSite: 'Strict',
     maxAge: 24 * 60 * 60,
     path: '/'
@@ -332,6 +335,7 @@ auth.post('/student/login', asyncHandler(async (c) => {
   
   return c.json({
     success: true,
+    session_id: sessionId,  // Include session_id for frontend compatibility
     student: {
       id: student.id,
       name: student.name,

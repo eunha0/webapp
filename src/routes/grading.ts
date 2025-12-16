@@ -10,6 +10,7 @@ import {
   getSessionDetails
 } from '../db-service'
 import { essayContentSchema, validate } from '../utils/validation'
+import { requireAuth } from '../middleware/auth'
 
 const grading = new Hono<{ Bindings: Bindings }>()
 
@@ -125,32 +126,46 @@ grading.get('/session/:sessionId', async (c) => {
  */
 grading.get('/grading-history', async (c) => {
   try {
-    const db = c.env.DB
-    const user = c.get('user')
+    const result = await requireAuth(c)
+    if (result instanceof Response) return result // Return error response
+    const user = result
     
-    if (!user) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
+    const db = c.env.DB
+    
+    // Get all graded submissions for user's assignments
+    const queryResult = await db.prepare(
+      `SELECT 
+        s.id as submission_id,
+        s.assignment_id,
+        s.student_name,
+        s.submitted_at,
+        a.title as assignment_title,
+        a.grade_level,
+        s.overall_score,
+        s.overall_feedback,
+        s.graded_at
+       FROM student_submissions s
+       JOIN assignments a ON s.assignment_id = a.id
+       WHERE a.user_id = ? AND s.status = 'graded'
+       ORDER BY s.graded_at DESC`
+    ).bind(user.id).all()
+    
+    // Get rubric criteria count for each assignment to calculate max score
+    const submissionsWithMaxScore = await Promise.all((queryResult.results || []).map(async (submission: any) => {
+      const criteriaCount = await db.prepare(
+        'SELECT COUNT(*) as count FROM assignment_rubrics WHERE assignment_id = ?'
+      ).bind(submission.assignment_id).first()
+      
+      // Each criterion is worth 4 points, so max score = criteria count × 4
+      const count = (criteriaCount?.count as number) || 1
+      const maxScore = count * 4
+      return {
+        ...submission,
+        max_score: maxScore
+      }
+    }))
 
-    const history = await db.prepare(`
-      SELECT 
-        gs.id as session_id,
-        gs.assignment_prompt,
-        gs.grade_level,
-        gs.created_at,
-        e.id as essay_id,
-        e.text as essay_text,
-        gr.overall_score,
-        gr.overall_feedback
-      FROM grading_sessions gs
-      LEFT JOIN essays e ON e.session_id = gs.id
-      LEFT JOIN grading_results gr ON gr.essay_id = e.id
-      WHERE gs.user_id = ?
-      ORDER BY gs.created_at DESC
-      LIMIT 50
-    `).bind(user.id).all()
-
-    return c.json({ history: history.results })
+    return c.json(submissionsWithMaxScore)
   } catch (error) {
     console.error('Error fetching grading history:', error)
     return c.json({ error: 'Failed to fetch grading history', details: String(error) }, 500)
