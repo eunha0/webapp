@@ -26,7 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_security_logs_event_type ON security_logs(event_t
 -- 2. Add security columns to sessions table (if not exists)
 -- ============================================================================
 -- Note: SQLite doesn't support IF NOT EXISTS for ALTER TABLE,
--- so we need to check if columns exist first
+-- Only add columns that don't already exist (created_at already exists)
 
 -- Add ip_address column to sessions
 ALTER TABLE sessions ADD COLUMN ip_address TEXT;
@@ -34,18 +34,15 @@ ALTER TABLE sessions ADD COLUMN ip_address TEXT;
 -- Add user_agent column to sessions
 ALTER TABLE sessions ADD COLUMN user_agent TEXT;
 
--- Add created_at column to sessions
-ALTER TABLE sessions ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP;
-
 -- Add last_activity column to sessions (for automatic renewal)
 ALTER TABLE sessions ADD COLUMN last_activity DATETIME DEFAULT CURRENT_TIMESTAMP;
 
 -- ============================================================================
 -- 3. Add security columns to student_sessions table
 -- ============================================================================
+-- Only add columns that don't already exist (created_at already exists)
 ALTER TABLE student_sessions ADD COLUMN ip_address TEXT;
 ALTER TABLE student_sessions ADD COLUMN user_agent TEXT;
-ALTER TABLE student_sessions ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE student_sessions ADD COLUMN last_activity DATETIME DEFAULT CURRENT_TIMESTAMP;
 
 -- ============================================================================
