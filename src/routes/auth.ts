@@ -2,34 +2,32 @@ import { Hono } from 'hono'
 import { setCookie, deleteCookie } from 'hono/cookie'
 import type { Bindings } from '../types'
 import { asyncHandler } from '../middleware/error'
-import { hashPassword, verifyPassword, validatePassword, isValidEmail } from '../utils/helpers'
+import { hashPassword, verifyPassword } from '../utils/helpers'
+import { 
+  userSignupSchema, 
+  userLoginSchema,
+  validate 
+} from '../utils/validation'
 
 const auth = new Hono<{ Bindings: Bindings }>()
 
 /**
- * POST /api/auth/signup - User signup (SECURITY ENHANCED)
+ * POST /api/auth/signup - User signup (SECURITY ENHANCED with Zod validation)
  */
 auth.post('/signup', asyncHandler(async (c) => {
-  const { name, email, password } = await c.req.json()
+  const body = await c.req.json()
   const db = c.env.DB
   
-  // Input validation
-  if (!name || typeof name !== 'string' || name.length < 2 || name.length > 100) {
-    return c.json({ error: '이름은 2-100자 사이여야 합니다' }, 400)
-  }
-  
-  if (!email || !isValidEmail(email)) {
-    return c.json({ error: '유효한 이메일 주소를 입력해주세요' }, 400)
-  }
-  
-  // Password validation (OWASP compliant)
-  const passwordValidation = validatePassword(password)
-  if (!passwordValidation.valid) {
+  // Zod validation - comprehensive input validation
+  const validation = validate(userSignupSchema, body)
+  if (!validation.success) {
     return c.json({ 
-      error: '비밀번호가 보안 정책을 만족하지 않습니다', 
-      details: passwordValidation.errors 
+      error: '입력값 검증 실패', 
+      details: validation.errors 
     }, 400)
   }
+  
+  const { name, email, password } = validation.data
   
   // Check if user already exists
   const existingUser = await db.prepare(
@@ -69,12 +67,23 @@ auth.post('/signup', asyncHandler(async (c) => {
 }))
 
 /**
- * POST /api/auth/login - User login (SECURITY ENHANCED)
+ * POST /api/auth/login - User login (SECURITY ENHANCED with Zod validation)
  */
 auth.post('/login', asyncHandler(async (c) => {
-  const { email, password } = await c.req.json()
+  const body = await c.req.json()
   const db = c.env.DB
   const clientIP = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
+  
+  // Zod validation
+  const validation = validate(userLoginSchema, body)
+  if (!validation.success) {
+    return c.json({ 
+      error: '입력값 검증 실패', 
+      details: validation.errors 
+    }, 400)
+  }
+  
+  const { email, password } = validation.data
   
   // Rate limiting check (simple implementation - use Redis in production)
   const recentAttempts = await db.prepare(
@@ -85,11 +94,6 @@ auth.post('/login', asyncHandler(async (c) => {
     return c.json({ 
       error: '로그인 시도가 너무 많습니다. 15분 후 다시 시도해주세요' 
     }, 429)
-  }
-  
-  // Input validation
-  if (!email || !isValidEmail(email)) {
-    return c.json({ error: '유효한 이메일 주소를 입력해주세요' }, 400)
   }
   
   // Find user
@@ -195,30 +199,25 @@ auth.post('/logout', asyncHandler(async (c) => {
 }))
 
 /**
- * POST /api/student/auth/signup - Student signup (SECURITY ENHANCED)
+ * POST /api/student/auth/signup - Student signup (SECURITY ENHANCED with Zod validation)
+ * Note: Using email-based student signup (access code removed for now)
  */
 auth.post('/student/signup', asyncHandler(async (c) => {
-  const { name, email, password, grade_level } = await c.req.json()
+  const body = await c.req.json()
   const db = c.env.DB
   const clientIP = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
   
-  // Input validation
-  if (!name || typeof name !== 'string' || name.length < 2 || name.length > 100) {
-    return c.json({ error: '이름은 2-100자 사이여야 합니다' }, 400)
-  }
-  
-  if (!email || !isValidEmail(email)) {
-    return c.json({ error: '유효한 이메일 주소를 입력해주세요' }, 400)
-  }
-  
-  // Password validation
-  const passwordValidation = validatePassword(password)
-  if (!passwordValidation.valid) {
+  // Zod validation
+  const validation = validate(userSignupSchema, body)
+  if (!validation.success) {
     return c.json({ 
-      error: '비밀번호가 보안 정책을 만족하지 않습니다', 
-      details: passwordValidation.errors 
+      error: '입력값 검증 실패', 
+      details: validation.errors 
     }, 400)
   }
+  
+  const { name, email, password } = validation.data
+  const grade_level = body.grade_level || '고등' // Default to 고등
   
   // Check if student already exists
   const existingStudent = await db.prepare(
@@ -251,12 +250,23 @@ auth.post('/student/signup', asyncHandler(async (c) => {
 }))
 
 /**
- * POST /api/student/auth/login - Student login (SECURITY ENHANCED)
+ * POST /api/student/auth/login - Student login (SECURITY ENHANCED with Zod validation)
  */
 auth.post('/student/login', asyncHandler(async (c) => {
-  const { email, password } = await c.req.json()
+  const body = await c.req.json()
   const db = c.env.DB
   const clientIP = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
+  
+  // Zod validation
+  const validation = validate(userLoginSchema, body)
+  if (!validation.success) {
+    return c.json({ 
+      error: '입력값 검증 실패', 
+      details: validation.errors 
+    }, 400)
+  }
+  
+  const { email, password } = validation.data
   
   // Rate limiting check
   const recentAttempts = await db.prepare(
@@ -267,11 +277,6 @@ auth.post('/student/login', asyncHandler(async (c) => {
     return c.json({ 
       error: '로그인 시도가 너무 많습니다. 15분 후 다시 시도해주세요' 
     }, 429)
-  }
-  
-  // Input validation
-  if (!email || !isValidEmail(email)) {
-    return c.json({ error: '유효한 이메일 주소를 입력해주세요' }, 400)
   }
   
   // Find student

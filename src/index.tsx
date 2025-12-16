@@ -24,6 +24,11 @@ import {
   uploadToR2,
   deleteFromR2
 } from './upload-service'
+import {
+  gradeEssaySchema,
+  essayContentSchema,
+  validate
+} from './utils/validation'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -75,13 +80,24 @@ app.use('/rubric-pdfs/*', serveStatic({ root: './' }))
 // API Routes
 
 /**
- * POST /api/grade - Grade an essay
+ * POST /api/grade - Grade an essay (SECURITY ENHANCED with Zod validation)
  */
 app.post('/api/grade', async (c) => {
   try {
-    const request: GradingRequest = await c.req.json()
+    const body = await c.req.json()
+    
+    // Zod validation for essay content
+    const essayValidation = validate(essayContentSchema, body.essay_text)
+    if (!essayValidation.success) {
+      return c.json({ 
+        error: '에세이 내용 검증 실패', 
+        details: essayValidation.errors 
+      }, 400)
+    }
 
-    // Validate request
+    const request: GradingRequest = body
+
+    // Validate request structure
     if (!request.assignment_prompt || !request.essay_text || !request.rubric_criteria || request.rubric_criteria.length === 0) {
       return c.json({ error: 'Missing required fields' }, 400)
     }
@@ -2101,6 +2117,7 @@ app.get('/guide', (c) => {
         <title>사용법 안내 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
         <script>
           tailwind.config = {
             theme: {
@@ -2787,6 +2804,7 @@ app.get('/', (c) => {
         <meta name="description" content="AI로 논술 답안지를 10배 빠르게 채점하세요. 상세하고 실행 가능한 피드백을 받으세요. 1,000명 이상의 교사가 신뢰합니다.">
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
         <script>
           tailwind.config = {
             theme: {
@@ -3489,6 +3507,7 @@ app.get('/resources/:category', async (c) => {
         <title>${categoryName} | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
         <script>
           tailwind.config = {
             theme: {
@@ -3754,6 +3773,7 @@ app.get('/resource/:id', async (c) => {
         <title>자료 상세 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
         <script>
           tailwind.config = {
             theme: {
@@ -3908,6 +3928,7 @@ app.get('/student/login', (c) => {
         <title>학생 로그인 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
     </head>
     <body class="bg-gray-50">
         <nav class="bg-white border-b border-gray-200">
@@ -4006,6 +4027,7 @@ app.get('/student/signup', (c) => {
         <title>학생 회원가입 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
     </head>
     <body class="bg-gray-50">
         <nav class="bg-white border-b border-gray-200">
@@ -4135,6 +4157,7 @@ app.get('/login', (c) => {
         <title>${pageTitle} | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
         <script>
           tailwind.config = {
             theme: {
@@ -4321,6 +4344,7 @@ app.get('/signup', (c) => {
         <title>회원가입 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
         <script>
           tailwind.config = {
             theme: {
@@ -4514,6 +4538,7 @@ app.get('/terms', (c) => {
         <title>이용 약관 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
     </head>
     <body class="bg-gray-50">
         <nav class="bg-white border-b border-gray-200 sticky top-0 z-10">
@@ -4674,6 +4699,7 @@ app.get('/privacy', (c) => {
         <title>개인정보 처리방침 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
     </head>
     <body class="bg-gray-50">
         <nav class="bg-white border-b border-gray-200 sticky top-0 z-10">
@@ -4806,6 +4832,7 @@ app.get('/pricing', (c) => {
         <title>요금제 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
         <script>
           tailwind.config = {
             theme: {
@@ -5186,6 +5213,7 @@ app.get('/checkout', (c) => {
         <title>결제하기 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
         <script>
           tailwind.config = {
             theme: {
@@ -5555,6 +5583,7 @@ app.get('/my-page', (c) => {
         <title>나의 페이지 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
         <script>
           tailwind.config = {
             theme: {
@@ -9432,6 +9461,7 @@ app.get('/admin', (c) => {
         <title>관리자 대시보드 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <style>
           .stat-card {
@@ -9988,6 +10018,7 @@ app.get('/admin/cms', (c) => {
         <title>관리자 페이지 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
         
         <!-- Quill Rich Text Editor -->
         <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
@@ -10348,6 +10379,7 @@ app.get('/student/dashboard', (c) => {
         <title>학생 대시보드 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
     </head>
     <body class="bg-gray-50">
         <!-- Navigation -->
@@ -10688,6 +10720,7 @@ app.get('/student/feedback/:id', (c) => {
         <title>피드백 상세 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
         <style>
           .score-circle {
             width: 60px;

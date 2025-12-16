@@ -19,15 +19,18 @@
     "@anthropic-ai/sdk": "^0.71.2",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.3",
+    "dompurify": "^3.3.1",
     "hono": "^4.10.4",
     "mime-types": "^3.0.1",
     "openai": "^6.10.0",
-    "pdfjs-dist": "^4.10.38"
+    "pdfjs-dist": "^4.10.38",
+    "zod": "^4.2.1"
   },
   "devDependencies": {
     "@hono/vite-build": "^1.2.0",
     "@hono/vite-dev-server": "^0.18.2",
     "@playwright/test": "^1.57.0",
+    "@types/dompurify": "^3.0.5",
     "@typescript-eslint/eslint-plugin": "^8.49.0",
     "@typescript-eslint/parser": "^8.49.0",
     "eslint": "^9.39.2",
