@@ -234,13 +234,45 @@ submissions.put('/:id/feedback', async (c) => {
       return c.json({ error: 'Access denied' }, 403)
     }
     
-    // Update feedback
-    const gradingResultJSON = grading_result ? JSON.stringify(grading_result) : null
+    // Build dynamic UPDATE query based on provided fields
+    const updates: string[] = []
+    const values: any[] = []
+    
+    if (overall_score !== undefined) {
+      updates.push('overall_score = ?')
+      values.push(overall_score)
+    }
+    
+    if (overall_feedback !== undefined) {
+      updates.push('overall_feedback = ?')
+      values.push(overall_feedback)
+    }
+    
+    if (grading_result !== undefined) {
+      updates.push('grading_result = ?')
+      values.push(grading_result ? JSON.stringify(grading_result) : null)
+    }
+    
+    // Always update status and graded_at when feedback is saved
+    updates.push('status = ?')
+    values.push('graded')
+    
+    updates.push('graded_at = ?')
+    values.push(new Date().toISOString())
+    
+    // Add submissionId for WHERE clause
+    values.push(submissionId)
+    
+    if (updates.length === 2) { // Only status and graded_at were added
+      return c.json({ error: 'No fields to update' }, 400)
+    }
+    
+    // Execute update
     await db.prepare(`
       UPDATE student_submissions 
-      SET overall_score = ?, overall_feedback = ?, grading_result = ?
+      SET ${updates.join(', ')}
       WHERE id = ?
-    `).bind(overall_score, overall_feedback, gradingResultJSON, submissionId).run()
+    `).bind(...values).run()
     
     return c.json({ success: true, message: 'Feedback updated successfully' })
   } catch (error) {
