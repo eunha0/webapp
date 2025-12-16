@@ -81,8 +81,9 @@ submissions.post('/:id/grade', async (c) => {
       essay_text: submission.essay_text as string,
       assignment_prompt: prompts.join('\n\n'),
       rubric_criteria: (rubrics.results || []).map((r: any) => ({
-        name: r.criterion_name,
-        description: r.criterion_description
+        criterion_name: r.criterion_name,
+        criterion_description: r.criterion_description,
+        max_score: r.max_score || 4
       })),
       grade_level: submission.grade_level as string
     }
