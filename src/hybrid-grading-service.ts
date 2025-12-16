@@ -357,14 +357,14 @@ export async function gradeEssayHybrid(
                               feedbackResult.summary_evaluation || 
                               '좋은 시도입니다!';
     
-    // Build overall comment from strength points and closing
+    // Build overall comment from strength points only (without closing)
     let overallComment = feedbackResult.overall_comment || '';
     if (!overallComment && feedbackContent.strength_points) {
       const strengthsText = Array.isArray(feedbackContent.strength_points) 
         ? feedbackContent.strength_points.join(' ') 
         : feedbackContent.strength_points;
-      const closingText = feedbackContent.closing_encouragement || '';
-      overallComment = `${strengthsText}\n\n${closingText}`;
+      // Don't include closing_encouragement here - it will be used in next_steps_advice
+      overallComment = strengthsText;
     }
     
     // Build revision suggestions
