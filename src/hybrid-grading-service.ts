@@ -45,6 +45,7 @@ function generateScoringPrompt(request: GradingRequest): string {
 역할 정의:
 - 학년: ${request.grade_level}
 - 평가 목표: 루브릭 기준에 따라 정확하고 일관된 점수 부여
+- 응답 언어: **반드시 한국어로만 응답** (영어 사용 금지)
 
 목표(Objective):
 학생의 글을 아래 [채점 기준표(Rubric)]에 따라 분석하고, 각 기준별 점수와 총점을 제공합니다.
@@ -81,12 +82,15 @@ ${rubricJson}
     {
       "criterion_name": "[정확한 기준명]",
       "score": [해당 기준의 최대 점수 범위 내],
-      "brief_rationale": "[이 점수를 부여한 이유 1-2문장]"
+      "brief_rationale": "[이 점수를 부여한 이유를 한국어로 1-2문장. 예: '논리적 흐름이 명확하며 근거가 잘 제시되었습니다.']",
+      "strengths": "[이 기준에서 학생이 잘한 점을 한국어로 2-3문장]",
+      "areas_for_improvement": "[이 기준에서 개선이 필요한 점을 한국어로 구체적으로 2-3문장]"
     }
   ]
 }
 
 중요:
+- **모든 텍스트를 반드시 한국어로 작성** (영어 사용 금지)
 - 일관성 있고 객관적인 채점
 - 루브릭 기준에만 근거
 - 각 기준의 최대 점수를 초과하지 않도록 주의
@@ -297,11 +301,12 @@ export async function gradeEssayHybrid(
     
     // Build criterion scores with detailed feedback
     const criterion_scores: CriterionScore[] = scoringResult.criterion_scores.map((score: any) => {
-      // Try to find matching improvement area from new format
-      let improvementFeedback = '';
-      let strengthsFeedback = score.brief_rationale;
+      // Priority 1: Use strengths and areas_for_improvement from GPT-4o scoring result (Korean)
+      let strengthsFeedback = score.strengths || score.brief_rationale;
+      let improvementFeedback = score.areas_for_improvement || '';
       
-      if (feedbackContent.improvement_areas && Array.isArray(feedbackContent.improvement_areas)) {
+      // Priority 2: Try to find matching improvement area from Claude's new format
+      if (!improvementFeedback && feedbackContent.improvement_areas && Array.isArray(feedbackContent.improvement_areas)) {
         const improvement = feedbackContent.improvement_areas.find(
           (area: any) => area.criterion === score.criterion_name || 
                         area.criterion_name === score.criterion_name
@@ -311,13 +316,16 @@ export async function gradeEssayHybrid(
         }
       }
       
-      // Fallback to old format
+      // Priority 3: Fallback to old format from Claude
       if (!improvementFeedback && feedbackResult.criterion_feedback) {
         const oldFeedback = feedbackResult.criterion_feedback.find(
           (f: any) => f.criterion_name === score.criterion_name
         );
         if (oldFeedback) {
-          strengthsFeedback = oldFeedback.strengths || score.brief_rationale;
+          // Only use Claude's feedback if GPT-4o didn't provide it
+          if (!score.strengths) {
+            strengthsFeedback = oldFeedback.strengths || score.brief_rationale;
+          }
           improvementFeedback = oldFeedback.areas_for_improvement || '';
         }
       }
