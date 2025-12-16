@@ -1,34 +1,16 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
-import type { Bindings, GradingRequest } from './types'
-import { gradeEssay } from './grading-service'
-import { gradeEssayHybrid } from './hybrid-grading-service'
-import { generateDetailedFeedback } from './feedback-service'
-import {
-  createGradingSession,
-  createEssay,
-  storeGradingResult,
-  getGradingResult,
-  listGradingSessions,
-  getSessionDetails
-} from './db-service'
-import {
-  validateFile,
-  generateStorageKey,
-  processImageOCR,
-  processPDFExtraction,
-  processImagePDFOCR,
-  processOCRSpace,
-  logProcessingStep,
-  uploadToR2,
-  deleteFromR2
-} from './upload-service'
-import {
-  gradeEssaySchema,
-  essayContentSchema,
-  validate
-} from './utils/validation'
+import type { Bindings } from './types'
+
+// Route imports
+import auth from './routes/auth'
+import grading from './routes/grading'
+import upload from './routes/upload'
+import assignments from './routes/assignments'
+import submissions from './routes/submissions'
+import admin from './routes/admin'
+import students from './routes/students'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -77,11 +59,26 @@ app.use('/api/*', cors())
 app.use('/static/*', serveStatic({ root: './' }))
 app.use('/rubric-pdfs/*', serveStatic({ root: './' }))
 
-// API Routes
+// Mount API route modules
+app.route('/api/auth', auth)
+app.route('/api', grading)
+app.route('/api/upload', upload)
+app.route('/api/assignment', assignments)
+app.route('/api', submissions)
+app.route('/api/admin', admin)
+app.route('/api/student', students)
+
+// Health check endpoint
+app.get('/api/health', (c) => {
+  return c.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+// Legacy API Routes (to be removed - keeping for compatibility)
 
 /**
- * POST /api/grade - Grade an essay (SECURITY ENHANCED with Zod validation)
+ * POST /api/grade - Grade an essay (DEPRECATED - use mounted route)
  */
+/*
 app.post('/api/grade', async (c) => {
   try {
     const body = await c.req.json()
