@@ -8605,21 +8605,27 @@ app.get('/my-page', (c) => {
               const feedback = feedbackResponse.data;
               
               // Prepare grading data for modal
+              // Extract grading_result from feedback response
+              const gradingResult = feedback.grading_result || {};
+              
+              // Build criterion_scores array from grading_result
+              const criterionScores = (gradingResult.criterion_scores || []).map(criterion => ({
+                criterion_name: criterion.criterion_name || criterion.criterion || '평가 기준',
+                score: criterion.score || 0,
+                strengths: criterion.strengths || '강점 정보 없음',
+                areas_for_improvement: criterion.areas_for_improvement || '개선점 정보 없음'
+              }));
+              
               currentGradingData = {
                 submissionId: submissionId,
                 submission: submission,
                 result: {
-                  total_score: feedback.summary?.total_score || 0,
-                  summary_evaluation: feedback.summary?.summary_evaluation || '',
-                  overall_comment: feedback.summary?.overall_comment || '',
-                  revision_suggestions: feedback.summary?.revision_suggestions || '',
-                  next_steps_advice: feedback.summary?.next_steps_advice || '',
-                  criterion_scores: (feedback.criteria || []).map(criterion => ({
-                    criterion_name: criterion.criterion_name,
-                    score: criterion.score,
-                    strengths: criterion.positive_feedback || '',
-                    areas_for_improvement: criterion.improvement_areas || ''
-                  }))
+                  total_score: gradingResult.total_score || feedback.overall_score || 0,
+                  summary_evaluation: gradingResult.summary_evaluation || '종합 평가 정보가 저장되지 않았습니다.',
+                  overall_comment: gradingResult.overall_comment || feedback.overall_feedback || '전체 피드백 정보가 저장되지 않았습니다.',
+                  revision_suggestions: gradingResult.revision_suggestions || '수정 제안 정보가 저장되지 않았습니다.',
+                  next_steps_advice: gradingResult.next_steps_advice || '다음 단계 조언 정보가 저장되지 않았습니다.',
+                  criterion_scores: criterionScores
                 },
                 detailedFeedback: feedback,
                 fromHistory: true  // Mark that this was opened from grading history
