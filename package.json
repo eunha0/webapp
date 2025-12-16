@@ -13,7 +13,10 @@
     "db:migrate:prod": "wrangler d1 migrations apply webapp-production",
     "db:reset": "rm -rf .wrangler/state/v3/d1 && npm run db:migrate:local",
     "clean-port": "fuser -k 3000/tcp 2>/dev/null || true",
-    "test": "curl http://localhost:3000"
+    "test": "curl http://localhost:3000",
+    "lint": "eslint src/**/*.{ts,tsx,js,mjs}",
+    "lint:fix": "eslint src/**/*.{ts,tsx,js,mjs} --fix",
+    "lint:report": "eslint src/**/*.{ts,tsx,js,mjs} -f json -o eslint-report.json || echo 'Lint completed with warnings'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",

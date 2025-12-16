@@ -75,7 +75,7 @@ export function validatePassword(password: string): { valid: boolean; errors: st
   if (!/[0-9]/.test(password)) {
     errors.push('숫자를 1개 이상 포함해야 합니다')
   }
-  if (!/[!@#$%^&*()_+\-=\[\]{};:'",.<>?]/.test(password)) {
+  if (!/[!@#$%^&*()_+=\-[\]{};:'",.<>?]/.test(password)) {
     errors.push('특수문자를 1개 이상 포함해야 합니다')
   }
   
