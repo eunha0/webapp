@@ -166,7 +166,7 @@ upload.post('/image', async (c) => {
           `UPDATE uploaded_files 
            SET processing_status = ?, processed_at = CURRENT_TIMESTAMP
            WHERE id = ?`
-        ).bind('completed_no_text', uploadedFileId).run()
+        ).bind('completed', uploadedFileId).run()
       }
     } catch (processingError) {
       console.error('OCR processing error:', processingError)
@@ -256,13 +256,16 @@ upload.post('/pdf', async (c) => {
     // Extract text from PDF
     const startTime = Date.now()
     let extractedText = null
+    let pdfExtractionFailed = false
     
+    // Try PDF.js first
     try {
+      console.log(`Attempting PDF.js extraction for ${file.name}...`)
       const pdfResult = await processPDFExtraction(
         { name: file.name, buffer: fileBuffer, type: file.type, size: file.size }
       )
       
-      if (pdfResult.success && pdfResult.extractedText) {
+      if (pdfResult.success && pdfResult.extractedText && pdfResult.extractedText.trim()) {
         extractedText = pdfResult.extractedText
         
         await db.prepare(
@@ -277,24 +280,73 @@ upload.post('/pdf', async (c) => {
           'pdf_extraction',
           'completed',
           `PDF 텍스트 추출 완료 (${Date.now() - startTime}ms)`,
-          { textLength: pdfResult.extractedText.length }
+          pdfResult.processingTimeMs
         )
+        
+        console.log(`PDF.js extraction succeeded: ${pdfResult.extractedText.length} characters`)
       } else {
-        await db.prepare(
-          `UPDATE uploaded_files 
-           SET processing_status = ?, processed_at = CURRENT_TIMESTAMP
-           WHERE id = ?`
-        ).bind('completed_no_text', uploadedFileId).run()
+        // PDF.js failed or returned no text
+        console.warn(`PDF.js extraction failed or returned no text: ${pdfResult.error}`)
+        pdfExtractionFailed = true
+        await logProcessingStep(db, uploadedFileId, 'pdf_extraction', 'failed', pdfResult.error || 'No text extracted', pdfResult.processingTimeMs)
       }
     } catch (pdfError) {
-      console.error('PDF processing error:', pdfError)
+      console.error('PDF.js error:', pdfError)
+      pdfExtractionFailed = true
+      await logProcessingStep(db, uploadedFileId, 'pdf_extraction', 'failed', String(pdfError), null)
+    }
+    
+    // If PDF.js failed, try OCR fallback
+    if (pdfExtractionFailed && !extractedText) {
+      console.log('PDF.js failed, attempting OCR.space fallback...')
+      
+      if (c.env.OCR_SPACE_API_KEY) {
+        try {
+          const ocrResult = await processOCRSpace(
+            { name: file.name, buffer: fileBuffer, type: file.type, size: file.size },
+            c.env.OCR_SPACE_API_KEY
+          )
+          
+          if (ocrResult.success && ocrResult.extractedText && ocrResult.extractedText.trim()) {
+            extractedText = ocrResult.extractedText
+            
+            await db.prepare(
+              `UPDATE uploaded_files 
+               SET extracted_text = ?, processing_status = ?, processed_at = CURRENT_TIMESTAMP
+               WHERE id = ?`
+            ).bind(ocrResult.extractedText, 'completed', uploadedFileId).run()
+            
+            await logProcessingStep(
+              db,
+              uploadedFileId,
+              'ocr_space_fallback',
+              'completed',
+              `OCR.space 폴백 완료 (${Date.now() - startTime}ms)`,
+              ocrResult.processingTimeMs
+            )
+            
+            console.log(`OCR.space extraction succeeded: ${ocrResult.extractedText.length} characters`)
+          } else {
+            console.error('OCR.space failed:', ocrResult.error)
+            await logProcessingStep(db, uploadedFileId, 'ocr_space_fallback', 'failed', ocrResult.error || 'No text extracted', ocrResult.processingTimeMs)
+          }
+        } catch (ocrError) {
+          console.error('OCR.space exception:', ocrError)
+          await logProcessingStep(db, uploadedFileId, 'ocr_space_fallback', 'failed', String(ocrError), null)
+        }
+      } else {
+        console.warn('OCR_SPACE_API_KEY not configured, cannot use OCR fallback')
+      }
+    }
+    
+    // Final status update if no text was extracted
+    if (!extractedText) {
+      console.warn(`No text extracted from ${file.name} after all attempts`)
       await db.prepare(
         `UPDATE uploaded_files 
-         SET processing_status = ?, error_message = ?
+         SET processing_status = ?, error_message = ?, processed_at = CURRENT_TIMESTAMP
          WHERE id = ?`
-      ).bind('failed', String(pdfError), uploadedFileId).run()
-      
-      await logProcessingStep(db, uploadedFileId, 'pdf_extraction', 'failed', String(pdfError), null)
+      ).bind('failed', 'Failed to extract text from PDF', uploadedFileId).run()
     }
     
     return c.json({

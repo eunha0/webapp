@@ -81,6 +81,8 @@ export async function processImageOCR(
 
 /**
  * Process PDF file and extract text using PDF.js
+ * Note: This may fail in Cloudflare Workers environment due to Worker limitations
+ * Caller should have OCR fallback for image-based PDFs
  */
 export async function processPDFExtraction(
   file: UploadedFile
@@ -116,7 +118,7 @@ export async function processPDFExtraction(
     if (!fullText.trim()) {
       return {
         success: false,
-        error: 'No text found in PDF (may be image-based PDF)',
+        error: 'No text found in PDF (image-based PDF requires OCR)',
         processingTimeMs: Date.now() - startTime,
       };
     }
@@ -129,9 +131,10 @@ export async function processPDFExtraction(
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error('PDF extraction error:', errorMsg);
+    // Return failure so caller can try OCR fallback
     return {
       success: false,
-      error: `PDF processing failed: ${errorMsg}`,
+      error: `PDF.js failed (try OCR): ${errorMsg}`,
       processingTimeMs: Date.now() - startTime,
     };
   }
