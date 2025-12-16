@@ -186,7 +186,7 @@ assignments.get('/:id', async (c) => {
     
     // Get submissions
     const submissions = await db.prepare(
-      'SELECT * FROM assignment_submissions WHERE assignment_id = ? ORDER BY created_at DESC'
+      'SELECT * FROM student_submissions WHERE assignment_id = ? ORDER BY submitted_at DESC'
     ).bind(assignmentId).all()
     
     return c.json({
@@ -222,7 +222,7 @@ assignments.delete('/:id', async (c) => {
     
     // Delete rubrics and submissions first (cascade)
     await db.prepare('DELETE FROM assignment_rubrics WHERE assignment_id = ?').bind(assignmentId).run()
-    await db.prepare('DELETE FROM assignment_submissions WHERE assignment_id = ?').bind(assignmentId).run()
+    await db.prepare('DELETE FROM student_submissions WHERE assignment_id = ?').bind(assignmentId).run()
     
     // Delete assignment
     await db.prepare('DELETE FROM assignments WHERE id = ?').bind(assignmentId).run()

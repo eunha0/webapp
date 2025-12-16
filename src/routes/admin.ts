@@ -21,7 +21,7 @@ admin.get('/stats', async (c) => {
       db.prepare('SELECT COUNT(*) as count FROM assignments WHERE user_id = ?').bind(user.id).first(),
       db.prepare(`
         SELECT COUNT(*) as count 
-        FROM assignment_submissions s
+        FROM student_submissions s
         JOIN assignments a ON s.assignment_id = a.id
         WHERE a.user_id = ?
       `).bind(user.id).first()
@@ -56,7 +56,7 @@ admin.get('/recent-activity', async (c) => {
         s.status,
         s.created_at,
         a.title as assignment_title
-      FROM assignment_submissions s
+      FROM student_submissions s
       JOIN assignments a ON s.assignment_id = a.id
       WHERE a.user_id = ?
       ORDER BY s.created_at DESC

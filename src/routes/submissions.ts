@@ -29,7 +29,7 @@ submissions.post('/assignment/:id/submission', async (c) => {
     // Create submission
     const filesJSON = files ? JSON.stringify(files) : null
     const result = await db.prepare(
-      'INSERT INTO assignment_submissions (assignment_id, student_name, essay_text, files, status) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO student_submissions (assignment_id, student_name, essay_text, files, status) VALUES (?, ?, ?, ?, ?)'
     ).bind(assignmentId, student_name, essay_text, filesJSON, 'pending').run()
     
     return c.json({ 
@@ -56,7 +56,7 @@ submissions.post('/:id/grade', async (c) => {
     // Get submission with assignment details
     const submission = await db.prepare(`
       SELECT s.*, a.title as assignment_title, a.prompts, a.grade_level, a.user_id as assignment_owner_id
-      FROM assignment_submissions s
+      FROM student_submissions s
       JOIN assignments a ON s.assignment_id = a.id
       WHERE s.id = ?
     `).bind(submissionId).first()
@@ -92,7 +92,7 @@ submissions.post('/:id/grade', async (c) => {
     
     // Store grading result
     await db.prepare(`
-      UPDATE assignment_submissions 
+      UPDATE student_submissions 
       SET status = ?, 
           overall_score = ?, 
           overall_feedback = ?,
@@ -131,7 +131,7 @@ submissions.get('/:id', async (c) => {
     // Get submission with assignment ownership check
     const submission = await db.prepare(`
       SELECT s.*, a.user_id as assignment_owner_id, a.title as assignment_title
-      FROM assignment_submissions s
+      FROM student_submissions s
       JOIN assignments a ON s.assignment_id = a.id
       WHERE s.id = ?
     `).bind(submissionId).first()
@@ -173,7 +173,7 @@ submissions.get('/:id/feedback', async (c) => {
     
     const submission = await db.prepare(`
       SELECT s.overall_score, s.overall_feedback, s.grading_result, a.user_id as assignment_owner_id
-      FROM assignment_submissions s
+      FROM student_submissions s
       JOIN assignments a ON s.assignment_id = a.id
       WHERE s.id = ?
     `).bind(submissionId).first()
@@ -217,7 +217,7 @@ submissions.put('/:id/feedback', async (c) => {
     // Verify ownership
     const submission = await db.prepare(`
       SELECT a.user_id as assignment_owner_id
-      FROM assignment_submissions s
+      FROM student_submissions s
       JOIN assignments a ON s.assignment_id = a.id
       WHERE s.id = ?
     `).bind(submissionId).first()
@@ -233,7 +233,7 @@ submissions.put('/:id/feedback', async (c) => {
     // Update feedback
     const gradingResultJSON = grading_result ? JSON.stringify(grading_result) : null
     await db.prepare(`
-      UPDATE assignment_submissions 
+      UPDATE student_submissions 
       SET overall_score = ?, overall_feedback = ?, grading_result = ?
       WHERE id = ?
     `).bind(overall_score, overall_feedback, gradingResultJSON, submissionId).run()
