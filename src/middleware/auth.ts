@@ -1,4 +1,5 @@
 import type { Context } from 'hono'
+import { getCookie } from 'hono/cookie'
 import type { Bindings } from '../types'
 
 export interface User {
@@ -17,9 +18,14 @@ export interface Student {
 
 /**
  * Get user from session
+ * Checks both Cookie (session_id) and Header (X-Session-ID)
  */
 export async function getUserFromSession(c: Context<{ Bindings: Bindings }>): Promise<User | null> {
-  const sessionId = c.req.header('X-Session-ID')
+  // Try to get session ID from cookie first, then from header
+  let sessionId = getCookie(c, 'session_id')
+  if (!sessionId) {
+    sessionId = c.req.header('X-Session-ID')
+  }
   if (!sessionId) return null
   
   const db = c.env.DB
@@ -39,14 +45,19 @@ export async function getUserFromSession(c: Context<{ Bindings: Bindings }>): Pr
 
 /**
  * Get student from session
+ * Checks both Cookie (student_session_id) and Header (X-Session-ID)
  */
 export async function getStudentFromSession(c: Context<{ Bindings: Bindings }>): Promise<Student | null> {
-  const sessionId = c.req.header('X-Session-ID')
+  // Try to get session ID from cookie first, then from header
+  let sessionId = getCookie(c, 'student_session_id')
+  if (!sessionId) {
+    sessionId = c.req.header('X-Session-ID')
+  }
   if (!sessionId) return null
   
   const db = c.env.DB
   const session = await db.prepare(
-    'SELECT s.*, st.id as student_id, st.name, st.email FROM student_sessions s JOIN students st ON s.student_id = st.id WHERE s.id = ? AND s.expires_at > datetime("now")'
+    'SELECT s.*, st.id as student_id, st.name, st.email FROM student_sessions s JOIN student_users st ON s.student_id = st.id WHERE s.id = ? AND s.expires_at > datetime("now")'
   ).bind(sessionId).first()
   
   if (!session) return null

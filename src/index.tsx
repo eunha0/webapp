@@ -12,35 +12,10 @@ import submissions from './routes/submissions'
 import admin from './routes/admin'
 import students from './routes/students'
 
+// Import authentication helpers from middleware
+import { getUserFromSession, requireAuth } from './middleware/auth'
+
 const app = new Hono<{ Bindings: Bindings }>()
-
-// Helper function to get user from session
-async function getUserFromSession(c: any): Promise<{ id: number; name: string; email: string } | null> {
-  const sessionId = c.req.header('X-Session-ID')
-  if (!sessionId) return null
-  
-  const db = c.env.DB
-  const session = await db.prepare(
-    'SELECT s.*, u.id as user_id, u.name, u.email FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.id = ? AND s.expires_at > datetime("now")'
-  ).bind(sessionId).first()
-  
-  if (!session) return null
-  
-  return {
-    id: session.user_id as number,
-    name: session.name as string,
-    email: session.email as string
-  }
-}
-
-// Helper function to require authentication
-async function requireAuth(c: any) {
-  const user = await getUserFromSession(c)
-  if (!user) {
-    return c.json({ error: 'Unauthorized - Please login' }, 401)
-  }
-  return user
-}
 
 // Helper function to convert ArrayBuffer to base64
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -64,7 +39,7 @@ app.route('/api/auth', auth)
 app.route('/api', grading)
 app.route('/api/upload', upload)
 app.route('/api/assignment', assignments)
-app.route('/api', submissions)
+app.route('/api/submission', submissions)
 app.route('/api/admin', admin)
 app.route('/api/student', students)
 
