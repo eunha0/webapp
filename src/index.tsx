@@ -8362,12 +8362,26 @@ app.get('/my-page', (c) => {
           let selectedSubmissions = new Set();
 
           // Load history
-          // Helper function to convert UTC to KST (Korea Standard Time, UTC+9)
-          function toKST(utcDateString) {
-            if (!utcDateString) return new Date();
-            const date = new Date(utcDateString);
-            // Add 9 hours for KST
-            date.setHours(date.getHours() + 9);
+          // Helper function to parse date strings as UTC and display in local timezone
+          function toKST(dateString) {
+            if (!dateString) return new Date();
+            
+            // Parse the date string as UTC
+            // SQLite DATETIME format: "YYYY-MM-DD HH:MM:SS"
+            // If it doesn't have timezone info, treat as UTC
+            let date;
+            if (dateString.endsWith('Z')) {
+              // Already has UTC indicator
+              date = new Date(dateString);
+            } else if (dateString.includes('T')) {
+              // ISO format without Z, treat as UTC
+              date = new Date(dateString + 'Z');
+            } else {
+              // SQLite format: "2025-12-16 13:15:10"
+              // Treat as UTC by appending Z
+              date = new Date(dateString.replace(' ', 'T') + 'Z');
+            }
+            
             return date;
           }
           
