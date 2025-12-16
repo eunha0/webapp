@@ -91,6 +91,10 @@ submissions.post('/:id/grade', async (c) => {
     const gradingResult = await gradeEssayHybrid(gradingRequest, c.env)
     
     // Store grading result
+    // Map GradingResult fields to database columns
+    const overall_score = gradingResult.total_score || 0;
+    const overall_feedback = gradingResult.overall_comment || gradingResult.summary_evaluation || '';
+    
     await db.prepare(`
       UPDATE student_submissions 
       SET status = ?, 
@@ -101,8 +105,8 @@ submissions.post('/:id/grade', async (c) => {
       WHERE id = ?
     `).bind(
       'graded',
-      gradingResult.overall_score,
-      gradingResult.overall_feedback,
+      overall_score,
+      overall_feedback,
       JSON.stringify(gradingResult),
       submissionId
     ).run()
