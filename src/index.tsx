@@ -845,24 +845,35 @@ app.get('/api/assignment/:id', async (c) => {
       'SELECT * FROM assignment_rubrics WHERE assignment_id = ? ORDER BY criterion_order'
     ).bind(assignmentId).all()
     
-    // Get submissions with grading results
+    // Get submissions (status-based, no JOIN needed)
     const submissions = await db.prepare(
-      `SELECT s.*, gr.total_score as overall_score, gr.overall_comment as overall_feedback 
-       FROM student_submissions s 
-       LEFT JOIN grading_results gr ON s.grade_result_id = gr.id 
-       WHERE s.assignment_id = ? 
-       ORDER BY s.submitted_at DESC`
+      `SELECT * FROM student_submissions 
+       WHERE assignment_id = ? 
+       ORDER BY submitted_at DESC`
     ).bind(assignmentId).all()
     
-    // Parse prompts from JSON
+    // Parse prompts from JSON and add graded flag to submissions
+    // Map submissions and ensure graded is true boolean (not 0/1)
+    const mappedSubmissions = (submissions.results || []).map((sub: any) => {
+      const result: any = { ...sub };
+      // Force boolean conversion - use explicit true/false
+      result.graded = (sub.status === 'graded') ? true : false;
+      return result;
+    });
+    
     const parsedAssignment = {
       ...assignment,
       prompts: assignment.prompts ? JSON.parse(assignment.prompts) : [],
       rubrics: rubrics.results || [],
-      submissions: submissions.results || []
+      submissions: mappedSubmissions
     }
     
-    return c.json(parsedAssignment)
+    // Use direct Response instead of c.json() to bypass D1 serialization
+    return new Response(JSON.stringify(parsedAssignment), {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
   } catch (error) {
     console.error('Error fetching assignment:', error)
     return c.json({ error: 'Failed to fetch assignment' }, 500)
@@ -6062,7 +6073,7 @@ app.get('/my-page', (c) => {
                                   '</div>' +
                                 '</div>' +
                                 '<div class="ml-4">' +
-                                  (submission.graded ? 
+                                  (submission.status === 'graded' || submission.graded ? 
                                     '<span class="text-green-600 font-semibold text-sm"><i class="fas fa-check-circle mr-1"></i>채점완료</span>' :
                                     '<button onclick="gradeSubmission(' + submission.id + ')" class="px-4 py-2 bg-navy-900 text-white rounded-lg text-sm font-semibold hover:bg-navy-800 transition">채점하기</button>'
                                   ) +
@@ -7735,12 +7746,19 @@ app.get('/my-page', (c) => {
                         평가 기준별 점수
                       </h3>
                       <div class="space-y-4" id="criterionScoresContainer">
-                        \${result.criterion_scores.map((criterion, index) => \`
+                        \${result.criterion_scores.map((criterion, index) => {
+                          // Handle both old format (criterion) and new format (criterion_name)
+                          const criterionName = criterion.criterion_name || criterion.criterion || '(기준명 없음)';
+                          const criterionScore = criterion.score || 0;
+                          const criterionStrengths = criterion.strengths || '';
+                          const criterionImprovements = criterion.areas_for_improvement || '';
+                          
+                          return \`
                           <div class="border border-gray-200 rounded-lg p-4 bg-white">
                             <div class="flex justify-between items-start mb-3">
-                              <h4 class="font-semibold text-gray-900">\${criterion.criterion_name}</h4>
+                              <h4 class="font-semibold text-gray-900">\${criterionName}</h4>
                               <div class="flex items-center gap-2">
-                                <input type="number" id="editScore_\${index}" value="\${criterion.score}" min="1" max="4" 
+                                <input type="number" id="editScore_\${index}" value="\${criterionScore}" min="1" max="4" 
                                   class="w-16 text-center border border-gray-300 rounded px-2 py-1" />
                                 <span class="text-gray-600">/4</span>
                               </div>
@@ -7752,7 +7770,7 @@ app.get('/my-page', (c) => {
                                 </label>
                                 <textarea id="editStrengths_\${index}" rows="2" 
                                   class="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                                >\${criterion.strengths}</textarea>
+                                >\${criterionStrengths}</textarea>
                               </div>
                               <div>
                                 <label class="block text-sm font-semibold text-orange-700 mb-1">
@@ -7760,11 +7778,12 @@ app.get('/my-page', (c) => {
                                 </label>
                                 <textarea id="editImprovements_\${index}" rows="2" 
                                   class="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                                >\${criterion.areas_for_improvement}</textarea>
+                                >\${criterionImprovements}</textarea>
                               </div>
                             </div>
                           </div>
-                        \`).join('')}
+                        \`;
+                        }).join('')}
                       </div>
                     </div>
 

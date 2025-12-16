@@ -92,24 +92,35 @@ submissions.post('/:id/grade', async (c) => {
     
     // Store grading result
     // Map GradingResult fields to database columns
-    const overall_score = gradingResult.total_score || 0;
+    const overall_score = gradingResult.total_score ?? 0;
     const overall_feedback = gradingResult.overall_comment || gradingResult.summary_evaluation || '';
+    
+    // Build UPDATE query dynamically to avoid undefined values
+    const updates: string[] = ['status = ?', 'graded_at = CURRENT_TIMESTAMP'];
+    const params: any[] = ['graded'];
+    
+    if (overall_score !== undefined) {
+      updates.push('overall_score = ?');
+      params.push(overall_score);
+    }
+    
+    if (overall_feedback !== undefined && overall_feedback !== '') {
+      updates.push('overall_feedback = ?');
+      params.push(overall_feedback);
+    }
+    
+    if (gradingResult !== undefined) {
+      updates.push('grading_result = ?');
+      params.push(JSON.stringify(gradingResult));
+    }
+    
+    params.push(submissionId);
     
     await db.prepare(`
       UPDATE student_submissions 
-      SET status = ?, 
-          overall_score = ?, 
-          overall_feedback = ?,
-          grading_result = ?,
-          graded_at = CURRENT_TIMESTAMP
+      SET ${updates.join(', ')}
       WHERE id = ?
-    `).bind(
-      'graded',
-      overall_score,
-      overall_feedback,
-      JSON.stringify(gradingResult),
-      submissionId
-    ).run()
+    `).bind(...params).run()
     
     return c.json({
       success: true,
