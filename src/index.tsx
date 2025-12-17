@@ -5978,20 +5978,12 @@ app.get('/my-page', (c) => {
             
             // Create card-based rubric list
             container.innerHTML = platformRubricData.map(rubric => \`
-              <div class="rubric-card border-2 border-gray-200 rounded-lg p-4 hover:border-navy-700 hover:shadow-md transition" data-value="\${rubric.value}">
+              <div class="rubric-card border-2 border-gray-200 rounded-lg p-4 hover:border-navy-700 hover:shadow-md transition cursor-pointer"
+                   onclick="previewRubric('\${rubric.value}', '\${rubric.text}', '\${rubric.pdf}')">
                 <div class="flex items-center justify-between">
                   <div class="flex-1">
                     <h3 class="font-semibold text-gray-900">\${rubric.text}</h3>
-                    <div class="flex gap-2 mt-2">
-                      <button onclick="event.stopPropagation(); previewRubric('\${rubric.value}', '\${rubric.text}', '\${rubric.pdf}')" 
-                              class="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition">
-                        <i class="fas fa-eye mr-1"></i>상세보기
-                      </button>
-                      <button onclick="event.stopPropagation(); selectRubricDirect('\${rubric.value}', '\${rubric.text}', '\${rubric.pdf}')" 
-                              class="text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition">
-                        <i class="fas fa-check mr-1"></i>선택
-                      </button>
-                    </div>
+                    <p class="text-sm text-gray-500 mt-1">클릭하여 미리보기</p>
                   </div>
                   <i class="fas fa-file-pdf text-red-600 text-2xl ml-3"></i>
                 </div>
@@ -6003,17 +5995,36 @@ app.get('/my-page', (c) => {
           let currentRubricSelection = null;
           
           function previewRubric(value, text, pdfPath) {
-            // Open rubric detail page in new tab
-            const detailPageUrl = \`/rubric-detail/\${value}\`;
-            window.open(detailPageUrl, '_blank');
+            currentRubricSelection = { value, text, pdfPath };
+            
+            const modal = document.getElementById('rubricPreviewModal');
+            const titleEl = document.getElementById('rubricPreviewTitle');
+            const containerEl = document.getElementById('rubricPdfContainer');
+            
+            // Encode the PDF path to handle Korean characters
+            const encodedPath = pdfPath.split('/').map(part => encodeURIComponent(part)).join('/');
+            
+            titleEl.textContent = text;
+            containerEl.innerHTML = \`
+              <embed src="\${encodedPath}" type="application/pdf" width="100%" height="700px" 
+                     class="border border-gray-300 rounded-lg" />
+            \`;
+            
+            modal.classList.remove('hidden');
           }
           
-          function selectRubricDirect(value, text, pdfPath) {
-            currentRubricSelection = { value, text, pdfPath };
+          function closeRubricPreview() {
+            const modal = document.getElementById('rubricPreviewModal');
+            modal.classList.add('hidden');
+            currentRubricSelection = null;
+          }
+          
+          function selectCurrentRubric() {
+            if (!currentRubricSelection) return;
             
             // Set the hidden input value
             const hiddenInput = document.getElementById('selectedPlatformRubric');
-            hiddenInput.value = value;
+            hiddenInput.value = currentRubricSelection.value;
             
             // Highlight selected card
             const cards = document.querySelectorAll('#platformRubricList .rubric-card');
@@ -6023,7 +6034,7 @@ app.get('/my-page', (c) => {
             });
             
             const selectedCard = Array.from(cards).find(card => 
-              card.getAttribute('data-value') === value
+              card.getAttribute('onclick').includes(currentRubricSelection.value)
             );
             
             if (selectedCard) {
@@ -6031,19 +6042,11 @@ app.get('/my-page', (c) => {
               selectedCard.classList.add('border-navy-700', 'bg-navy-50');
             }
             
+            // Close modal
+            closeRubricPreview();
+            
             // Show success message
-            alert(\`"\${text}"이(가) 선택되었습니다.\`);
-          }
-          
-          function closeRubricPreview() {
-            const modal = document.getElementById('rubricPreviewModal');
-            if (modal) modal.classList.add('hidden');
-            currentRubricSelection = null;
-          }
-          
-          function selectCurrentRubric() {
-            if (!currentRubricSelection) return;
-            selectRubricDirect(currentRubricSelection.value, currentRubricSelection.text, currentRubricSelection.pdfPath);
+            alert(\`"\${currentRubricSelection.text}"이(가) 선택되었습니다.\`);
           }
 
           // Load assignments
