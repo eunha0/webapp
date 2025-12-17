@@ -3473,6 +3473,21 @@ app.get('/resources/:category', async (c) => {
           const category = '${category}';
           let allItems = [];
           
+          // 플랫폼 루브릭 목록
+          const platformRubrics = [
+            { id: 'standard', title: '표준 논술 루브릭(4개 기준)', pdf: '/rubric-pdfs/표준 논술 루브릭(4개 기준).pdf', value: 'standard' },
+            { id: 'kr_elementary', title: '초등학생용 평가 기준', pdf: '/rubric-pdfs/초등학생용 평가 기준.pdf', value: 'kr_elementary' },
+            { id: 'kr_middle', title: '중학생용 평가 기준', pdf: '/rubric-pdfs/중학생용 평가 기준.pdf', value: 'kr_middle' },
+            { id: 'kr_high', title: '고등학생용 평가 기준', pdf: '/rubric-pdfs/고등학생용 평가 기준.pdf', value: 'kr_high' },
+            { id: 'nyregents', title: '뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭', pdf: '/rubric-pdfs/뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭.pdf', value: 'nyregents' },
+            { id: 'nyregents_analytical', title: '뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭', pdf: '/rubric-pdfs/뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭.pdf', value: 'nyregents_analytical' },
+            { id: 'ny_middle', title: '뉴욕 주 중학교 논술 루브릭', pdf: '/rubric-pdfs/뉴욕 주 중학교 논술 루브릭.pdf', value: 'ny_middle' },
+            { id: 'ny_elementary', title: '뉴욕 주 초등학교 논술 루브릭', pdf: '/rubric-pdfs/뉴욕 주 초등학교 논술 루브릭.pdf', value: 'ny_elementary' },
+            { id: 'ib_myp_highschool', title: 'IB 중등 프로그램 고등학교 개인과 사회 논술 루브릭', pdf: '/rubric-pdfs/IB 중등 프로그램 고등학교 개인과 사회 논술 루브릭.pdf', value: 'ib_myp_highschool' },
+            { id: 'ib_myp_middleschool', title: 'IB 중등 프로그램 중학교 개인과 사회 논술 루브릭', pdf: '/rubric-pdfs/IB 중등 프로그램 중학교 개인과 사회 논술 루브릭.pdf', value: 'ib_myp_middleschool' },
+            { id: 'ib_myp_science', title: 'IB 중등 프로그램 과학 논술 루브릭', pdf: '/rubric-pdfs/IB 중등 프로그램 과학 논술 루브릭.pdf', value: 'ib_myp_science' }
+          ];
+          
           // 기출 문제 목록
           const examQuestions = [
             {
@@ -3522,7 +3537,28 @@ app.get('/resources/:category', async (c) => {
               return;
             }
             
-            if (category === 'exam') {
+            if (category === 'rubric') {
+              container.innerHTML = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">' + items.map(item => \`
+                <div class="bg-white border-2 border-gray-200 rounded-xl p-6 hover:border-navy-700 hover:shadow-xl transition">
+                  <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                      <h3 class="text-xl font-bold text-gray-900 mb-3">\${item.title}</h3>
+                      <div class="flex gap-2 mt-4">
+                        <button onclick="event.stopPropagation(); window.open('/rubric-detail/\${item.value}', '_blank')" 
+                                class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition font-semibold">
+                          <i class="fas fa-eye mr-2"></i>상세보기
+                        </button>
+                        <button onclick="event.stopPropagation(); openPDF('\${item.pdf}', '\${item.title}')" 
+                                class="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition font-semibold">
+                          <i class="fas fa-file-pdf mr-2"></i>PDF 보기
+                        </button>
+                      </div>
+                    </div>
+                    <i class="fas fa-file-pdf text-red-600 text-3xl ml-4"></i>
+                  </div>
+                </div>
+              \`).join('') + '</div>';
+            } else if (category === 'exam') {
               container.innerHTML = items.map(item => \`
                 <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition cursor-pointer" onclick="openPDF('\${item.file}', '\${item.title}')">
                   <div class="flex items-center justify-between">
@@ -3628,6 +3664,9 @@ app.get('/resources/:category', async (c) => {
             try {
               if (category === 'exam') {
                 allItems = examQuestions;
+                displayItems(allItems);
+              } else if (category === 'rubric') {
+                allItems = platformRubrics;
                 displayItems(allItems);
               } else {
                 const response = await axios.get('/api/resources/' + category);
