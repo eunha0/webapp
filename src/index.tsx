@@ -7928,9 +7928,10 @@ app.get('/my-page', (c) => {
             const feedback = currentGradingData.detailedFeedback;
             const submission = currentGradingData.submission;
             
-            // Calculate max score based on number of rubric criteria (each criterion is worth 4 points)
-            const criteriaCount = result.criterion_scores ? result.criterion_scores.length : 1;
-            const maxScore = criteriaCount * 4;
+            // Calculate max score by summing up each criterion's max_score
+            const maxScore = result.criterion_scores 
+              ? result.criterion_scores.reduce((sum, criterion) => sum + (criterion.max_score || 4), 0)
+              : 4;
             
             // Create modal HTML with split-screen layout
             const modalHTML = \`
@@ -8235,9 +8236,10 @@ app.get('/my-page', (c) => {
               const submission = currentGradingData.submission;
               const result = currentGradingData.result;
               
-              // Calculate max score based on number of criteria
-              const criteriaCount = result.criterion_scores ? result.criterion_scores.length : 1;
-              const maxScore = criteriaCount * 4;
+              // Calculate max score by summing up each criterion's max_score
+              const maxScore = result.criterion_scores 
+                ? result.criterion_scores.reduce((sum, criterion) => sum + (criterion.max_score || 4), 0)
+                : 4;
               
               // Collect current edited values
               const totalScore = document.getElementById('editTotalScore').value;
@@ -8414,9 +8416,10 @@ app.get('/my-page', (c) => {
             const submission = currentGradingData.submission;
             const result = currentGradingData.result;
             
-            // Calculate max score based on number of criteria
-            const criteriaCount = result.criterion_scores ? result.criterion_scores.length : 1;
-            const maxScore = criteriaCount * 4;
+            // Calculate max score by summing up each criterion's max_score
+            const maxScore = result.criterion_scores 
+              ? result.criterion_scores.reduce((sum, criterion) => sum + (criterion.max_score || 4), 0)
+              : 4;
             
             // Collect current edited values
             const totalScore = document.getElementById('editTotalScore').value;
@@ -9108,8 +9111,10 @@ app.get('/my-page', (c) => {
             const summary = feedback.summary || {};
             const criteriaFeedback = feedback.criteria || [];
             
-            // Calculate max score based on number of criteria
-            const maxScore = criteriaFeedback.length * 4;
+            // Calculate max score by summing up each criterion's max_score
+            const maxScore = criteriaFeedback.length > 0
+              ? criteriaFeedback.reduce((sum, criterion) => sum + (criterion.max_score || 4), 0)
+              : 4;
             
             let criterionHTML = '';
             criteriaFeedback.forEach(criterion => {
@@ -9261,7 +9266,9 @@ app.get('/my-page', (c) => {
                 });
                 
                 // 최대 점수 동적 계산
-                const maxScore = criteriaFeedback.length * 4;
+                const maxScore = criteriaFeedback.length > 0
+                  ? criteriaFeedback.reduce((sum, criterion) => sum + (criterion.max_score || 4), 0)
+                  : 4;
                 
                 combinedContent += \`
                   <div class="submission-section" style="\${i > 0 ? 'page-break-before: always;' : ''}">
