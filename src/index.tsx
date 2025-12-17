@@ -195,11 +195,18 @@ app.get('/rubric-detail/:rubricId', (c) => {
     '</div><div class="space-y-6">' + criteriaHtml + '</div>' +
     '<div class="mt-8 pt-6 border-t border-gray-200">' +
     '<h3 class="text-lg font-semibold text-gray-800 mb-3">상세 루브릭 파일</h3>' +
+    '<div class="flex gap-3">' +
     '<a href="' + rubric.pdf + '" target="_blank" ' +
     'class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">' +
     '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />' +
-    '</svg>PDF 파일 다운로드</a></div></div></body></html>')
+    '</svg>PDF 파일 다운로드</a>' +
+    '<a href="/resources/rubric" ' +
+    'class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors">' +
+    '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />' +
+    '</svg>목록으로 가기</a>' +
+    '</div></div></div></body></html>')
 })
 
 // Health check endpoint
@@ -3543,14 +3550,10 @@ app.get('/resources/:category', async (c) => {
                   <div class="flex items-start justify-between">
                     <div class="flex-1">
                       <h3 class="text-xl font-bold text-gray-900 mb-3">\${item.title}</h3>
-                      <div class="flex gap-2 mt-4">
+                      <div class="mt-4">
                         <button onclick="event.stopPropagation(); window.open('/rubric-detail/\${item.value}', '_blank')" 
                                 class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition font-semibold">
                           <i class="fas fa-eye mr-2"></i>상세보기
-                        </button>
-                        <button onclick="event.stopPropagation(); openPDF('\${item.pdf}', '\${item.title}')" 
-                                class="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition font-semibold">
-                          <i class="fas fa-file-pdf mr-2"></i>PDF 보기
                         </button>
                       </div>
                     </div>
@@ -10177,6 +10180,43 @@ app.get('/admin/cms', (c) => {
           
           async function loadPostsByCategory(category, containerId) {
             try {
+              // 루브릭의 경우 플랫폼 루브릭 표시
+              if (category === 'rubric') {
+                const platformRubrics = [
+                  { id: 'standard', title: '표준 논술 루브릭(4개 기준)', value: 'standard' },
+                  { id: 'kr_elementary', title: '초등학생용 평가 기준', value: 'kr_elementary' },
+                  { id: 'kr_middle', title: '중학생용 평가 기준', value: 'kr_middle' },
+                  { id: 'kr_high', title: '고등학생용 평가 기준', value: 'kr_high' },
+                  { id: 'nyregents', title: '뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭', value: 'nyregents' },
+                  { id: 'nyregents_analytical', title: '뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭', value: 'nyregents_analytical' },
+                  { id: 'ny_middle', title: '뉴욕 주 중학교 논술 루브릭', value: 'ny_middle' },
+                  { id: 'ny_elementary', title: '뉴욕 주 초등학교 논술 루브릭', value: 'ny_elementary' },
+                  { id: 'ib_myp_highschool', title: 'IB 중등 프로그램 고등학교 개인과 사회 논술 루브릭', value: 'ib_myp_highschool' },
+                  { id: 'ib_myp_middleschool', title: 'IB 중등 프로그램 중학교 개인과 사회 논술 루브릭', value: 'ib_myp_middleschool' },
+                  { id: 'ib_myp_science', title: 'IB 중등 프로그램 과학 논술 루브릭', value: 'ib_myp_science' }
+                ];
+                
+                const container = document.getElementById(containerId);
+                container.innerHTML = platformRubrics.map(rubric => \`
+                  <div class="bg-white rounded-lg shadow hover:shadow-md transition">
+                    <div class="p-4 flex items-center justify-between">
+                      <div class="flex-1">
+                        <h3 class="font-bold text-gray-900">\${rubric.title}</h3>
+                        <p class="text-sm text-gray-500 mt-1">
+                          <span>플랫폼 루브릭</span>
+                        </p>
+                      </div>
+                      <div class="flex gap-2 ml-4">
+                        <a href="/rubric-detail/\${rubric.value}" target="_blank" class="px-4 py-2 bg-navy-100 text-navy-800 rounded text-sm font-semibold hover:bg-navy-200 transition">
+                          <i class="fas fa-eye mr-1"></i>상세보기
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                \`).join('');
+                return;
+              }
+              
               const response = await axios.get(\`/api/resources/\${category}\`);
               const posts = response.data;
               
