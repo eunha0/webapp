@@ -57,39 +57,39 @@ app.get('/rubric-detail/:rubricId', (c) => {
       title: '표준 논술 루브릭 (4개 기준)',
       pdf: '/rubric-pdfs/표준 논술 루브릭(4개 기준).pdf',
       criteria: [
-        { name: '핵심 개념의 이해와 분석', desc: '논제를 정확하게 파악하고 깊이 있게 분석했습니다.' },
-        { name: '증거와 사례 활용', desc: '논거가 논리적이고 설득력이 있습니다.' },
-        { name: '출처 인용의 정확성', desc: '구체적이고 적절한 사례를 효과적으로 활용했습니다.' },
-        { name: '문법 정확성, 구성 및 흐름', desc: '문법, 어휘, 문장 구조가 정확하고 적절합니다.' }
+        { name: '핵심 개념의 이해와 분석', desc: '논제를 정확하게 파악하고 깊이 있게 분석했습니다.', max_score: 4 },
+        { name: '증거와 사례 활용', desc: '논거가 논리적이고 설득력이 있습니다.', max_score: 4 },
+        { name: '출처 인용의 정확성', desc: '구체적이고 적절한 사례를 효과적으로 활용했습니다.', max_score: 4 },
+        { name: '문법 정확성, 구성 및 흐름', desc: '문법, 어휘, 문장 구조가 정확하고 적절합니다.', max_score: 4 }
       ]
     },
     'kr_elementary': {
       title: '초등학생용 평가 기준',
       pdf: '/rubric-pdfs/초등학생용 평가 기준.pdf',
       criteria: [
-        { name: '내용의 풍부성', desc: '자기 생각이나 느낌, 경험을 솔직하고 구체적으로 표현했습니다.' },
-        { name: '글의 짜임', desc: '처음부터 끝까지 자연스럽게 글이 흘러갑니다.' },
-        { name: '표현과 맞춤법', desc: '문장이 자연스럽고, 맞춤법과 띄어쓰기가 바릅니다.' }
+        { name: '내용의 풍부성', desc: '자기 생각이나 느낌, 경험을 솔직하고 구체적으로 표현했습니다.', max_score: 40 },
+        { name: '글의 짜임', desc: '처음부터 끝까지 자연스럽게 글이 흘러갑니다.', max_score: 30 },
+        { name: '표현과 맞춤법', desc: '문장이 자연스럽고, 맞춤법과 띄어쓰기가 바릅니다.', max_score: 30 }
       ]
     },
     'kr_middle': {
       title: '중학생용 평가 기준',
       pdf: '/rubric-pdfs/중학생용 평가 기준.pdf',
       criteria: [
-        { name: '주제의 명료성', desc: '글쓴이의 주장이나 주제가 분명하게 드러나는지 평가합니다.' },
-        { name: '논리적 구성', desc: '서론(도입)-본론(전개)-결론(정리)의 형식을 갖추고 문단이 잘 구분되었는지 평가합니다.' },
-        { name: '근거의 적절성', desc: '주장을 뒷받침하기 위해 적절한 이유나 예시를 들었는지 평가합니다.' },
-        { name: '표현의 정확성', desc: '표준어 사용, 맞춤법, 문장의 호응 등 기본적인 국어 사용 능력을 평가합니다.' }
+        { name: '주제의 명료성', desc: '글쓴이의 주장이나 주제가 분명하게 드러나는지 평가합니다.', max_score: 20 },
+        { name: '논리적 구성', desc: '서론(도입)-본론(전개)-결론(정리)의 형식을 갖추고 문단이 잘 구분되었는지 평가합니다.', max_score: 30 },
+        { name: '근거의 적절성', desc: '주장을 뒷받침하기 위해 적절한 이유나 예시를 들었는지 평가합니다.', max_score: 30 },
+        { name: '표현의 정확성', desc: '표준어 사용, 맞춤법, 문장의 호응 등 기본적인 국어 사용 능력을 평가합니다.', max_score: 20 }
       ]
     },
     'kr_high': {
       title: '고등학생용 평가 기준',
       pdf: '/rubric-pdfs/고등학생용 평가 기준.pdf',
       criteria: [
-        { name: '통찰력 및 비판적 사고', desc: '주제를 단순히 나열하지 않고, 자신만의 관점으로 심도 있게 분석하거나 비판적으로 고찰했습니다.' },
-        { name: '논증의 체계성', desc: '논지가 유기적으로 연결되며, 예상되는 반론을 고려하거나 논리적 완결성을 갖추었습니다.' },
-        { name: '근거의 타당성 및 다양성', desc: '객관적 자료, 전문가 견해 등 신뢰할 수 있는 근거를 활용하여 설득력을 높였습니다.' },
-        { name: '문체 및 어법의 세련됨', desc: '학술적 글쓰기에 적합한 어조와 세련된 문장 구사력을 보여줍니다.' }
+        { name: '통찰력 및 비판적 사고', desc: '주제를 단순히 나열하지 않고, 자신만의 관점으로 심도 있게 분석하거나 비판적으로 고찰했습니다.', max_score: 30 },
+        { name: '논증의 체계성', desc: '논지가 유기적으로 연결되며, 예상되는 반론을 고려하거나 논리적 완결성을 갖추었습니다.', max_score: 30 },
+        { name: '근거의 타당성 및 다양성', desc: '객관적 자료, 전문가 견해 등 신뢰할 수 있는 근거를 활용하여 설득력을 높였습니다.', max_score: 25 },
+        { name: '문체 및 어법의 세련됨', desc: '학술적 글쓰기에 적합한 어조와 세련된 문장 구사력을 보여줍니다.', max_score: 15 }
       ]
     },
     'nyregents': {
@@ -172,10 +172,11 @@ app.get('/rubric-detail/:rubricId', (c) => {
   const criteriaHtml = rubric.criteria.map((criterion, idx) => {
     const colors = ['blue', 'green', 'purple', 'orange']
     const color = colors[idx % colors.length]
+    const maxScore = criterion.max_score || 4
     return '<div class="border-l-4 border-' + color + '-500 pl-4 py-2">' +
       '<h2 class="text-xl font-semibold text-gray-800 mb-2">' + (idx + 1) + '. ' + criterion.name + '</h2>' +
       '<div class="bg-' + color + '-50 p-4 rounded">' +
-      '<p class="text-sm font-semibold text-' + color + '-700 mb-2">최고 수준 (4점)</p>' +
+      '<p class="text-sm font-semibold text-' + color + '-700 mb-2">최고 수준 (' + maxScore + '점)</p>' +
       '<p class="text-gray-700">' + criterion.desc + '</p>' +
       '</div></div>'
   }).join('\n')
