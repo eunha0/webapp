@@ -33,6 +33,10 @@ app.use('/api/*', cors())
 // Serve static files
 app.use('/static/*', serveStatic({ root: './' }))
 app.use('/rubric-pdfs/*', serveStatic({ root: './' }))
+app.use('/rubric-docs/*', serveStatic({ root: './', rewriteRequestPath: (path) => path }))
+app.use('/rubric-files/*', serveStatic({ root: './' }))
+app.use('/exam-questions/*', serveStatic({ root: './' }))
+app.use('/guide-screenshots/*', serveStatic({ root: './' }))
 
 // Mount API route modules
 app.route('/api/auth', auth)
@@ -42,6 +46,161 @@ app.route('/api/assignment', assignments)
 app.route('/api/submission', submissions)
 app.route('/api/admin', admin)
 app.route('/api/student', students)
+
+// Rubric detail pages
+app.get('/rubric-detail/:rubricId', (c) => {
+  const rubricId = c.req.param('rubricId')
+  
+  // Rubric data map
+  const rubricData: Record<string, { title: string, pdf: string, criteria: Array<{ name: string, desc: string }> }> = {
+    'standard': {
+      title: '표준 논술 루브릭 (4개 기준)',
+      pdf: '/rubric-pdfs/표준 논술 루브릭(4개 기준).pdf',
+      criteria: [
+        { name: '내용과 분석 (주장 제시)', desc: '명확하고 통찰력 있는 주장을 제시하며, 사료와 맥락에 대한 깊이 있는 이해를 보여줍니다. 복잡한 역사적 개념을 효과적으로 분석하고 설명합니다.' },
+        { name: '증거 활용 능력', desc: '제공된 사료를 효과적으로 활용하여 주장을 뒷받침합니다. 사료의 핵심 내용을 정확하게 인용하고, 주장과의 관계를 명확하게 설명합니다.' },
+        { name: '일관성과 구성', desc: '논리적으로 잘 구성되어 있으며, 명확한 서론-본론-결론 구조를 갖추고 있습니다. 각 단락이 효과적으로 연결되어 전체 논지가 일관성 있게 전개됩니다.' },
+        { name: '언어 사용과 규칙', desc: '문법과 철자가 정확하며, 적절한 학술적 어휘를 사용합니다. 문장 구조가 다양하고 명확하여 읽기 쉽습니다.' }
+      ]
+    },
+    'kr_elementary': {
+      title: '초등학생용 평가 기준',
+      pdf: '/rubric-pdfs/초등학생용 평가 기준.pdf',
+      criteria: [
+        { name: '주제 이해와 표현', desc: '주제를 정확하게 이해하고, 자신의 생각을 명확하게 표현합니다. 주어진 질문에 충실하게 답변하며, 관련된 예시를 적절하게 활용합니다.' },
+        { name: '내용의 충실성', desc: '자신의 경험이나 배운 내용을 바탕으로 풍부한 내용을 담고 있습니다. 구체적인 예시와 이유를 들어 설명합니다.' },
+        { name: '글의 구조', desc: '처음-중간-끝의 구조가 명확합니다. 문장들이 자연스럽게 연결되어 있으며, 이해하기 쉽게 구성되어 있습니다.' },
+        { name: '맞춤법과 표현', desc: '맞춤법과 띄어쓰기가 정확합니다. 학년 수준에 맞는 어휘를 사용하며, 문장이 자연스럽고 읽기 쉽습니다.' }
+      ]
+    },
+    'kr_middle': {
+      title: '중학생용 평가 기준',
+      pdf: '/rubric-pdfs/중학생용 평가 기준.pdf',
+      criteria: [
+        { name: '논리적 사고와 주장', desc: '명확한 주장을 제시하고, 논리적으로 근거를 제시합니다. 비판적 사고를 바탕으로 다양한 관점을 고려하여 자신의 견해를 발전시킵니다.' },
+        { name: '자료 활용과 분석', desc: '제공된 자료를 효과적으로 분석하고 해석합니다. 자료의 핵심 내용을 파악하여 자신의 주장을 뒷받침하는 증거로 활용합니다.' },
+        { name: '구성과 전개', desc: '서론-본론-결론의 구조가 명확하며, 논리적 흐름이 자연스럽습니다. 각 단락의 주제가 분명하고, 단락 간 연결이 효과적입니다.' },
+        { name: '언어 표현', desc: '문법과 맞춤법이 정확하며, 학년 수준에 적합한 어휘를 사용합니다. 다양한 문장 구조를 활용하여 명확하게 표현합니다.' }
+      ]
+    },
+    'kr_high': {
+      title: '고등학생용 평가 기준',
+      pdf: '/rubric-pdfs/고등학생용 평가 기준.pdf',
+      criteria: [
+        { name: '분석적 사고와 논증', desc: '명확하고 설득력 있는 논제를 제시하며, 복잡한 개념을 깊이 있게 분석합니다. 다양한 관점을 종합하여 독창적인 통찰을 제시합니다.' },
+        { name: '자료 해석과 증거 활용', desc: '사료를 비판적으로 분석하고 정확하게 해석합니다. 다양한 증거를 효과적으로 활용하여 논지를 체계적으로 뒷받침합니다.' },
+        { name: '논리적 전개와 구성', desc: '논리적이고 체계적인 구조로 논지를 전개합니다. 각 단락이 명확한 주제 문장으로 시작하며, 전체 글의 흐름이 일관성 있고 설득력이 있습니다.' },
+        { name: '학술적 표현', desc: '문법과 철자가 정확하며, 적절한 학술적 어휘와 표현을 구사합니다. 문장 구조가 다양하고 세련되며, 전문적인 글쓰기 스타일을 보여줍니다.' }
+      ]
+    },
+    'nyregents': {
+      title: '뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)',
+      pdf: '/rubric-pdfs/뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭.pdf',
+      criteria: [
+        { name: 'Content and Analysis (내용과 분석)', desc: '명확하고 통찰력 있는 논제를 제시하며, 과제와 맥락에 대한 깊이 있는 이해를 보여줍니다. 복잡한 개념을 효과적으로 분석하고 설명합니다.' },
+        { name: 'Use of Evidence (증거 활용)', desc: '제공된 문서(documents)를 효과적으로 활용하여 논증을 뒷받침합니다. 관련성 높은 증거를 명시적으로 인용하고, 증거와 논제 간의 관계를 명확하게 설명합니다.' },
+        { name: 'Coherence, Organization (일관성과 구성)', desc: '논리적으로 잘 구성되어 있으며, 명확한 서론-본론-결론 구조를 갖추고 있습니다. 각 단락이 효과적으로 연결되어 전체 논지가 일관성 있게 전개됩니다.' },
+        { name: 'Language Use and Conventions (언어 사용과 규칙)', desc: '문법과 철자가 정확하며, 적절한 학술적 어휘를 사용합니다. 문장 구조가 다양하고 명확하여 읽기 쉽습니다.' }
+      ]
+    },
+    'nyregents_analytical': {
+      title: '뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭',
+      pdf: '/rubric-pdfs/뉴욕 주 리젠트 시험 분석적 글쓰기 루브릭.pdf',
+      criteria: [
+        { name: 'Analysis and Interpretation (분석과 해석)', desc: '텍스트에 대한 깊이 있는 분석을 제시하며, 복잡한 개념과 관계를 명확하게 해석합니다. 통찰력 있는 결론을 도출하고 비판적 사고를 보여줍니다.' },
+        { name: 'Use of Evidence (증거 활용)', desc: '텍스트에서 적절하고 관련성 높은 증거를 선택하여 효과적으로 인용합니다. 각 증거가 분석을 어떻게 뒷받침하는지 명확하게 설명합니다.' },
+        { name: 'Organization and Development (구성과 전개)', desc: '논리적이고 일관성 있는 구조로 분석을 전개합니다. 명확한 서론-본론-결론 구조를 갖추며, 각 단락이 효과적으로 연결됩니다.' },
+        { name: 'Language Use and Style (언어 사용과 스타일)', desc: '문법과 철자가 정확하며, 학술적이고 세련된 어휘를 사용합니다. 다양한 문장 구조를 활용하여 명확하고 유창하게 표현합니다.' }
+      ]
+    },
+    'ny_middle': {
+      title: '뉴욕 주 중학교 논술 루브릭',
+      pdf: '/rubric-pdfs/뉴욕 주 중학교 논술 루브릭.pdf',
+      criteria: [
+        { name: 'Content and Analysis (내용과 분석)', desc: '역사적 사건과 개념을 정확하게 이해하고 분석합니다. 과제 요구사항을 충실히 따르며, 역사적 맥락 내에서 복잡한 관계를 설명합니다.' },
+        { name: 'Use of Documents (문서 활용)', desc: '제공된 역사 문서를 효과적으로 활용하여 주장을 뒷받침합니다. 문서의 핵심 정보를 정확하게 인용하고 해석합니다.' },
+        { name: 'Organization (구성)', desc: '논리적이고 체계적인 구조를 갖추고 있습니다. 서론-본론-결론이 명확하며, 각 단락이 효과적으로 연결되어 일관성 있게 전개됩니다.' },
+        { name: 'Language Use (언어 사용)', desc: '중학교 수준에 적합한 어휘와 문법을 정확하게 사용합니다. 문장 구조가 다양하고 명확하여 이해하기 쉽습니다.' }
+      ]
+    },
+    'ny_elementary': {
+      title: '뉴욕 주 초등학교 논술 루브릭',
+      pdf: '/rubric-pdfs/뉴욕 주 초등학교 논술 루브릭.pdf',
+      criteria: [
+        { name: 'Understanding the Topic (주제 이해)', desc: '주제를 정확하게 이해하고, 질문에 충실하게 답변합니다. 배운 내용을 바탕으로 명확하게 설명합니다.' },
+        { name: 'Use of Examples (예시 활용)', desc: '구체적이고 적절한 예시를 사용하여 설명합니다. 자료나 배운 내용을 효과적으로 활용합니다.' },
+        { name: 'Organization (구성)', desc: '글이 체계적으로 구성되어 있으며, 처음-중간-끝이 명확합니다. 문장들이 자연스럽게 연결되어 이해하기 쉽습니다.' },
+        { name: 'Writing Skills (글쓰기 기술)', desc: '맞춤법과 문법이 정확합니다. 학년 수준에 맞는 어휘를 사용하며, 문장이 명확하고 읽기 쉽습니다.' }
+      ]
+    },
+    'ib_myp_highschool': {
+      title: 'IB 중등 프로그램 (MYP) 고등학교 개인과 사회 논술 루브릭',
+      pdf: '/rubric-pdfs/IB 중등 프로그램 고등학교 개인과 사회 논술 루브릭.pdf',
+      criteria: [
+        { name: 'Criterion A: Knowing and Understanding (지식과 이해)', desc: '특정 분야의 다양한 주제에 대한 지식을 포괄적으로 설명합니다. 개념, 사건, 문제점, 관점 등을 정확하고 자세하게 기술합니다.' },
+        { name: 'Criterion B: Investigating (탐구)', desc: '명확하고 집중된 연구 질문을 수립합니다. 다양한 관점에서 정보를 수집하고 기록하며, 신뢰할 수 있는 정보의 출처를 평가합니다.' },
+        { name: 'Criterion C: Communicating (의사소통)', desc: '조사 결과를 적절한 형식으로 명확하고 일관성 있게 전달합니다. 상황과 목적에 적합한 방식으로 정보를 종합하여 제시합니다.' },
+        { name: 'Criterion D: Thinking Critically (비판적 사고)', desc: '다양한 출처의 정보를 분석하여 유효성과 관련성을 평가합니다. 여러 관점을 종합하여 타당한 논증을 구성하고, 통찰력 있는 결론을 도출합니다.' }
+      ]
+    },
+    'ib_myp_middleschool': {
+      title: 'IB 중등 프로그램 (MYP) 중학교 개인과 사회 논술 루브릭',
+      pdf: '/rubric-pdfs/IB 중등 프로그램 중학교 개인과 사회 논술 루브릭.pdf',
+      criteria: [
+        { name: 'Criterion A: Knowing and Understanding (지식과 이해)', desc: '특정 분야의 다양한 주제에 대한 지식을 효과적으로 설명합니다. 개념, 사건, 문제점을 적절한 용어를 사용하여 기술합니다.' },
+        { name: 'Criterion B: Investigating (탐구)', desc: '명확한 연구 질문을 수립하고, 관련 정보를 수집하고 기록합니다. 정보 출처의 신뢰성을 평가하며 효과적으로 활용합니다.' },
+        { name: 'Criterion C: Communicating (의사소통)', desc: '조사 결과를 적절한 형식으로 명확하게 전달합니다. 정보를 효과적으로 종합하여 목적에 맞게 제시합니다.' },
+        { name: 'Criterion D: Thinking Critically (비판적 사고)', desc: '다양한 출처의 정보를 분석하여 신뢰성을 평가합니다. 여러 관점을 고려하여 타당한 논증을 구성하고, 합리적인 결론을 도출합니다.' }
+      ]
+    },
+    'ib_myp_science': {
+      title: 'IB 중등 프로그램 (MYP) 과학 논술 루브릭',
+      pdf: '/rubric-pdfs/IB 중등 프로그램 과학 논술 루브릭.pdf',
+      criteria: [
+        { name: 'Criterion A: Knowing and Understanding (지식과 이해)', desc: '과학적 지식을 포괄적으로 설명하고, 과학 이론과 법칙을 정확하게 기술합니다. 과학적 개념을 상황에 맞게 적용하고 해결책을 제시합니다.' },
+        { name: 'Criterion B: Inquiring and Designing (탐구와 설계)', desc: '검증 가능한 과학적 연구 질문을 수립하고, 변인을 정확하게 설정합니다. 타당한 가설을 제시하고 효과적인 실험 방법을 설계합니다.' },
+        { name: 'Criterion C: Processing and Evaluating (처리와 평가)', desc: '실험 데이터를 정확하게 기록하고 효과적으로 처리합니다. 데이터의 타당성을 평가하고, 경향성과 패턴을 해석하여 과학적 결론을 도출합니다.' },
+        { name: 'Criterion D: Reflecting on Scientific Impact (과학적 영향 성찰)', desc: '과학이 사회와 환경에 미치는 영향을 심도 있게 논의합니다. 과학 발전의 긍정적/부정적 측면을 균형 있게 평가하고 윤리적 함의를 고려합니다.' }
+      ]
+    }
+  }
+  
+  const rubric = rubricData[rubricId]
+  if (!rubric) {
+    return c.html('<html><body><h1>루브릭을 찾을 수 없습니다</h1></body></html>', 404)
+  }
+  
+  const criteriaHtml = rubric.criteria.map((criterion, idx) => {
+    const colors = ['blue', 'green', 'purple', 'orange']
+    const color = colors[idx % colors.length]
+    return '<div class="border-l-4 border-' + color + '-500 pl-4 py-2">' +
+      '<h2 class="text-xl font-semibold text-gray-800 mb-2">' + (idx + 1) + '. ' + criterion.name + '</h2>' +
+      '<div class="bg-' + color + '-50 p-4 rounded">' +
+      '<p class="text-sm font-semibold text-' + color + '-700 mb-2">최고 수준 (4점)</p>' +
+      '<p class="text-gray-700">' + criterion.desc + '</p>' +
+      '</div></div>'
+  }).join('\n')
+  
+  return c.html('<!DOCTYPE html>' +
+    '<html lang="ko"><head>' +
+    '<meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+    '<title>' + rubric.title + '</title>' +
+    '<script src="https://cdn.tailwindcss.com"></script>' +
+    '</head><body class="bg-gray-50 p-8">' +
+    '<div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-8">' +
+    '<h1 class="text-3xl font-bold text-gray-800 mb-6">' + rubric.title + '</h1>' +
+    '<div class="mb-8">' +
+    '<p class="text-gray-600 mb-4">각 기준별 최고 수준의 성취 기준은 다음과 같습니다.</p>' +
+    '</div><div class="space-y-6">' + criteriaHtml + '</div>' +
+    '<div class="mt-8 pt-6 border-t border-gray-200">' +
+    '<h3 class="text-lg font-semibold text-gray-800 mb-3">상세 루브릭 파일</h3>' +
+    '<a href="' + rubric.pdf + '" target="_blank" ' +
+    'class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">' +
+    '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />' +
+    '</svg>PDF 파일 다운로드</a></div></div></body></html>')
+})
 
 // Health check endpoint
 app.get('/api/health', (c) => {
@@ -5780,12 +5939,20 @@ app.get('/my-page', (c) => {
             
             // Create card-based rubric list
             container.innerHTML = platformRubricData.map(rubric => \`
-              <div class="rubric-card border-2 border-gray-200 rounded-lg p-4 hover:border-navy-700 hover:shadow-md transition cursor-pointer"
-                   onclick="previewRubric('\${rubric.value}', '\${rubric.text}', '\${rubric.pdf}')">
+              <div class="rubric-card border-2 border-gray-200 rounded-lg p-4 hover:border-navy-700 hover:shadow-md transition" data-value="\${rubric.value}">
                 <div class="flex items-center justify-between">
                   <div class="flex-1">
                     <h3 class="font-semibold text-gray-900">\${rubric.text}</h3>
-                    <p class="text-sm text-gray-500 mt-1">클릭하여 미리보기</p>
+                    <div class="flex gap-2 mt-2">
+                      <button onclick="event.stopPropagation(); previewRubric('\${rubric.value}', '\${rubric.text}', '\${rubric.pdf}')" 
+                              class="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition">
+                        <i class="fas fa-eye mr-1"></i>상세보기
+                      </button>
+                      <button onclick="event.stopPropagation(); selectRubricDirect('\${rubric.value}', '\${rubric.text}', '\${rubric.pdf}')" 
+                              class="text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition">
+                        <i class="fas fa-check mr-1"></i>선택
+                      </button>
+                    </div>
                   </div>
                   <i class="fas fa-file-pdf text-red-600 text-2xl ml-3"></i>
                 </div>
@@ -5797,36 +5964,17 @@ app.get('/my-page', (c) => {
           let currentRubricSelection = null;
           
           function previewRubric(value, text, pdfPath) {
+            // Open rubric detail page in new tab
+            const detailPageUrl = \`/rubric-detail/\${value}\`;
+            window.open(detailPageUrl, '_blank');
+          }
+          
+          function selectRubricDirect(value, text, pdfPath) {
             currentRubricSelection = { value, text, pdfPath };
-            
-            const modal = document.getElementById('rubricPreviewModal');
-            const titleEl = document.getElementById('rubricPreviewTitle');
-            const containerEl = document.getElementById('rubricPdfContainer');
-            
-            // Encode the PDF path to handle Korean characters
-            const encodedPath = pdfPath.split('/').map(part => encodeURIComponent(part)).join('/');
-            
-            titleEl.textContent = text;
-            containerEl.innerHTML = \`
-              <embed src="\${encodedPath}" type="application/pdf" width="100%" height="700px" 
-                     class="border border-gray-300 rounded-lg" />
-            \`;
-            
-            modal.classList.remove('hidden');
-          }
-          
-          function closeRubricPreview() {
-            const modal = document.getElementById('rubricPreviewModal');
-            modal.classList.add('hidden');
-            currentRubricSelection = null;
-          }
-          
-          function selectCurrentRubric() {
-            if (!currentRubricSelection) return;
             
             // Set the hidden input value
             const hiddenInput = document.getElementById('selectedPlatformRubric');
-            hiddenInput.value = currentRubricSelection.value;
+            hiddenInput.value = value;
             
             // Highlight selected card
             const cards = document.querySelectorAll('#platformRubricList .rubric-card');
@@ -5836,7 +5984,7 @@ app.get('/my-page', (c) => {
             });
             
             const selectedCard = Array.from(cards).find(card => 
-              card.getAttribute('onclick').includes(currentRubricSelection.value)
+              card.getAttribute('data-value') === value
             );
             
             if (selectedCard) {
@@ -5844,11 +5992,19 @@ app.get('/my-page', (c) => {
               selectedCard.classList.add('border-navy-700', 'bg-navy-50');
             }
             
-            // Close modal
-            closeRubricPreview();
-            
             // Show success message
-            alert(\`"\${currentRubricSelection.text}"이(가) 선택되었습니다.\`);
+            alert(\`"\${text}"이(가) 선택되었습니다.\`);
+          }
+          
+          function closeRubricPreview() {
+            const modal = document.getElementById('rubricPreviewModal');
+            if (modal) modal.classList.add('hidden');
+            currentRubricSelection = null;
+          }
+          
+          function selectCurrentRubric() {
+            if (!currentRubricSelection) return;
+            selectRubricDirect(currentRubricSelection.value, currentRubricSelection.text, currentRubricSelection.pdfPath);
           }
 
           // Load assignments
