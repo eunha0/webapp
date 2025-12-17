@@ -1495,7 +1495,8 @@ app.get('/api/submission/:id/feedback', async (c) => {
       `SELECT 
         sf.*,
         ar.criterion_name,
-        ar.criterion_description
+        ar.criterion_description,
+        ar.max_score
        FROM submission_feedback sf
        JOIN assignment_rubrics ar ON sf.criterion_id = ar.id
        WHERE sf.submission_id = ?
@@ -1758,6 +1759,54 @@ app.get('/api/admin/users', async (c) => {
 })
 
 /**
+ * DELETE /api/submissions/:id - Delete a submission (teacher only)
+ */
+app.delete('/api/submissions/:id', async (c) => {
+  try {
+    const user = await requireAuth(c)
+    if (!user.id) return user
+    
+    const submissionId = parseInt(c.req.param('id'))
+    const db = c.env.DB
+    
+    // Verify ownership - check if teacher owns the assignment
+    const submission = await db.prepare(
+      `SELECT s.*, a.user_id 
+       FROM student_submissions s
+       JOIN assignments a ON s.assignment_id = a.id
+       WHERE s.id = ?`
+    ).bind(submissionId).first()
+    
+    if (!submission) {
+      return c.json({ error: 'Submission not found' }, 404)
+    }
+    
+    if (submission.user_id !== user.id) {
+      return c.json({ error: 'Access denied' }, 403)
+    }
+    
+    // Delete related feedback first (foreign key cascade)
+    await db.prepare(
+      'DELETE FROM submission_feedback WHERE submission_id = ?'
+    ).bind(submissionId).run()
+    
+    await db.prepare(
+      'DELETE FROM submission_summary WHERE submission_id = ?'
+    ).bind(submissionId).run()
+    
+    // Delete the submission
+    await db.prepare(
+      'DELETE FROM student_submissions WHERE id = ?'
+    ).bind(submissionId).run()
+    
+    return c.json({ success: true, message: 'Submission deleted successfully' })
+  } catch (error) {
+    console.error('Error deleting submission:', error)
+    return c.json({ error: 'Failed to delete submission', details: String(error) }, 500)
+  }
+})
+
+/**
  * GET /api/student/my-submissions - Get student's own submissions
  */
 app.get('/api/student/my-submissions', async (c) => {
@@ -1819,7 +1868,8 @@ app.get('/api/student/submission/:id/feedback', async (c) => {
       `SELECT 
         sf.*,
         ar.criterion_name,
-        ar.criterion_description
+        ar.criterion_description,
+        ar.max_score
        FROM submission_feedback sf
        JOIN assignment_rubrics ar ON sf.criterion_id = ar.id
        WHERE sf.submission_id = ?
@@ -8290,7 +8340,8 @@ app.get('/my-page', (c) => {
                 
                 doc.setFontSize(11);
                 doc.setTextColor(0, 0, 0);
-                doc.text(\`\${criterion.criterion_name}: \${score}/4\`, margin, yPos);
+                const maxScore = criterion.max_score || 4;
+                doc.text(\`\${criterion.criterion_name}: \${score}/\${maxScore}\`, margin, yPos);
                 yPos += 6;
                 
                 doc.setFontSize(9);
@@ -9062,11 +9113,12 @@ app.get('/my-page', (c) => {
             
             let criterionHTML = '';
             criteriaFeedback.forEach(criterion => {
+              const maxScore = criterion.max_score || 4;
               criterionHTML += \`
                 <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
                   <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
                     <strong>\${criterion.criterion_name}</strong>
-                    <span style="font-size: 18px; font-weight: bold; color: #1e3a8a;">\${criterion.score}/4</span>
+                    <span style="font-size: 18px; font-weight: bold; color: #1e3a8a;">\${criterion.score}/\${maxScore}</span>
                   </div>
                   <div style="margin-bottom: 8px;">
                     <strong style="color: #059669;">강점:</strong>
@@ -9194,7 +9246,7 @@ app.get('/my-page', (c) => {
                     <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
                       <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
                         <strong>\${criterion.criterion_name}</strong>
-                        <span style="font-size: 18px; font-weight: bold; color: #1e3a8a;">\${criterion.score}/4</span>
+                        <span style="font-size: 18px; font-weight: bold; color: #1e3a8a;">\${criterion.score}/\${criterion.max_score || 4}</span>
                       </div>
                       <div style="margin-bottom: 8px;">
                         <strong style="color: #059669;">강점:</strong>
