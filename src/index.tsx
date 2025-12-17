@@ -884,8 +884,8 @@ app.post('/api/assignments', async (c) => {
     if (rubric_criteria && rubric_criteria.length > 0) {
       for (const criterion of rubric_criteria) {
         await db.prepare(
-          'INSERT INTO assignment_rubrics (assignment_id, criterion_name, criterion_description, criterion_order) VALUES (?, ?, ?, ?)'
-        ).bind(assignmentId, criterion.name, criterion.description, criterion.order).run()
+          'INSERT INTO assignment_rubrics (assignment_id, criterion_name, criterion_description, criterion_order, max_score) VALUES (?, ?, ?, ?, ?)'
+        ).bind(assignmentId, criterion.name, criterion.description, criterion.order, criterion.max_score || 4).run()
       }
     }
     
@@ -1274,7 +1274,7 @@ app.post('/api/submission/:id/grade', async (c) => {
     
     // Get rubric criteria for this assignment
     const rubrics = await db.prepare(
-      'SELECT id, criterion_name, criterion_description FROM assignment_rubrics WHERE assignment_id = ? ORDER BY criterion_order'
+      'SELECT id, criterion_name, criterion_description, max_score FROM assignment_rubrics WHERE assignment_id = ? ORDER BY criterion_order'
     ).bind(submission.assignment_id).all()
     
     if (!rubrics.results || rubrics.results.length === 0) {
@@ -1289,7 +1289,8 @@ app.post('/api/submission/:id/grade', async (c) => {
       rubric_criteria: rubrics.results.map((r: any, idx: number) => ({
         criterion_name: r.criterion_name,
         criterion_description: r.criterion_description,
-        criterion_order: idx + 1
+        criterion_order: idx + 1,
+        max_score: r.max_score || 4
       }))
     }
     
@@ -1311,7 +1312,8 @@ app.post('/api/submission/:id/grade', async (c) => {
       grade_level: submission.grade_level as string,
       rubric_criteria: rubrics.results.map((r: any) => ({
         criterion_name: r.criterion_name,
-        criterion_description: r.criterion_description
+        criterion_description: r.criterion_description,
+        max_score: r.max_score || 4
       })),
       criterion_scores: gradingResult.criterion_scores.map((cs: any) => ({
         criterion_name: cs.criterion_name,
