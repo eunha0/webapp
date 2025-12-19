@@ -21,8 +21,10 @@ auth.post('/signup', asyncHandler(async (c) => {
   // Zod validation - comprehensive input validation
   const validation = validate(userSignupSchema, body)
   if (!validation.success) {
+    // Extract first error message for user-friendly display
+    const firstError = Object.values(validation.errors)[0]?.[0] || '입력값 검증 실패'
     return c.json({ 
-      error: '입력값 검증 실패', 
+      error: firstError,
       details: validation.errors 
     }, 400)
   }
@@ -212,8 +214,10 @@ auth.post('/student/signup', asyncHandler(async (c) => {
   // Zod validation
   const validation = validate(userSignupSchema, body)
   if (!validation.success) {
+    // Extract first error message for user-friendly display
+    const firstError = Object.values(validation.errors)[0]?.[0] || '입력값 검증 실패'
     return c.json({ 
-      error: '입력값 검증 실패', 
+      error: firstError,
       details: validation.errors 
     }, 400)
   }

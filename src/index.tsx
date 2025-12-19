@@ -4059,7 +4059,8 @@ app.get('/student/signup', (c) => {
                             <label for="password" class="block text-sm font-medium text-gray-700 mb-1">비밀번호</label>
                             <input id="password" name="password" type="password" required 
                                    class="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
-                                   placeholder="비밀번호 (8자 이상)">
+                                   placeholder="대문자, 소문자, 숫자, 특수문자 포함 12자 이상">
+                            <p class="mt-1 text-xs text-gray-500">예: MyPass123!@#</p>
                         </div>
                         <div>
                             <label for="grade_level" class="block text-sm font-medium text-gray-700 mb-1">학년</label>
@@ -4097,8 +4098,26 @@ app.get('/student/signup', (c) => {
             const password = document.getElementById('password').value;
             const grade_level = document.getElementById('grade_level').value;
             
-            if (password.length < 8) {
-              alert('비밀번호는 8자 이상이어야 합니다');
+            // 비밀번호 검증
+            if (password.length < 12) {
+              alert('회원가입 실패: 비밀번호는 최소 12자 이상이어야 합니다.');
+              return;
+            }
+            if (!/[a-z]/.test(password)) {
+              alert('회원가입 실패: 비밀번호에는 소문자가 포함되어야 합니다.');
+              return;
+            }
+            if (!/[A-Z]/.test(password)) {
+              alert('회원가입 실패: 비밀번호에는 대문자가 포함되어야 합니다.');
+              return;
+            }
+            if (!/[0-9]/.test(password)) {
+              alert('회원가입 실패: 비밀번호에는 숫자가 포함되어야 합니다.');
+              return;
+            }
+            const specialChars = "@$!%*?&#^()_+-=[]{}|\\\\:;\"'<>,./~" + String.fromCharCode(96);
+            if (!password.split('').some(char => specialChars.includes(char))) {
+              alert('회원가입 실패: 비밀번호에는 특수문자가 포함되어야 합니다.');
               return;
             }
             
@@ -4427,7 +4446,8 @@ app.get('/signup', (c) => {
                             <label for="password" class="sr-only">비밀번호</label>
                             <input id="password" name="password" type="password" required 
                                    class="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-navy-700 focus:border-navy-700 sm:text-sm" 
-                                   placeholder="비밀번호 (8자 이상)">
+                                   placeholder="대문자, 소문자, 숫자, 특수문자 포함 12자 이상">
+                            <p class="mt-1 text-xs text-gray-500">예: MyPass123!@#</p>
                         </div>
                         <div>
                             <label for="password-confirm" class="sr-only">비밀번호 확인</label>
@@ -4487,8 +4507,26 @@ app.get('/signup', (c) => {
               return;
             }
             
-            if (password.length < 8) {
-              alert('비밀번호는 8자 이상이어야 합니다.');
+            // 비밀번호 검증
+            if (password.length < 12) {
+              alert('회원가입 실패: 비밀번호는 최소 12자 이상이어야 합니다.');
+              return;
+            }
+            if (!/[a-z]/.test(password)) {
+              alert('회원가입 실패: 비밀번호에는 소문자가 포함되어야 합니다.');
+              return;
+            }
+            if (!/[A-Z]/.test(password)) {
+              alert('회원가입 실패: 비밀번호에는 대문자가 포함되어야 합니다.');
+              return;
+            }
+            if (!/[0-9]/.test(password)) {
+              alert('회원가입 실패: 비밀번호에는 숫자가 포함되어야 합니다.');
+              return;
+            }
+            const specialChars = "@$!%*?&#^()_+-=[]{}|\\\\:;\"'<>,./~" + String.fromCharCode(96);
+            if (!password.split('').some(char => specialChars.includes(char))) {
+              alert('회원가입 실패: 비밀번호에는 특수문자가 포함되어야 합니다.');
               return;
             }
             
