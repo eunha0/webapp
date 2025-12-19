@@ -38,6 +38,18 @@ app.use('/rubric-files/*', serveStatic({ root: './' }))
 app.use('/exam-questions/*', serveStatic({ root: './' }))
 app.use('/guide-screenshots/*', serveStatic({ root: './' }))
 
+// Serve favicon directly
+app.get('/favicon.svg', (c) => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" fill="#1e3a8a"/>
+  <text x="50" y="70" font-family="Arial" font-size="60" font-weight="bold" fill="white" text-anchor="middle">AI</text>
+</svg>`;
+  return c.body(svg, 200, {
+    'Content-Type': 'image/svg+xml',
+    'Cache-Control': 'public, max-age=31536000'
+  });
+})
+
 // Mount API route modules
 app.route('/api/auth', auth)
 app.route('/api', grading)
