@@ -4090,11 +4090,9 @@ app.get('/student/signup', (c) => {
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
-          // Attach event listener to form
-          document.getElementById('studentSignupForm').addEventListener('submit', handleSignup);
-          
           async function handleSignup(event) {
             event.preventDefault();
+            event.stopPropagation();
             
             const name = document.getElementById('name').value;
             const email = document.getElementById('email').value;
@@ -4139,6 +4137,15 @@ app.get('/student/signup', (c) => {
             } catch (error) {
               alert('회원가입 실패: ' + (error.response?.data?.error || error.message));
             }
+          }
+          
+          // Attach event listener after DOM is ready
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+              document.getElementById('studentSignupForm').addEventListener('submit', handleSignup);
+            });
+          } else {
+            document.getElementById('studentSignupForm').addEventListener('submit', handleSignup);
           }
         </script>
     </body>
@@ -4461,7 +4468,7 @@ app.get('/signup', (c) => {
                     </div>
 
                     <div class="flex items-center">
-                        <input id="terms" name="terms" type="checkbox" required
+                        <input id="terms" name="terms" type="checkbox"
                                class="h-4 w-4 text-navy-700 focus:ring-navy-700 border-gray-300 rounded">
                         <label for="terms" class="ml-2 block text-sm text-gray-900">
                             <a href="/terms" class="text-navy-700 hover:text-navy-800">이용약관</a>과 
@@ -4497,16 +4504,21 @@ app.get('/signup', (c) => {
             // window.location.href = googleAuthUrl;
           }
           
-          // Attach event listener to form
-          document.getElementById('signupForm').addEventListener('submit', handleSignup);
-          
           async function handleSignup(event) {
             event.preventDefault();
+            event.stopPropagation();
             
             const name = document.getElementById('name').value;
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const passwordConfirm = document.getElementById('password-confirm').value;
+            const termsCheckbox = document.getElementById('terms');
+            
+            // 약관 동의 확인
+            if (!termsCheckbox.checked) {
+              alert('이용약관과 개인정보처리방침에 동의해야 합니다.');
+              return;
+            }
             
             if (password !== passwordConfirm) {
               alert('비밀번호가 일치하지 않습니다.');
@@ -4550,6 +4562,15 @@ app.get('/signup', (c) => {
             } catch (error) {
               alert('회원가입 실패: ' + (error.response?.data?.error || error.message));
             }
+          }
+          
+          // Attach event listener after DOM is ready
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+              document.getElementById('signupForm').addEventListener('submit', handleSignup);
+            });
+          } else {
+            document.getElementById('signupForm').addEventListener('submit', handleSignup);
           }
         </script>
     </body>
