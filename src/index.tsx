@@ -8136,7 +8136,7 @@ app.get('/my-page', (c) => {
                       </label>
                       <textarea id="editRevisionSuggestions" rows="5" 
                         class="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                      >\${result.revision_suggestions}</textarea>
+                      >\${result.revision_suggestions || ''}</textarea>
                     </div>
 
                         <!-- Next Steps -->
@@ -8147,7 +8147,7 @@ app.get('/my-page', (c) => {
                           </label>
                           <textarea id="editNextSteps" rows="4" 
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                          >\${result.next_steps_advice}</textarea>
+                          >\${result.next_steps_advice || ''}</textarea>
                         </div>
                       </div>
                     </div>
@@ -8498,18 +8498,22 @@ app.get('/my-page', (c) => {
               : 4;
             
             // Collect current edited values
-            const totalScore = document.getElementById('editTotalScore').value;
-            const summaryEvaluation = document.getElementById('editSummaryEvaluation').value;
-            const overallComment = document.getElementById('editOverallComment').value;
-            const revisionSuggestions = document.getElementById('editRevisionSuggestions').value;
-            const nextSteps = document.getElementById('editNextSteps').value;
+            const totalScore = document.getElementById('editTotalScore')?.value || '0';
+            const summaryEvaluation = document.getElementById('editSummaryEvaluation')?.value || '';
+            const overallComment = document.getElementById('editOverallComment')?.value || '';
+            const revisionSuggestions = document.getElementById('editRevisionSuggestions')?.value || '';
+            const nextSteps = document.getElementById('editNextSteps')?.value || '';
             
             // Build criterion scores HTML
             let criterionHTML = '';
             result.criterion_scores.forEach((criterion, index) => {
-              const score = document.getElementById(\`editScore_\${index}\`).value;
-              const strengths = document.getElementById(\`editStrengths_\${index}\`).value;
-              const improvements = document.getElementById(\`editImprovements_\${index}\`).value;
+              const scoreEl = document.getElementById(\`editScore_\${index}\`);
+              const strengthsEl = document.getElementById(\`editStrengths_\${index}\`);
+              const improvementsEl = document.getElementById(\`editImprovements_\${index}\`);
+              
+              const score = scoreEl?.value || '0';
+              const strengths = strengthsEl?.value || '';
+              const improvements = improvementsEl?.value || '';
               const maxScore = criterion.max_score || 4;
               
               criterionHTML += \`
@@ -8648,19 +8652,36 @@ app.get('/my-page', (c) => {
             if (!currentGradingData) return;
             
             try {
-              // Collect edited data
+              // Collect edited data with null checks
+              const totalScoreEl = document.getElementById('editTotalScore');
+              const summaryEvalEl = document.getElementById('editSummaryEvaluation');
+              const overallCommentEl = document.getElementById('editOverallComment');
+              const revisionSuggestionsEl = document.getElementById('editRevisionSuggestions');
+              const nextStepsEl = document.getElementById('editNextSteps');
+              
+              if (!totalScoreEl || !summaryEvalEl || !overallCommentEl) {
+                throw new Error('필수 입력 요소를 찾을 수 없습니다.');
+              }
+              
               const editedResult = {
-                total_score: parseFloat(document.getElementById('editTotalScore').value),
-                summary_evaluation: document.getElementById('editSummaryEvaluation').value,
-                overall_comment: document.getElementById('editOverallComment').value,
-                revision_suggestions: document.getElementById('editRevisionSuggestions').value,
-                next_steps_advice: document.getElementById('editNextSteps').value,
-                criterion_scores: currentGradingData.result.criterion_scores.map((criterion, index) => ({
-                  criterion_name: criterion.criterion_name,
-                  score: parseInt(document.getElementById(\`editScore_\${index}\`).value),
-                  strengths: document.getElementById(\`editStrengths_\${index}\`).value,
-                  areas_for_improvement: document.getElementById(\`editImprovements_\${index}\`).value
-                }))
+                total_score: parseFloat(totalScoreEl.value) || 0,
+                summary_evaluation: summaryEvalEl.value || '',
+                overall_comment: overallCommentEl.value || '',
+                revision_suggestions: revisionSuggestionsEl?.value || '',
+                next_steps_advice: nextStepsEl?.value || '',
+                criterion_scores: currentGradingData.result.criterion_scores.map((criterion, index) => {
+                  const scoreEl = document.getElementById(\`editScore_\${index}\`);
+                  const strengthsEl = document.getElementById(\`editStrengths_\${index}\`);
+                  const improvementsEl = document.getElementById(\`editImprovements_\${index}\`);
+                  
+                  return {
+                    criterion_name: criterion.criterion_name,
+                    score: parseInt(scoreEl?.value || '0'),
+                    max_score: criterion.max_score || 4,
+                    strengths: strengthsEl?.value || '',
+                    areas_for_improvement: improvementsEl?.value || ''
+                  };
+                })
               };
               
               // Update feedback on server
