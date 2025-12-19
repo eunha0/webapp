@@ -8434,12 +8434,13 @@ app.get('/my-page', (c) => {
               const score = document.getElementById(\`editScore_\${index}\`).value;
               const strengths = document.getElementById(\`editStrengths_\${index}\`).value;
               const improvements = document.getElementById(\`editImprovements_\${index}\`).value;
+              const maxScore = criterion.max_score || 4;
               
               criterionHTML += \`
                 <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
                   <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
                     <strong>\${criterion.criterion_name}</strong>
-                    <span style="font-size: 18px; font-weight: bold; color: #1e3a8a;">\${score}/4</span>
+                    <span style="font-size: 18px; font-weight: bold; color: #1e3a8a;">\${score}/\${maxScore}</span>
                   </div>
                   <div style="margin-bottom: 8px;">
                     <strong style="color: #059669;">강점:</strong>
