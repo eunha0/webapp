@@ -31,6 +31,7 @@ export interface GradingRequest {
 export interface CriterionScore {
   criterion_name: string;
   score: number;
+  max_score?: number;  // Maximum score for this criterion
   strengths: string;
   areas_for_improvement: string;
 }

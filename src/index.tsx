@@ -8071,15 +8071,16 @@ app.get('/my-page', (c) => {
                           const criterionScore = criterion.score || 0;
                           const criterionStrengths = criterion.strengths || '';
                           const criterionImprovements = criterion.areas_for_improvement || '';
+                          const criterionMaxScore = criterion.max_score || 4;
                           
                           return \`
                           <div class="border border-gray-200 rounded-lg p-4 bg-white">
                             <div class="flex justify-between items-start mb-3">
                               <h4 class="font-semibold text-gray-900">\${criterionName}</h4>
                               <div class="flex items-center gap-2">
-                                <input type="number" id="editScore_\${index}" value="\${criterionScore}" min="1" max="4" 
-                                  class="w-16 text-center border border-gray-300 rounded px-2 py-1" />
-                                <span class="text-gray-600">/4</span>
+                                <input type="number" id="editScore_\${index}" value="\${criterionScore}" min="0" max="\${criterionMaxScore}" step="0.1"
+                                  class="w-20 text-center border border-gray-300 rounded px-2 py-1" />
+                                <span class="text-gray-600">/\${criterionMaxScore}</span>
                               </div>
                             </div>
                             <div class="space-y-3">

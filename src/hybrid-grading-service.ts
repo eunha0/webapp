@@ -318,6 +318,12 @@ export async function gradeEssayHybrid(
       let strengthsFeedback = score.strengths || score.brief_rationale;
       let improvementFeedback = score.areas_for_improvement || '';
       
+      // Find max_score from original request criteria
+      const criterionDef = request.rubric_criteria.find(
+        (c: any) => c.criterion_name === score.criterion_name
+      );
+      const maxScore = criterionDef?.max_score || score.max_score || 4;
+      
       // Priority 2: Try to find matching improvement area from Claude's new format
       if (!improvementFeedback && feedbackContent.improvement_areas && Array.isArray(feedbackContent.improvement_areas)) {
         const improvement = feedbackContent.improvement_areas.find(
@@ -346,6 +352,7 @@ export async function gradeEssayHybrid(
       return {
         criterion_name: score.criterion_name,
         score: score.score,
+        max_score: maxScore,
         strengths: strengthsFeedback,
         areas_for_improvement: improvementFeedback || '이 기준을 더욱 발전시켜 보세요.'
       };
@@ -411,22 +418,24 @@ async function simulateGrading(request: GradingRequest): Promise<GradingResult> 
   
   // Simulate criterion scoring
   const criterion_scores: CriterionScore[] = request.rubric_criteria.map((criterion, index) => {
-    let score = 3; // Default to "proficient"
+    const maxScore = criterion.max_score || 4;
+    let score = Math.floor(maxScore * 0.75); // Default to 75% of max score
     
     if (index === 0) {
-      score = wordCount > 300 ? 3 : 2;
+      score = wordCount > 300 ? Math.floor(maxScore * 0.75) : Math.floor(maxScore * 0.5);
     } else if (index === 1) {
-      score = paragraphCount >= 4 ? 3 : 2;
+      score = paragraphCount >= 4 ? Math.floor(maxScore * 0.75) : Math.floor(maxScore * 0.5);
     } else if (index === 2) {
       const hasCitations = /documentary|source|according to/i.test(request.essay_text);
-      score = hasCitations ? 3 : 2;
+      score = hasCitations ? Math.floor(maxScore * 0.75) : Math.floor(maxScore * 0.5);
     } else if (index === 3) {
-      score = sentenceCount >= 10 ? 3 : 2;
+      score = sentenceCount >= 10 ? Math.floor(maxScore * 0.75) : Math.floor(maxScore * 0.5);
     }
     
     return {
       criterion_name: criterion.criterion_name,
       score: score,
+      max_score: maxScore,
       strengths: generateStrengths(criterion.criterion_name, score, request.essay_text),
       areas_for_improvement: generateImprovements(criterion.criterion_name, score, request.essay_text)
     };
