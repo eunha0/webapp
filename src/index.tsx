@@ -4059,7 +4059,7 @@ app.get('/student/signup', (c) => {
                             <label for="password" class="block text-sm font-medium text-gray-700 mb-1">비밀번호</label>
                             <input id="password" name="password" type="password" required 
                                    class="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
-                                   placeholder="대문자, 소문자, 숫자, 특수문자 포함 12자 이상">
+                                   placeholder="비밀번호 (대문자, 소문자, 숫자, 특수문자 포함 12자 이상)">
                             <p class="mt-1 text-xs text-gray-500">예: MyPass123!@#</p>
                         </div>
                         <div>
@@ -4456,7 +4456,7 @@ app.get('/signup', (c) => {
                             <label for="password" class="sr-only">비밀번호</label>
                             <input id="password" name="password" type="password" required 
                                    class="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-navy-700 focus:border-navy-700 sm:text-sm" 
-                                   placeholder="대문자, 소문자, 숫자, 특수문자 포함 12자 이상">
+                                   placeholder="비밀번호 (대문자, 소문자, 숫자, 특수문자 포함 12자 이상)">
                             <p class="mt-1 text-xs text-gray-500">예: MyPass123!@#</p>
                         </div>
                         <div>
