@@ -4129,8 +4129,9 @@ app.get('/student/signup', (c) => {
               alert('회원가입 실패: 비밀번호에는 숫자가 포함되어야 합니다.');
               return;
             }
-            const specialChars = "@$!%*?&#^()_+-=[]{}|\\\\:;\"'<>,./~";
-            if (!password.split('').some(char => specialChars.includes(char))) {
+            // 특수문자 검증 (정규식 사용)
+            const specialCharsRegex = /[@$!%*?&#^()_+\-=\[\]{}|\\:;"'<>,./~]/;
+            if (!specialCharsRegex.test(password)) {
               alert('회원가입 실패: 비밀번호에는 특수문자가 포함되어야 합니다.');
               return;
             }
@@ -4560,8 +4561,9 @@ app.get('/signup', (c) => {
               alert('회원가입 실패: 비밀번호에는 숫자가 포함되어야 합니다.');
               return;
             }
-            const specialChars = "@$!%*?&#^()_+-=[]{}|\\\\:;\"'<>,./~";
-            if (!password.split('').some(char => specialChars.includes(char))) {
+            // 특수문자 검증 (정규식 사용)
+            const specialCharsRegex = /[@$!%*?&#^()_+\-=\[\]{}|\\:;"'<>,./~]/;
+            if (!specialCharsRegex.test(password)) {
               alert('회원가입 실패: 비밀번호에는 특수문자가 포함되어야 합니다.');
               return;
             }
