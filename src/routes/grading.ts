@@ -150,15 +150,18 @@ grading.get('/grading-history', async (c) => {
        ORDER BY s.graded_at DESC`
     ).bind(user.id).all()
     
-    // Get rubric criteria count for each assignment to calculate max score
+    // Get rubric criteria with their max_score values for each assignment
     const submissionsWithMaxScore = await Promise.all((queryResult.results || []).map(async (submission: any) => {
-      const criteriaCount = await db.prepare(
-        'SELECT COUNT(*) as count FROM assignment_rubrics WHERE assignment_id = ?'
-      ).bind(submission.assignment_id).first()
+      const rubrics = await db.prepare(
+        'SELECT max_score FROM assignment_rubrics WHERE assignment_id = ?'
+      ).bind(submission.assignment_id).all()
       
-      // Each criterion is worth 4 points, so max score = criteria count × 4
-      const count = (criteriaCount?.count as number) || 1
-      const maxScore = count * 4
+      // Sum all max_score values from the rubrics
+      // If no rubrics found, default to 4 for backward compatibility
+      const maxScore = rubrics.results && rubrics.results.length > 0
+        ? rubrics.results.reduce((sum: number, rubric: any) => sum + (rubric.max_score || 4), 0)
+        : 4
+      
       return {
         ...submission,
         max_score: maxScore
