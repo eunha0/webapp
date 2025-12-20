@@ -4130,7 +4130,7 @@ app.get('/student/signup', (c) => {
               return;
             }
             // 특수문자 검증 (정규식 사용)
-            const specialCharsRegex = /[@$!%*?&#^()_+\-=\[\]{}|\\:;"'<>,./~]/;
+            const specialCharsRegex = /[@$!%*?&#^()_+\\-=\\[\\]{}|\\\\:;"'<>,./~]/;
             if (!specialCharsRegex.test(password)) {
               alert('회원가입 실패: 비밀번호에는 특수문자가 포함되어야 합니다.');
               return;
@@ -4562,7 +4562,7 @@ app.get('/signup', (c) => {
               return;
             }
             // 특수문자 검증 (정규식 사용)
-            const specialCharsRegex = /[@$!%*?&#^()_+\-=\[\]{}|\\:;"'<>,./~]/;
+            const specialCharsRegex = /[@$!%*?&#^()_+\\-=\\[\\]{}|\\\\:;"'<>,./~]/;
             if (!specialCharsRegex.test(password)) {
               alert('회원가입 실패: 비밀번호에는 특수문자가 포함되어야 합니다.');
               return;
