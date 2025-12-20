@@ -3990,7 +3990,7 @@ app.get('/student/login', (c) => {
             const password = document.getElementById('password').value;
             
             try {
-              const response = await axios.post('/api/student/auth/login', {
+              const response = await axios.post('/api/auth/student/login', {
                 email,
                 password
               });
