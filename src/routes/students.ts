@@ -155,7 +155,7 @@ students.get('/my-submissions', async (c) => {
       FROM assignment_submissions s
       JOIN assignments a ON s.assignment_id = a.id
       WHERE s.student_user_id = ?
-      ORDER BY s.created_at DESC
+      ORDER BY s.submitted_at DESC
     `).bind(student.id).all()
     
     // Parse JSON fields

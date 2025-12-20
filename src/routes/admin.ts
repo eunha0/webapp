@@ -54,12 +54,12 @@ admin.get('/recent-activity', async (c) => {
         s.id,
         s.student_name,
         s.status,
-        s.created_at,
+        s.submitted_at as created_at,
         a.title as assignment_title
       FROM student_submissions s
       JOIN assignments a ON s.assignment_id = a.id
       WHERE a.user_id = ?
-      ORDER BY s.created_at DESC
+      ORDER BY s.submitted_at DESC
       LIMIT 10
     `).bind(user.id).all()
     
