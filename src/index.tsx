@@ -4324,7 +4324,7 @@ app.get('/login', (c) => {
             
             try {
               // Use different API endpoint based on login type
-              const apiEndpoint = isStudentLogin ? '/api/student/auth/login' : '/api/auth/login';
+              const apiEndpoint = isStudentLogin ? '/api/auth/student/login' : '/api/auth/login';
               const response = await axios.post(apiEndpoint, {
                 email,
                 password
