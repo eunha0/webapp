@@ -14,24 +14,74 @@ admin.get('/stats', async (c) => {
     
     const db = c.env.DB
     
-    // Get various statistics
-    const [totalUsers, totalStudents, totalAssignments, totalSubmissions] = await Promise.all([
-      db.prepare('SELECT COUNT(*) as count FROM users').first(),
-      db.prepare('SELECT COUNT(*) as count FROM student_users').first(),
-      db.prepare('SELECT COUNT(*) as count FROM assignments WHERE user_id = ?').bind(user.id).first(),
-      db.prepare(`
-        SELECT COUNT(*) as count 
-        FROM student_submissions s
-        JOIN assignments a ON s.assignment_id = a.id
-        WHERE a.user_id = ?
-      `).bind(user.id).first()
-    ])
+    // Total users (teachers)
+    const teacherCount = await db.prepare('SELECT COUNT(*) as count FROM users').first()
+    
+    // Total students
+    const studentCount = await db.prepare('SELECT COUNT(*) as count FROM student_users').first()
+    
+    // Total assignments
+    const assignmentCount = await db.prepare('SELECT COUNT(*) as count FROM assignments').first()
+    
+    // Total submissions
+    const submissionCount = await db.prepare('SELECT COUNT(*) as count FROM student_submissions').first()
+    
+    // Graded submissions
+    const gradedCount = await db.prepare('SELECT COUNT(*) as count FROM student_submissions WHERE graded = 1').first()
+    
+    // Average scores
+    const avgScores = await db.prepare(
+      'SELECT AVG(total_score) as avg_score FROM submission_summary'
+    ).first()
+    
+    // Recent activity (last 7 days)
+    const recentSubmissions = await db.prepare(
+      `SELECT COUNT(*) as count FROM student_submissions 
+       WHERE submitted_at > datetime('now', '-7 days')`
+    ).first()
+    
+    const recentGrading = await db.prepare(
+      `SELECT COUNT(*) as count FROM student_submissions 
+       WHERE graded = 1 AND submitted_at > datetime('now', '-7 days')`
+    ).first()
+    
+    // Top teachers by submissions
+    const topTeachers = await db.prepare(
+      `SELECT u.name, u.email, COUNT(s.id) as submission_count
+       FROM users u
+       JOIN assignments a ON u.id = a.user_id
+       JOIN student_submissions s ON a.id = s.assignment_id
+       GROUP BY u.id
+       ORDER BY submission_count DESC
+       LIMIT 10`
+    ).all()
+    
+    // Most active students
+    const activeStudents = await db.prepare(
+      `SELECT su.name, su.email, su.grade_level, COUNT(s.id) as submission_count
+       FROM student_users su
+       JOIN student_submissions s ON su.id = s.student_user_id
+       GROUP BY su.id
+       ORDER BY submission_count DESC
+       LIMIT 10`
+    ).all()
     
     return c.json({
-      total_users: totalUsers?.count || 0,
-      total_students: totalStudents?.count || 0,
-      total_assignments: totalAssignments?.count || 0,
-      total_submissions: totalSubmissions?.count || 0
+      overview: {
+        total_teachers: teacherCount?.count || 0,
+        total_students: studentCount?.count || 0,
+        total_assignments: assignmentCount?.count || 0,
+        total_submissions: submissionCount?.count || 0,
+        graded_submissions: gradedCount?.count || 0,
+        pending_submissions: (submissionCount?.count || 0) - (gradedCount?.count || 0),
+        average_score: avgScores?.avg_score || 0
+      },
+      recent_activity: {
+        submissions_last_7_days: recentSubmissions?.count || 0,
+        graded_last_7_days: recentGrading?.count || 0
+      },
+      top_teachers: topTeachers.results || [],
+      active_students: activeStudents.results || []
     })
   } catch (error) {
     console.error('Error fetching admin stats:', error)
