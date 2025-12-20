@@ -4518,14 +4518,19 @@ app.get('/signup', (c) => {
           }
           
           async function handleSignup(event) {
+            console.log('handleSignup called');
             event.preventDefault();
             event.stopPropagation();
+            
+            console.log('Form submission prevented');
             
             const name = document.getElementById('name').value;
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const passwordConfirm = document.getElementById('password-confirm').value;
             const termsCheckbox = document.getElementById('terms');
+            
+            console.log('Form data:', { name, email, passwordLength: password.length, termsChecked: termsCheckbox.checked });
             
             // 약관 동의 확인
             if (!termsCheckbox.checked) {
@@ -4579,11 +4584,28 @@ app.get('/signup', (c) => {
           
           // Attach event listener after DOM is ready
           if (document.readyState === 'loading') {
+            console.log('Waiting for DOMContentLoaded');
             document.addEventListener('DOMContentLoaded', function() {
-              document.getElementById('signupForm').addEventListener('submit', handleSignup);
+              console.log('DOMContentLoaded fired');
+              const form = document.getElementById('signupForm');
+              console.log('Form element:', form);
+              if (form) {
+                form.addEventListener('submit', handleSignup);
+                console.log('Event listener attached to form');
+              } else {
+                console.error('Form element not found!');
+              }
             });
           } else {
-            document.getElementById('signupForm').addEventListener('submit', handleSignup);
+            console.log('DOM already loaded');
+            const form = document.getElementById('signupForm');
+            console.log('Form element:', form);
+            if (form) {
+              form.addEventListener('submit', handleSignup);
+              console.log('Event listener attached to form');
+            } else {
+              console.error('Form element not found!');
+            }
           }
         </script>
     </body>
