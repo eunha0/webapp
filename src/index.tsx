@@ -9764,6 +9764,16 @@ app.get('/admin', (c) => {
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+          // Configure axios to include session ID in all requests
+          const sessionId = localStorage.getItem('session_id');
+          if (sessionId) {
+            axios.defaults.headers.common['X-Session-ID'] = sessionId;
+          } else {
+            // Redirect to login if no session
+            alert('로그인이 필요합니다.');
+            window.location.href = '/login';
+          }
+
           let statsData = null;
 
           async function loadStats() {
