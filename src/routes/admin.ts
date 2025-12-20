@@ -130,11 +130,43 @@ admin.get('/users', async (c) => {
     
     const db = c.env.DB
     
-    const users = await db.prepare(
-      'SELECT id, name, email, created_at FROM users ORDER BY created_at DESC LIMIT 100'
-    ).all()
+    // Get teachers with assignment and submission counts
+    const teachers = await db.prepare(`
+      SELECT 
+        u.id,
+        u.name,
+        u.email,
+        u.created_at,
+        COUNT(DISTINCT a.id) as assignment_count,
+        COUNT(DISTINCT s.id) as submission_count
+      FROM users u
+      LEFT JOIN assignments a ON u.id = a.user_id
+      LEFT JOIN student_submissions s ON a.id = s.assignment_id
+      GROUP BY u.id
+      ORDER BY u.created_at DESC
+      LIMIT 100
+    `).all()
     
-    return c.json({ users: users.results || [] })
+    // Get students with submission counts
+    const students = await db.prepare(`
+      SELECT 
+        su.id,
+        su.name,
+        su.email,
+        su.grade_level,
+        su.created_at,
+        COUNT(s.id) as submission_count
+      FROM student_users su
+      LEFT JOIN student_submissions s ON su.id = s.student_user_id
+      GROUP BY su.id
+      ORDER BY su.created_at DESC
+      LIMIT 100
+    `).all()
+    
+    return c.json({ 
+      teachers: teachers.results || [],
+      students: students.results || []
+    })
   } catch (error) {
     console.error('Error fetching users:', error)
     return c.json({ error: 'Failed to fetch users' }, 500)

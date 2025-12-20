@@ -4137,7 +4137,7 @@ app.get('/student/signup', (c) => {
             }
             
             try {
-              const response = await axios.post('/api/student/auth/signup', {
+              const response = await axios.post('/api/auth/student/signup', {
                 name,
                 email,
                 password,
@@ -9952,7 +9952,7 @@ app.get('/admin', (c) => {
           async function loadRecentActivity() {
             try {
               const response = await axios.get('/api/admin/recent-activity');
-              const activities = response.data;
+              const activities = response.data.activity || [];
 
               if (activities.length === 0) {
                 document.getElementById('recentActivity').innerHTML = \`
@@ -9969,23 +9969,22 @@ app.get('/admin', (c) => {
                   \${activities.map(act => \`
                     <div class="flex items-center justify-between bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition">
                       <div class="flex items-center space-x-4">
-                        <div class="\${act.graded ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'} rounded-lg p-3">
-                          <i class="fas \${act.graded ? 'fa-check-circle' : 'fa-clock'} text-xl"></i>
+                        <div class="\${act.status === 'graded' ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'} rounded-lg p-3">
+                          <i class="fas \${act.status === 'graded' ? 'fa-check-circle' : 'fa-clock'} text-xl"></i>
                         </div>
                         <div>
                           <div class="font-semibold text-gray-900">\${act.student_name}의 제출물</div>
                           <div class="text-sm text-gray-600">
-                            <span class="font-medium">\${act.assignment_title}</span> • 
-                            교사: \${act.teacher_name}
+                            <span class="font-medium">\${act.assignment_title}</span>
                           </div>
                         </div>
                       </div>
                       <div class="text-right">
-                        <div class="text-sm font-medium \${act.graded ? 'text-green-600' : 'text-yellow-600'}">
-                          \${act.graded ? '채점 완료' : '채점 대기'}
+                        <div class="text-sm font-medium \${act.status === 'graded' ? 'text-green-600' : 'text-yellow-600'}">
+                          \${act.status === 'graded' ? '채점 완료' : '채점 대기'}
                         </div>
                         <div class="text-xs text-gray-500">
-                          \${new Date(act.timestamp).toLocaleString('ko-KR')}
+                          \${new Date(act.created_at).toLocaleString('ko-KR')}
                         </div>
                       </div>
                     </div>
