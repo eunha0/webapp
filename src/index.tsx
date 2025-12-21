@@ -7325,13 +7325,27 @@ app.get('/my-page', (c) => {
               const file = e.target.files[0];
               if (!file) return;
 
-              const statusSpan = btn.parentElement.querySelector('.upload-status');
-              const textarea = btn.closest('.reference-item').querySelector('.reference-input');
-              const skipOcrCheckbox = btn.closest('.reference-item').querySelector('.skip-ocr-checkbox');
+              // Find elements using closest reference-item
+              const referenceItem = btn.closest('.reference-item');
+              const statusSpan = referenceItem.querySelector('.upload-status');
+              const textarea = referenceItem.querySelector('.reference-input');
+              const skipOcrCheckbox = referenceItem.querySelector('.skip-ocr-checkbox');
               const skipOcr = skipOcrCheckbox ? skipOcrCheckbox.checked : false;
               
-              console.log('Image upload - skipOcrCheckbox found:', !!skipOcrCheckbox);
-              console.log('Image upload - skipOcr value:', skipOcr);
+              console.log('=== Image Upload Debug ===');
+              console.log('Reference item found:', !!referenceItem);
+              console.log('Status span found:', !!statusSpan);
+              console.log('Textarea found:', !!textarea);
+              console.log('skipOcrCheckbox element:', skipOcrCheckbox);
+              console.log('skipOcrCheckbox found:', !!skipOcrCheckbox);
+              console.log('skipOcr value:', skipOcr);
+              console.log('========================');
+              
+              if (!statusSpan || !textarea) {
+                console.error('Required elements not found!');
+                alert('요소를 찾을 수 없습니다. 페이지를 새로고침해주세요.');
+                return;
+              }
               
               statusSpan.textContent = '업로드 중...';
               btn.disabled = true;
