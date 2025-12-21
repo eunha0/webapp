@@ -7100,32 +7100,80 @@ app.get('/my-page', (c) => {
             // Reset rubric type to platform
             switchAssignmentRubricType('platform');
             
-            // Reset reference materials to 4 default slots
+            // Reset reference materials to 4 default slots WITH CHECKBOXES
             const container = document.getElementById('assignmentReferenceMaterials');
             container.innerHTML = \`
-              <div class="reference-item flex gap-2">
-                <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
-                <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
-                  <i class="fas fa-times"></i>
-                </button>
+              <div class="reference-item">
+                <div class="flex gap-2 mb-2">
+                  <textarea class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)"></textarea>
+                  <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm self-start">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+                <div class="flex gap-3 items-center">
+                  <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
+                    <i class="fas fa-image mr-1"></i>이미지 업로드
+                  </button>
+                  <label class="flex items-center gap-1 text-xs text-gray-700 cursor-pointer hover:text-gray-900">
+                    <input type="checkbox" class="skip-ocr-checkbox w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
+                    <span>OCR 건너뛰고 이미지 그대로 삽입</span>
+                  </label>
+                  <span class="text-xs text-gray-500 self-center upload-status"></span>
+                </div>
               </div>
-              <div class="reference-item flex gap-2">
-                <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
-                <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
-                  <i class="fas fa-times"></i>
-                </button>
+              <div class="reference-item">
+                <div class="flex gap-2 mb-2">
+                  <textarea class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)"></textarea>
+                  <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm self-start">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+                <div class="flex gap-3 items-center">
+                  <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
+                    <i class="fas fa-image mr-1"></i>이미지 업로드
+                  </button>
+                  <label class="flex items-center gap-1 text-xs text-gray-700 cursor-pointer hover:text-gray-900">
+                    <input type="checkbox" class="skip-ocr-checkbox w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
+                    <span>OCR 건너뛰고 이미지 그대로 삽입</span>
+                  </label>
+                  <span class="text-xs text-gray-500 self-center upload-status"></span>
+                </div>
               </div>
-              <div class="reference-item flex gap-2">
-                <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
-                <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
-                  <i class="fas fa-times"></i>
-                </button>
+              <div class="reference-item">
+                <div class="flex gap-2 mb-2">
+                  <textarea class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)"></textarea>
+                  <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm self-start">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+                <div class="flex gap-3 items-center">
+                  <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
+                    <i class="fas fa-image mr-1"></i>이미지 업로드
+                  </button>
+                  <label class="flex items-center gap-1 text-xs text-gray-700 cursor-pointer hover:text-gray-900">
+                    <input type="checkbox" class="skip-ocr-checkbox w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
+                    <span>OCR 건너뛰고 이미지 그대로 삽입</span>
+                  </label>
+                  <span class="text-xs text-gray-500 self-center upload-status"></span>
+                </div>
               </div>
-              <div class="reference-item flex gap-2">
-                <input type="text" class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="참고 자료 URL 또는 설명 (선택사항)">
-                <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm">
-                  <i class="fas fa-times"></i>
-                </button>
+              <div class="reference-item">
+                <div class="flex gap-2 mb-2">
+                  <textarea class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)"></textarea>
+                  <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm self-start">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+                <div class="flex gap-3 items-center">
+                  <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
+                    <i class="fas fa-image mr-1"></i>이미지 업로드
+                  </button>
+                  <label class="flex items-center gap-1 text-xs text-gray-700 cursor-pointer hover:text-gray-900">
+                    <input type="checkbox" class="skip-ocr-checkbox w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
+                    <span>OCR 건너뛰고 이미지 그대로 삽입</span>
+                  </label>
+                  <span class="text-xs text-gray-500 self-center upload-status"></span>
+                </div>
               </div>
             \`;
             updateReferenceCount();
@@ -7282,6 +7330,9 @@ app.get('/my-page', (c) => {
               const skipOcrCheckbox = btn.closest('.reference-item').querySelector('.skip-ocr-checkbox');
               const skipOcr = skipOcrCheckbox ? skipOcrCheckbox.checked : false;
               
+              console.log('Image upload - skipOcrCheckbox found:', !!skipOcrCheckbox);
+              console.log('Image upload - skipOcr value:', skipOcr);
+              
               statusSpan.textContent = '업로드 중...';
               btn.disabled = true;
 
@@ -7290,6 +7341,8 @@ app.get('/my-page', (c) => {
                 formData.append('file', file);
                 // Add flag based on user's checkbox selection
                 formData.append('skip_ocr', skipOcr ? 'true' : 'false');
+                
+                console.log('FormData skip_ocr:', formData.get('skip_ocr'));
 
                 const response = await axios.post('/api/upload/image', formData, {
                   headers: { 'Content-Type': 'multipart/form-data' }
