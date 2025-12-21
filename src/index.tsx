@@ -5912,10 +5912,14 @@ app.get('/my-page', (c) => {
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </div>
-                                    <div class="flex gap-2">
+                                    <div class="flex gap-3 items-center">
                                         <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
                                             <i class="fas fa-image mr-1"></i>이미지 업로드
                                         </button>
+                                        <label class="flex items-center gap-1 text-xs text-gray-700 cursor-pointer hover:text-gray-900">
+                                            <input type="checkbox" class="skip-ocr-checkbox w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
+                                            <span>OCR 건너뛰고 이미지 그대로 삽입</span>
+                                        </label>
                                         <span class="text-xs text-gray-500 self-center upload-status"></span>
                                     </div>
                                 </div>
@@ -5926,10 +5930,14 @@ app.get('/my-page', (c) => {
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </div>
-                                    <div class="flex gap-2">
+                                    <div class="flex gap-3 items-center">
                                         <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
                                             <i class="fas fa-image mr-1"></i>이미지 업로드
                                         </button>
+                                        <label class="flex items-center gap-1 text-xs text-gray-700 cursor-pointer hover:text-gray-900">
+                                            <input type="checkbox" class="skip-ocr-checkbox w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
+                                            <span>OCR 건너뛰고 이미지 그대로 삽입</span>
+                                        </label>
                                         <span class="text-xs text-gray-500 self-center upload-status"></span>
                                     </div>
                                 </div>
@@ -5940,10 +5948,14 @@ app.get('/my-page', (c) => {
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </div>
-                                    <div class="flex gap-2">
+                                    <div class="flex gap-3 items-center">
                                         <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
                                             <i class="fas fa-image mr-1"></i>이미지 업로드
                                         </button>
+                                        <label class="flex items-center gap-1 text-xs text-gray-700 cursor-pointer hover:text-gray-900">
+                                            <input type="checkbox" class="skip-ocr-checkbox w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
+                                            <span>OCR 건너뛰고 이미지 그대로 삽입</span>
+                                        </label>
                                         <span class="text-xs text-gray-500 self-center upload-status"></span>
                                     </div>
                                 </div>
@@ -5954,10 +5966,14 @@ app.get('/my-page', (c) => {
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </div>
-                                    <div class="flex gap-2">
+                                    <div class="flex gap-3 items-center">
                                         <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
                                             <i class="fas fa-image mr-1"></i>이미지 업로드
                                         </button>
+                                        <label class="flex items-center gap-1 text-xs text-gray-700 cursor-pointer hover:text-gray-900">
+                                            <input type="checkbox" class="skip-ocr-checkbox w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
+                                            <span>OCR 건너뛰고 이미지 그대로 삽입</span>
+                                        </label>
                                         <span class="text-xs text-gray-500 self-center upload-status"></span>
                                     </div>
                                 </div>
@@ -7227,10 +7243,14 @@ app.get('/my-page', (c) => {
                   <i class="fas fa-times"></i>
                 </button>
               </div>
-              <div class="flex gap-2">
+              <div class="flex gap-3 items-center">
                 <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
                   <i class="fas fa-image mr-1"></i>이미지 업로드
                 </button>
+                <label class="flex items-center gap-1 text-xs text-gray-700 cursor-pointer hover:text-gray-900">
+                  <input type="checkbox" class="skip-ocr-checkbox w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
+                  <span>OCR 건너뛰고 이미지 그대로 삽입</span>
+                </label>
                 <span class="text-xs text-gray-500 self-center upload-status"></span>
               </div>
             \`;
@@ -7259,6 +7279,8 @@ app.get('/my-page', (c) => {
 
               const statusSpan = btn.parentElement.querySelector('.upload-status');
               const textarea = btn.closest('.reference-item').querySelector('.reference-input');
+              const skipOcrCheckbox = btn.closest('.reference-item').querySelector('.skip-ocr-checkbox');
+              const skipOcr = skipOcrCheckbox ? skipOcrCheckbox.checked : false;
               
               statusSpan.textContent = '업로드 중...';
               btn.disabled = true;
@@ -7266,15 +7288,15 @@ app.get('/my-page', (c) => {
               try {
                 const formData = new FormData();
                 formData.append('file', file);
-                // Add flag to skip OCR for reference materials (charts, graphs, maps)
-                formData.append('skip_ocr', 'true');
+                // Add flag based on user's checkbox selection
+                formData.append('skip_ocr', skipOcr ? 'true' : 'false');
 
                 const response = await axios.post('/api/upload/image', formData, {
                   headers: { 'Content-Type': 'multipart/form-data' }
                 });
 
-                // Insert image URL into textarea as Markdown format
-                if (response.data.image_url) {
+                // If skip_ocr is checked and image URL is available, insert as Markdown
+                if (skipOcr && response.data.image_url) {
                   const imageMarkdown = '![' + file.name + '](' + response.data.image_url + ')';
                   
                   // If textarea is empty, just insert the image
@@ -7288,9 +7310,15 @@ app.get('/my-page', (c) => {
                   statusSpan.textContent = '✓ 이미지 삽입 완료';
                   statusSpan.className = 'text-xs text-green-600 self-center upload-status';
                 } else if (response.data.extracted_text) {
-                  // Fallback to OCR text if image URL not available
+                  // Use OCR text if available
                   textarea.value = response.data.extracted_text;
                   statusSpan.textContent = '✓ 텍스트 추출 완료';
+                  statusSpan.className = 'text-xs text-green-600 self-center upload-status';
+                } else if (response.data.image_url) {
+                  // Fallback: insert image if OCR failed but we have URL
+                  const imageMarkdown = '![' + file.name + '](' + response.data.image_url + ')';
+                  textarea.value = textarea.value ? textarea.value.trim() + '\\n\\n' + imageMarkdown : imageMarkdown;
+                  statusSpan.textContent = '✓ 이미지 삽입 완료 (OCR 실패)';
                   statusSpan.className = 'text-xs text-green-600 self-center upload-status';
                 } else {
                   statusSpan.textContent = '✓ 업로드 완료';
