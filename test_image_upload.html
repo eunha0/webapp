@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Upload Test</title>
+</head>
+<body>
+    <h1>Testing Skip OCR Feature</h1>
+    <form id="testForm" enctype="multipart/form-data">
+        <input type="file" id="imageFile" accept="image/*">
+        <label>
+            <input type="checkbox" id="skipOcr" checked> Skip OCR
+        </label>
+        <button type="button" onclick="testUpload()">Upload</button>
+    </form>
+    <pre id="result"></pre>
+    
+    <script>
+    async function testUpload() {
+        const fileInput = document.getElementById('imageFile');
+        const skipOcrCheckbox = document.getElementById('skipOcr');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            alert('Please select a file');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('skip_ocr', skipOcrCheckbox.checked ? 'true' : 'false');
+        
+        console.log('Uploading with skip_ocr:', skipOcrCheckbox.checked);
+        
+        try {
+            const response = await fetch('http://localhost:3000/api/upload/image', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    // Need session_id - will fail without login
+                }
+            });
+            
+            const result = await response.json();
+            document.getElementById('result').textContent = JSON.stringify(result, null, 2);
+            console.log('Result:', result);
+        } catch (error) {
+            console.error('Upload error:', error);
+            document.getElementById('result').textContent = 'Error: ' + error.message;
+        }
+    }
+    </script>
+</body>
+</html>
