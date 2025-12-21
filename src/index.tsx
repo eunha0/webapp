@@ -364,6 +364,7 @@ app.post('/api/upload/image', async (c) => {
     const formData = await c.req.formData()
     const file = formData.get('file') as File
     const submissionId = formData.get('submission_id') as string | null
+    const skipOcr = formData.get('skip_ocr') === 'true' // Flag to skip OCR for charts/graphs/maps
     
     if (!file) {
       return c.json({ error: '파일이 제공되지 않았습니다' }, 400)
@@ -415,6 +416,36 @@ app.post('/api/upload/image', async (c) => {
     
     // Log upload step
     await logProcessingStep(db, uploadedFileId, 'upload', 'completed', 'R2 업로드 및 메타데이터 저장 완료', null)
+    
+    // If skip_ocr flag is set, return image URL directly without OCR processing
+    // This is useful for charts, graphs, maps, and other visual content
+    if (skipOcr) {
+      await db.prepare(
+        `UPDATE uploaded_files 
+         SET processing_status = ?, processed_at = CURRENT_TIMESTAMP
+         WHERE id = ?`
+      ).bind('completed', uploadedFileId).run()
+      
+      await logProcessingStep(
+        db,
+        uploadedFileId,
+        'ocr',
+        'skipped',
+        'OCR 건너뜀 (시각적 자료)',
+        0
+      )
+      
+      return c.json({
+        success: true,
+        file_id: uploadedFileId,
+        file_name: file.name,
+        storage_url: r2Result.url,
+        image_url: r2Result.url,
+        extracted_text: null,
+        ocr_skipped: true,
+        message: '이미지가 업로드되었습니다'
+      })
+    }
     
     // Process image with OCR - Try Google Vision API first (higher accuracy)
     let extractedText = null
@@ -590,14 +621,15 @@ app.post('/api/upload/image', async (c) => {
     // Return response with OCR status
     if (!extractedText || extractedText.trim().length === 0) {
       return c.json({
-        success: false,
-        error: '이미지에서 텍스트를 추출할 수 없습니다. 이미지가 명확한지, 텍스트가 포함되어 있는지 확인해주세요.',
+        success: true,
         file_id: uploadedFileId,
         file_name: file.name,
         storage_url: r2Result.url,
+        image_url: r2Result.url,
         extracted_text: null,
-        ocr_available: !!credentialsJson
-      }, 400)
+        ocr_available: !!credentialsJson,
+        message: '이미지가 업로드되었습니다. OCR로 텍스트를 추출할 수 없었습니다.'
+      })
     }
     
     return c.json({
@@ -605,6 +637,7 @@ app.post('/api/upload/image', async (c) => {
       file_id: uploadedFileId,
       file_name: file.name,
       storage_url: r2Result.url,
+      image_url: r2Result.url,
       extracted_text: extractedText,
       ocr_available: !!credentialsJson
     })
@@ -7233,12 +7266,29 @@ app.get('/my-page', (c) => {
               try {
                 const formData = new FormData();
                 formData.append('file', file);
+                // Add flag to skip OCR for reference materials (charts, graphs, maps)
+                formData.append('skip_ocr', 'true');
 
                 const response = await axios.post('/api/upload/image', formData, {
                   headers: { 'Content-Type': 'multipart/form-data' }
                 });
 
-                if (response.data.extracted_text) {
+                // Insert image URL into textarea as Markdown format
+                if (response.data.image_url) {
+                  const imageMarkdown = '![' + file.name + '](' + response.data.image_url + ')';
+                  
+                  // If textarea is empty, just insert the image
+                  if (!textarea.value.trim()) {
+                    textarea.value = imageMarkdown;
+                  } else {
+                    // If there's existing text, append image below
+                    textarea.value = textarea.value.trim() + '\\n\\n' + imageMarkdown;
+                  }
+                  
+                  statusSpan.textContent = '✓ 이미지 삽입 완료';
+                  statusSpan.className = 'text-xs text-green-600 self-center upload-status';
+                } else if (response.data.extracted_text) {
+                  // Fallback to OCR text if image URL not available
                   textarea.value = response.data.extracted_text;
                   statusSpan.textContent = '✓ 텍스트 추출 완료';
                   statusSpan.className = 'text-xs text-green-600 self-center upload-status';
