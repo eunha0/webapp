@@ -2,14 +2,14 @@
 -- This seed file creates test accounts and a sample assignment with access code
 
 -- Insert test teacher account
--- Password: password123 (base64 hash)
+-- Password: password123 (bcrypt hash)
 INSERT OR REPLACE INTO users (id, email, password_hash, name, created_at) VALUES 
-(1, 'teacher@test.com', 'cGFzc3dvcmQxMjM=', '테스트 교사', datetime('now'));
+(1, 'teacher@test.com', '$2b$10$TIcy52EY1N1fCQttg1N4N.cCB/83j3h3uqs/CIBGw32sB.VHRgJ.C', '테스트 교사', datetime('now'));
 
 -- Insert test student account
--- Password: password123 (base64 hash)
+-- Password: password123 (bcrypt hash)
 INSERT OR REPLACE INTO student_users (id, email, password_hash, name, grade_level, created_at) VALUES
-(1, 'student@test.com', 'cGFzc3dvcmQxMjM=', '테스트 학생', '고등학교 1학년', datetime('now'));
+(1, 'student@test.com', '$2b$10$TIcy52EY1N1fCQttg1N4N.cCB/83j3h3uqs/CIBGw32sB.VHRgJ.C', '테스트 학생', '고등학교 1학년', datetime('now'));
 
 -- Insert sample assignment WITH access code
 INSERT OR IGNORE INTO assignments (id, user_id, title, description, grade_level, due_date, prompts, access_code, created_at) VALUES
