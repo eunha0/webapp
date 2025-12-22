@@ -364,7 +364,11 @@ app.post('/api/upload/image', async (c) => {
     const formData = await c.req.formData()
     const file = formData.get('file') as File
     const submissionId = formData.get('submission_id') as string | null
-    const skipOcr = formData.get('skip_ocr') === 'true' // Flag to skip OCR for charts/graphs/maps
+    const skipOcrRaw = formData.get('skip_ocr')
+    const skipOcr = skipOcrRaw === 'true' // Flag to skip OCR for charts/graphs/maps
+    
+    // Debug log
+    console.log('[DEBUG] /api/upload/image - skip_ocr received:', skipOcrRaw, 'parsed as:', skipOcr)
     
     if (!file) {
       return c.json({ error: '파일이 제공되지 않았습니다' }, 400)
@@ -420,6 +424,8 @@ app.post('/api/upload/image', async (c) => {
     // If skip_ocr flag is set, return image URL directly without OCR processing
     // This is useful for charts, graphs, maps, and other visual content
     if (skipOcr) {
+      console.log('[DEBUG] Skipping OCR for file:', file.name, '(skip_ocr=true)')
+      
       await db.prepare(
         `UPDATE uploaded_files 
          SET processing_status = ?, processed_at = CURRENT_TIMESTAMP
@@ -435,7 +441,7 @@ app.post('/api/upload/image', async (c) => {
         0
       )
       
-      return c.json({
+      const skipResponse = {
         success: true,
         file_id: uploadedFileId,
         file_name: file.name,
@@ -443,9 +449,13 @@ app.post('/api/upload/image', async (c) => {
         image_url: r2Result.url,
         extracted_text: null,
         ocr_skipped: true,
-        message: '이미지가 업로드되었습니다'
-      })
+        message: '이미지가 업로드되었습니다 (OCR 건너뜀)'
+      }
+      console.log('[DEBUG] Returning skip_ocr response:', JSON.stringify(skipResponse))
+      return c.json(skipResponse)
     }
+    
+    console.log('[DEBUG] Proceeding with OCR processing for file:', file.name)
     
     // Process image with OCR - Try Google Vision API first (higher accuracy)
     let extractedText = null
