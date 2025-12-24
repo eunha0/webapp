@@ -6120,15 +6120,16 @@ app.get('/my-page', (c) => {
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
         <script>
-          let currentAssignmentId = null;
-          let criterionCounter = 0;
-
-          // Session management
+          // CRITICAL: Session management must be first
           const sessionId = localStorage.getItem('session_id');
           if (!sessionId) {
             alert('로그인이 필요합니다.');
             window.location.href = '/login';
+            throw new Error('No session'); // Stop execution
           }
+          
+          let currentAssignmentId = null;
+          let criterionCounter = 0;
 
           // Configure axios to include session ID in all requests
           axios.defaults.headers.common['X-Session-ID'] = sessionId;
@@ -6300,7 +6301,7 @@ app.get('/my-page', (c) => {
               '<meta charset="UTF-8">' +
               '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
               '<title>' + assignment.title + ' - 인쇄</title>' +
-              '<script src="https://cdn.tailwindcss.com"><' + '/script>' +
+              '<script src="https://cdn.tailwindcss.com"><\\/script>' +
               '<style>' +
               'body { padding: 40px; background: white; }' +
               '.print-title { font-size: 24px; font-weight: bold; margin-bottom: 30px; color: #111827; }' +
