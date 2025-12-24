@@ -6120,6 +6120,8 @@ app.get('/my-page', (c) => {
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
         <script>
+          // Emergency fix: Wrap everything in try-catch
+          try {
           // CRITICAL: Session management must be first
           const sessionId = localStorage.getItem('session_id');
           if (!sessionId) {
@@ -9758,6 +9760,31 @@ app.get('/my-page', (c) => {
           loadUserInfo();
           loadPlatformRubrics();
           loadAssignments();
+          } catch (error) {
+            console.error('=== CRITICAL ERROR IN MY-PAGE SCRIPT ===', error);
+            alert('페이지 로딩 중 오류가 발생했습니다. 페이지를 새로고침해주세요.');
+            // Try to at least load assignments
+            setTimeout(async () => {
+              try {
+                const response = await axios.get('/api/assignments', {
+                  headers: { 'X-Session-ID': localStorage.getItem('session_id') }
+                });
+                const assignments = response.data;
+                const container = document.getElementById('assignmentsList');
+                if (container) {
+                  if (assignments.length === 0) {
+                    container.innerHTML = '<p class="text-center py-8">과제가 없습니다.</p>';
+                  } else {
+                    container.innerHTML = assignments.map(a => 
+                      '<div class="p-4 border rounded"><h3>' + a.title + '</h3><p>' + a.description + '</p></div>'
+                    ).join('');
+                  }
+                }
+              } catch (e) {
+                console.error('Fallback failed:', e);
+              }
+            }, 1000);
+          }
         </script>
     </body>
     </html>
