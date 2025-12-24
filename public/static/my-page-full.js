@@ -1300,10 +1300,37 @@
                 // Sanitize filename for markdown (remove brackets that could break syntax)
                 const safeFileName = file.name.replace(/[\[\]]/g, '');
 
+                // Helper function to add image preview
+                const addImagePreview = (imageUrl) => {
+                  const previewContainer = referenceItem.querySelector('.image-preview-container');
+                  if (previewContainer) {
+                    // Show the preview container
+                    previewContainer.style.display = 'flex';
+                    
+                    // Create image preview element
+                    const previewWrapper = document.createElement('div');
+                    previewWrapper.className = 'relative group';
+                    previewWrapper.innerHTML = `
+                      <img src="${imageUrl}" alt="업로드된 이미지" 
+                           class="h-24 w-auto object-contain border border-gray-300 rounded cursor-pointer hover:border-blue-500 transition"
+                           onclick="window.open('${imageUrl}', '_blank')">
+                      <button type="button" 
+                              class="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition -mt-2 -mr-2"
+                              onclick="this.parentElement.remove(); if(document.querySelectorAll('.image-preview-container > div').length === 0) { document.querySelector('.image-preview-container').style.display = 'none'; }">
+                        <i class="fas fa-times text-xs"></i>
+                      </button>
+                    `;
+                    previewContainer.appendChild(previewWrapper);
+                  }
+                };
+
                 // If skip_ocr is checked and image URL is available, insert as Markdown
                 if (skipOcr && response.data.image_url) {
                   const imageMarkdown = '![이미지](' + response.data.image_url + ')';
                   appendToTextarea(imageMarkdown);
+                  
+                  // Add image preview
+                  addImagePreview(response.data.image_url);
                   
                   statusSpan.textContent = '✓ 이미지 삽입 완료';
                   statusSpan.className = 'text-xs text-green-600 self-center upload-status';
@@ -1316,6 +1343,10 @@
                   // Fallback: insert image if OCR failed but we have URL
                   const imageMarkdown = '![이미지](' + response.data.image_url + ')';
                   appendToTextarea(imageMarkdown);
+                  
+                  // Add image preview
+                  addImagePreview(response.data.image_url);
+                  
                   statusSpan.textContent = '✓ 이미지 삽입 완료 (OCR 실패)';
                   statusSpan.className = 'text-xs text-green-600 self-center upload-status';
                 } else {

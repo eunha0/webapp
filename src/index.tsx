@@ -5925,6 +5925,8 @@ app.get('/my-page', (c) => {
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </div>
+                                    <!-- Image Preview Container -->
+                                    <div class="image-preview-container mb-2 flex flex-wrap gap-2" style="display: none;"></div>
                                     <div class="flex gap-3 items-center">
                                         <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
                                             <i class="fas fa-image mr-1"></i>이미지 업로드
@@ -5943,6 +5945,8 @@ app.get('/my-page', (c) => {
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </div>
+                                    <!-- Image Preview Container -->
+                                    <div class="image-preview-container mb-2 flex flex-wrap gap-2" style="display: none;"></div>
                                     <div class="flex gap-3 items-center">
                                         <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
                                             <i class="fas fa-image mr-1"></i>이미지 업로드
@@ -5961,6 +5965,8 @@ app.get('/my-page', (c) => {
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </div>
+                                    <!-- Image Preview Container -->
+                                    <div class="image-preview-container mb-2 flex flex-wrap gap-2" style="display: none;"></div>
                                     <div class="flex gap-3 items-center">
                                         <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
                                             <i class="fas fa-image mr-1"></i>이미지 업로드
@@ -5979,6 +5985,8 @@ app.get('/my-page', (c) => {
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </div>
+                                    <!-- Image Preview Container -->
+                                    <div class="image-preview-container mb-2 flex flex-wrap gap-2" style="display: none;"></div>
                                     <div class="flex gap-3 items-center">
                                         <button type="button" onclick="handleReferenceImageUpload(this)" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs">
                                             <i class="fas fa-image mr-1"></i>이미지 업로드
