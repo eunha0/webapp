@@ -7375,29 +7375,36 @@ app.get('/my-page', (c) => {
                   headers: { 'Content-Type': 'multipart/form-data' }
                 });
 
+                // Helper function: append content to textarea without overwriting
+                const appendToTextarea = (newContent) => {
+                  const currentText = textarea.value.trim();
+                  if (currentText) {
+                    // Fix: Use actual newline character '\n' instead of escaped '\\n'
+                    textarea.value = currentText + '\n\n' + newContent;
+                  } else {
+                    textarea.value = newContent;
+                  }
+                };
+
+                // Sanitize filename for markdown (remove brackets that could break syntax)
+                const safeFileName = file.name.replace(/[\[\]]/g, '');
+
                 // If skip_ocr is checked and image URL is available, insert as Markdown
                 if (skipOcr && response.data.image_url) {
-                  const imageMarkdown = '![' + file.name + '](' + response.data.image_url + ')';
-                  
-                  // If textarea is empty, just insert the image
-                  if (!textarea.value.trim()) {
-                    textarea.value = imageMarkdown;
-                  } else {
-                    // If there's existing text, append image below
-                    textarea.value = textarea.value.trim() + '\\n\\n' + imageMarkdown;
-                  }
+                  const imageMarkdown = '![' + safeFileName + '](' + response.data.image_url + ')';
+                  appendToTextarea(imageMarkdown);
                   
                   statusSpan.textContent = '✓ 이미지 삽입 완료';
                   statusSpan.className = 'text-xs text-green-600 self-center upload-status';
-                } else if (response.data.extracted_text) {
-                  // Use OCR text if available
-                  textarea.value = response.data.extracted_text;
+                } else if (response.data.extracted_text && response.data.extracted_text.trim()) {
+                  // Fix: Check if extracted_text is not empty, and append instead of overwrite
+                  appendToTextarea(response.data.extracted_text);
                   statusSpan.textContent = '✓ 텍스트 추출 완료';
                   statusSpan.className = 'text-xs text-green-600 self-center upload-status';
                 } else if (response.data.image_url) {
                   // Fallback: insert image if OCR failed but we have URL
-                  const imageMarkdown = '![' + file.name + '](' + response.data.image_url + ')';
-                  textarea.value = textarea.value ? textarea.value.trim() + '\\n\\n' + imageMarkdown : imageMarkdown;
+                  const imageMarkdown = '![' + safeFileName + '](' + response.data.image_url + ')';
+                  appendToTextarea(imageMarkdown);
                   statusSpan.textContent = '✓ 이미지 삽입 완료 (OCR 실패)';
                   statusSpan.className = 'text-xs text-green-600 self-center upload-status';
                 } else {
