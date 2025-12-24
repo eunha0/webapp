@@ -992,12 +992,17 @@
             // Reset rubric type to platform
             switchAssignmentRubricType('platform');
             
-            // Reset reference materials to 4 default slots WITH CHECKBOXES
+            // Reset reference materials to 4 default slots WITH CHECKBOXES AND PREVIEW
             const container = document.getElementById('assignmentReferenceMaterials');
             container.innerHTML = `
               <div class="reference-item">
                 <div class="flex gap-2 mb-2">
-                  <textarea class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)"></textarea>
+                  <div class="flex-1">
+                    <textarea class="reference-input w-full px-3 py-2 border border-gray-300 rounded-t-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)" oninput="updateReferencePreview(this)"></textarea>
+                    <div class="reference-preview border border-t-0 border-gray-300 rounded-b-lg px-3 py-2 text-sm bg-gray-50 min-h-[100px] overflow-y-auto" style="display:none;">
+                      <p class="text-gray-400 text-xs">미리보기가 여기에 표시됩니다</p>
+                    </div>
+                  </div>
                   <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm self-start">
                     <i class="fas fa-times"></i>
                   </button>
@@ -1010,12 +1015,20 @@
                     <input type="checkbox" class="skip-ocr-checkbox w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
                     <span>OCR 건너뛰고 이미지 그대로 삽입</span>
                   </label>
+                  <button type="button" onclick="toggleReferencePreview(this)" class="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-xs">
+                    <i class="fas fa-eye mr-1"></i>미리보기
+                  </button>
                   <span class="text-xs text-gray-500 self-center upload-status"></span>
                 </div>
               </div>
               <div class="reference-item">
                 <div class="flex gap-2 mb-2">
-                  <textarea class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)"></textarea>
+                  <div class="flex-1">
+                    <textarea class="reference-input w-full px-3 py-2 border border-gray-300 rounded-t-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)" oninput="updateReferencePreview(this)"></textarea>
+                    <div class="reference-preview border border-t-0 border-gray-300 rounded-b-lg px-3 py-2 text-sm bg-gray-50 min-h-[100px] overflow-y-auto" style="display:none;">
+                      <p class="text-gray-400 text-xs">미리보기가 여기에 표시됩니다</p>
+                    </div>
+                  </div>
                   <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm self-start">
                     <i class="fas fa-times"></i>
                   </button>
@@ -1028,12 +1041,20 @@
                     <input type="checkbox" class="skip-ocr-checkbox w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
                     <span>OCR 건너뛰고 이미지 그대로 삽입</span>
                   </label>
+                  <button type="button" onclick="toggleReferencePreview(this)" class="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-xs">
+                    <i class="fas fa-eye mr-1"></i>미리보기
+                  </button>
                   <span class="text-xs text-gray-500 self-center upload-status"></span>
                 </div>
               </div>
               <div class="reference-item">
                 <div class="flex gap-2 mb-2">
-                  <textarea class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)"></textarea>
+                  <div class="flex-1">
+                    <textarea class="reference-input w-full px-3 py-2 border border-gray-300 rounded-t-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)" oninput="updateReferencePreview(this)"></textarea>
+                    <div class="reference-preview border border-t-0 border-gray-300 rounded-b-lg px-3 py-2 text-sm bg-gray-50 min-h-[100px] overflow-y-auto" style="display:none;">
+                      <p class="text-gray-400 text-xs">미리보기가 여기에 표시됩니다</p>
+                    </div>
+                  </div>
                   <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm self-start">
                     <i class="fas fa-times"></i>
                   </button>
@@ -1046,12 +1067,20 @@
                     <input type="checkbox" class="skip-ocr-checkbox w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
                     <span>OCR 건너뛰고 이미지 그대로 삽입</span>
                   </label>
+                  <button type="button" onclick="toggleReferencePreview(this)" class="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-xs">
+                    <i class="fas fa-eye mr-1"></i>미리보기
+                  </button>
                   <span class="text-xs text-gray-500 self-center upload-status"></span>
                 </div>
               </div>
               <div class="reference-item">
                 <div class="flex gap-2 mb-2">
-                  <textarea class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)"></textarea>
+                  <div class="flex-1">
+                    <textarea class="reference-input w-full px-3 py-2 border border-gray-300 rounded-t-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)" oninput="updateReferencePreview(this)"></textarea>
+                    <div class="reference-preview border border-t-0 border-gray-300 rounded-b-lg px-3 py-2 text-sm bg-gray-50 min-h-[100px] overflow-y-auto" style="display:none;">
+                      <p class="text-gray-400 text-xs">미리보기가 여기에 표시됩니다</p>
+                    </div>
+                  </div>
                   <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm self-start">
                     <i class="fas fa-times"></i>
                   </button>
@@ -1064,6 +1093,9 @@
                     <input type="checkbox" class="skip-ocr-checkbox w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
                     <span>OCR 건너뛰고 이미지 그대로 삽입</span>
                   </label>
+                  <button type="button" onclick="toggleReferencePreview(this)" class="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-xs">
+                    <i class="fas fa-eye mr-1"></i>미리보기
+                  </button>
                   <span class="text-xs text-gray-500 self-center upload-status"></span>
                 </div>
               </div>
@@ -3636,3 +3668,75 @@
           loadUserInfo();
           loadPlatformRubrics();
           loadAssignments();
+          
+          // === Markdown Preview Functions ===
+          
+          // Simple Markdown to HTML converter (supports images and basic formatting)
+          function simpleMarkdownToHtml(markdown) {
+            if (!markdown || markdown.trim() === '') {
+              return '<p class="text-gray-400 text-xs">미리보기가 여기에 표시됩니다</p>';
+            }
+            
+            let html = markdown;
+            
+            // Convert images: ![alt](url) -> <img>
+            html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(match, alt, url) {
+              return `<img src="${url}" alt="${alt}" class="max-w-full h-auto rounded border border-gray-200 my-2" style="max-height: 300px;" />`;
+            });
+            
+            // Convert links: [text](url) -> <a>
+            html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-blue-600 hover:underline" target="_blank">$1</a>');
+            
+            // Convert bold: **text** or __text__ -> <strong>
+            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+            
+            // Convert italic: *text* or _text_ -> <em>
+            html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+            
+            // Convert line breaks
+            html = html.replace(/\n/g, '<br>');
+            
+            return html;
+          }
+          
+          // Toggle preview visibility
+          function toggleReferencePreview(button) {
+            const referenceItem = button.closest('.reference-item');
+            const previewDiv = referenceItem.querySelector('.reference-preview');
+            const textarea = referenceItem.querySelector('.reference-input');
+            
+            if (previewDiv.style.display === 'none') {
+              // Show preview
+              previewDiv.style.display = 'block';
+              textarea.classList.remove('rounded-lg');
+              textarea.classList.add('rounded-t-lg');
+              button.innerHTML = '<i class="fas fa-eye-slash mr-1"></i>미리보기 숨기기';
+              
+              // Update preview content
+              updateReferencePreview(textarea);
+            } else {
+              // Hide preview
+              previewDiv.style.display = 'none';
+              textarea.classList.remove('rounded-t-lg');
+              textarea.classList.add('rounded-lg');
+              button.innerHTML = '<i class="fas fa-eye mr-1"></i>미리보기';
+            }
+          }
+          
+          // Update preview content when textarea changes
+          function updateReferencePreview(textarea) {
+            const referenceItem = textarea.closest('.reference-item');
+            const previewDiv = referenceItem.querySelector('.reference-preview');
+            
+            if (previewDiv && previewDiv.style.display !== 'none') {
+              const markdownText = textarea.value;
+              const htmlContent = simpleMarkdownToHtml(markdownText);
+              previewDiv.innerHTML = htmlContent;
+            }
+          }
+          
+          // Make functions globally accessible
+          window.toggleReferencePreview = toggleReferencePreview;
+          window.updateReferencePreview = updateReferencePreview;
