@@ -1270,7 +1270,7 @@
 
                 // If skip_ocr is checked and image URL is available, insert as Markdown
                 if (skipOcr && response.data.image_url) {
-                  const imageMarkdown = '![' + safeFileName + '](' + response.data.image_url + ')';
+                  const imageMarkdown = '![이미지](' + response.data.image_url + ')';
                   appendToTextarea(imageMarkdown);
                   
                   statusSpan.textContent = '✓ 이미지 삽입 완료';
@@ -1282,7 +1282,7 @@
                   statusSpan.className = 'text-xs text-green-600 self-center upload-status';
                 } else if (response.data.image_url) {
                   // Fallback: insert image if OCR failed but we have URL
-                  const imageMarkdown = '![' + safeFileName + '](' + response.data.image_url + ')';
+                  const imageMarkdown = '![이미지](' + response.data.image_url + ')';
                   appendToTextarea(imageMarkdown);
                   statusSpan.textContent = '✓ 이미지 삽입 완료 (OCR 실패)';
                   statusSpan.className = 'text-xs text-green-600 self-center upload-status';
