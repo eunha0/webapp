@@ -38,6 +38,50 @@ app.use('/rubric-files/*', serveStatic({ root: './' }))
 app.use('/exam-questions/*', serveStatic({ root: './' }))
 app.use('/guide-screenshots/*', serveStatic({ root: './' }))
 
+// API route to serve uploaded files from R2 storage
+app.get('/api/files/*', async (c) => {
+  try {
+    const fullPath = c.req.path
+    // Extract file path after /api/files/
+    // Example: /api/files/user_3/1766590006882_wh9qm______.png -> user_3/1766590006882_wh9qm______.png
+    const storageKey = fullPath.replace('/api/files/', '')
+    
+    console.log('[R2 Serve] Requested path:', fullPath)
+    console.log('[R2 Serve] Storage key:', storageKey)
+    
+    const r2Bucket = c.env.R2_BUCKET
+    const object = await r2Bucket.get(storageKey)
+    
+    if (!object) {
+      console.log('[R2 Serve] File not found in R2:', storageKey)
+      // List all keys to debug
+      const list = await r2Bucket.list({ limit: 10 })
+      console.log('[R2 Serve] Sample keys in R2:', list.objects.map(o => o.key))
+      return c.text('File not found', 404)
+    }
+    
+    console.log('[R2 Serve] File found, size:', object.size)
+    
+    const headers = new Headers()
+    object.writeHttpMetadata(headers)
+    headers.set('etag', object.httpEtag)
+    headers.set('Cache-Control', 'public, max-age=31536000') // Cache for 1 year
+    
+    return new Response(object.body, { headers })
+  } catch (error) {
+    console.error('[R2 Serve] Error:', error)
+    return c.text(`Internal Server Error: ${error}`, 500)
+  }
+})
+
+// Serve uploaded files from R2 storage (old pattern, kept for compatibility)
+// Pattern: /user_3/1766590006882_wh9qm______.png
+app.get('/user_*', async (c) => {
+  // Redirect to API route
+  const newPath = `/api/files${c.req.path}`
+  return c.redirect(newPath)
+})
+
 // Serve favicon directly
 app.get('/favicon.svg', (c) => {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">

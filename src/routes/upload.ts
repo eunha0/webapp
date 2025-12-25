@@ -110,8 +110,8 @@ upload.post('/image', async (c) => {
         file_id: uploadedFileId,
         file_name: file.name,
         storage_key: storageKey,
-        storage_url: r2Result.url,
-        image_url: r2Result.url, // For Markdown image insertion
+        storage_url: `/api/files/${storageKey}`, // Use API route for file access
+        image_url: `/api/files/${storageKey}`, // For Markdown image insertion
         extracted_text: null,
         skipped_ocr: true,
         processing_time_ms: 0
@@ -218,7 +218,8 @@ upload.post('/image', async (c) => {
       file_id: uploadedFileId,
       file_name: file.name,
       storage_key: storageKey,
-      storage_url: r2Result.url,
+      storage_url: `/api/files/${storageKey}`, // Use API route for file access
+      image_url: `/api/files/${storageKey}`, // For Markdown image insertion  
       extracted_text: extractedText,
       processing_time_ms: Date.now() - startTime
     })
@@ -388,7 +389,8 @@ upload.post('/pdf', async (c) => {
       file_id: uploadedFileId,
       file_name: file.name,
       storage_key: storageKey,
-      storage_url: r2Result.url,
+      storage_url: `/api/files/${storageKey}`, // Use API route for file access
+      image_url: `/api/files/${storageKey}`, // For Markdown image insertion  
       extracted_text: extractedText,
       processing_time_ms: Date.now() - startTime
     })
