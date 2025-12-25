@@ -12,6 +12,20 @@
           // Configure axios to include session ID in all requests
           axios.defaults.headers.common['X-Session-ID'] = sessionId;
 
+          // Helper: Convert Markdown to HTML safely
+          function convertMarkdownToHtml(markdown) {
+            if (!markdown) return '';
+            try {
+              // Use marked.js to convert Markdown to HTML
+              const rawHtml = marked.parse(markdown);
+              // Use DOMPurify to sanitize HTML (prevent XSS)
+              return DOMPurify.sanitize(rawHtml);
+            } catch (error) {
+              console.error('Markdown conversion error:', error);
+              return markdown; // Fallback to original text
+            }
+          }
+
           // Handle authentication errors
           let authErrorShown = false;
           axios.interceptors.response.use(
@@ -326,7 +340,7 @@
                       ${assignment.prompts.map((prompt, idx) => `
                         <div class="bg-white border border-blue-200 rounded-lg p-4">
                           <div class="font-semibold text-blue-900 mb-2">제시문 ${idx + 1}</div>
-                          <div class="text-gray-700 whitespace-pre-wrap">${prompt}</div>
+                          <div class="text-gray-700 prose max-w-none">${convertMarkdownToHtml(prompt)}</div>
                         </div>
                       `).join('')}
                     </div>
