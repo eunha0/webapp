@@ -181,43 +181,58 @@
               
               // Convert Markdown to HTML for prompts
               const promptsHTML = assignment.prompts && assignment.prompts.length > 0 
-                ? '<div class="mb-6"><h2 class="text-xl font-bold mb-3">제시문</h2><div class="space-y-3">' +
+                ? '<div class="section"><h2>제시문</h2>' +
                   assignment.prompts.map((prompt, idx) => 
-                    '<div class="border border-gray-300 rounded-lg p-4 bg-gray-50"><div class="font-semibold text-blue-900 mb-2">제시문 ' + (idx + 1) + '</div><div class="prose max-w-none">' + convertMarkdownToHtml(prompt) + '</div></div>'
-                  ).join('') + '</div></div>'
+                    '<div class="prompt-card"><div class="title">제시문 ' + (idx + 1) + '</div><div class="prose">' + convertMarkdownToHtml(prompt) + '</div></div>'
+                  ).join('') + '</div>'
                 : '';
 
-            const rubricsHTML = '<div class="mb-6"><h2 class="text-xl font-bold mb-3">평가 루브릭</h2><div class="space-y-2">' +
+            const rubricsHTML = '<div class="section"><h2>평가 루브릭</h2>' +
               assignment.rubrics.map((rubric, idx) => 
-                '<div class="border border-gray-300 rounded-lg p-4"><div class="font-semibold">' + (idx + 1) + '. ' + rubric.criterion_name + '</div><div class="text-sm text-gray-600 mt-1">' + rubric.criterion_description + '</div></div>'
-              ).join('') + '</div></div>';
+                '<div class="rubric-card"><div class="title">' + (idx + 1) + '. ' + rubric.criterion_name + '</div><div class="desc">' + rubric.criterion_description + '</div></div>'
+              ).join('') + '</div>';
 
             const accessCodeHTML = assignment.access_code 
-              ? '<div class="mb-6 p-4 bg-yellow-50 border border-yellow-300 rounded-lg"><h2 class="text-xl font-bold mb-2">학생 액세스 코드</h2><div class="text-3xl font-mono font-bold text-center py-3">' + assignment.access_code + '</div><p class="text-sm text-gray-600 text-center">학생들에게 이 코드를 공유하세요</p></div>'
+              ? '<div class="access-code-box"><h2 style="margin: 0 0 10px 0; font-size: 20px; color: #92400e;">학생 액세스 코드</h2><div class="access-code">' + assignment.access_code + '</div><p style="font-size: 14px; color: #92400e; margin: 0;">학생들에게 이 코드를 공유하세요</p></div>'
               : '';
 
             printWindow.document.write(
-              '<html><head>' +
+              '<!DOCTYPE html><html><head>' +
               '<meta charset="UTF-8">' +
               '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
               '<title>' + assignment.title + ' - 인쇄</title>' +
-              '<script src="https://cdn.tailwindcss.com"><\\/script>' +
               '<style>' +
-              'body { padding: 40px; background: white; }' +
-              '.print-title { font-size: 24px; font-weight: bold; margin-bottom: 30px; color: #111827; }' +
-              '.prose img { max-width: 100%; height: auto; margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px; }' +
+              'body { font-family: "Noto Sans KR", Arial, sans-serif; padding: 40px; background: white; line-height: 1.6; max-width: 900px; margin: 0 auto; }' +
+              '.print-title { font-size: 28px; font-weight: bold; margin-bottom: 30px; color: #111827; padding-bottom: 15px; border-bottom: 3px solid #1e3a8a; }' +
+              '.section { margin-bottom: 30px; }' +
+              '.section h2 { font-size: 20px; font-weight: bold; margin-bottom: 15px; color: #1e3a8a; }' +
+              '.section p { color: #374151; margin: 10px 0; }' +
+              '.info-bar { margin-top: 10px; font-size: 14px; color: #6b7280; }' +
+              '.prompt-card { border: 1px solid #d1d5db; border-radius: 8px; padding: 16px; background: #f9fafb; margin-bottom: 15px; }' +
+              '.prompt-card .title { font-weight: 600; color: #1e40af; margin-bottom: 10px; }' +
+              '.rubric-card { border: 1px solid #d1d5db; border-radius: 8px; padding: 16px; margin-bottom: 12px; }' +
+              '.rubric-card .title { font-weight: 600; margin-bottom: 8px; }' +
+              '.rubric-card .desc { font-size: 14px; color: #6b7280; }' +
+              '.access-code-box { background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 20px; margin-bottom: 30px; text-align: center; }' +
+              '.access-code { font-size: 32px; font-weight: bold; font-family: monospace; color: #92400e; margin: 15px 0; }' +
+              '.prose { max-width: none; }' +
+              '.prose img { max-width: 100%; height: auto; margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px; display: block; }' +
               '.prose p { margin: 8px 0; line-height: 1.6; }' +
+              '.no-print { margin-top: 40px; display: flex; gap: 16px; justify-content: center; }' +
+              '.btn { padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 16px; }' +
+              '.btn-primary { background: #1e3a8a; color: white; }' +
+              '.btn-secondary { background: #e5e7eb; color: #374151; }' +
               '@media print { .no-print { display: none; } img { max-width: 100%; page-break-inside: avoid; } }' +
               '</style>' +
               '</head><body>' +
               '<div class="print-title">📝 ' + assignment.title + '</div>' +
-              '<div class="mb-6"><h2 class="text-xl font-bold mb-3">과제 설명</h2><p class="text-gray-700">' + assignment.description + '</p><div class="mt-3 text-sm text-gray-600"><i class="fas fa-graduation-cap mr-2"></i>' + assignment.grade_level + (assignment.due_date ? ' | <i class="fas fa-clock mr-2 text-orange-600"></i>마감: ' + new Date(assignment.due_date).toLocaleDateString('ko-KR') : '') + '</div></div>' +
+              '<div class="section"><h2>과제 설명</h2><p>' + assignment.description + '</p><div class="info-bar">📚 ' + assignment.grade_level + (assignment.due_date ? ' | ⏰ 마감: ' + new Date(assignment.due_date).toLocaleDateString('ko-KR') : '') + '</div></div>' +
               promptsHTML +
               rubricsHTML +
               accessCodeHTML +
-              '<div class="no-print" style="margin-top: 32px; display: flex; gap: 16px; justify-content: center;">' +
-              '<button onclick="window.print()" style="padding: 12px 24px; background: #1e3a8a; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 16px;">🖨️ 인쇄하기</button>' +
-              '<button onclick="window.close()" style="padding: 12px 24px; background: #e5e7eb; color: #374151; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 16px;">닫기</button>' +
+              '<div class="no-print">' +
+              '<button onclick="window.print()" class="btn btn-primary">🖨️ 인쇄하기</button>' +
+              '<button onclick="window.close()" class="btn btn-secondary">닫기</button>' +
               '</div>' +
               '</body></html>'
             );
@@ -3578,8 +3593,8 @@
                 });
                 
                 // 최대 점수 동적 계산
-                const maxScore = criteriaFeedback.length > 0
-                  ? criteriaFeedback.reduce((sum, criterion) => sum + (criterion.max_score || 4), 0)
+                const maxScore = criterionScores.length > 0
+                  ? criterionScores.reduce((sum, criterion) => sum + (criterion.max_score || 4), 0)
                   : 4;
                 
                 combinedContent += `
@@ -3593,7 +3608,7 @@
                     
                     <div class="score-box">
                       <h2>전체 점수</h2>
-                      <div class="score">${summary.total_score || 0} / ${maxScore}</div>
+                      <div class="score">${gradingResult.total_score || 0} / ${maxScore}</div>
                     </div>
                     
                     <div class="section">
@@ -3608,7 +3623,7 @@
                     
                     <div class="section">
                       <h2>💬 종합 의견</h2>
-                      <p style="white-space: pre-wrap;">${summary.overall_comment || '없음'}</p>
+                      <p style="white-space: pre-wrap;">${gradingResult.overall_comment || '없음'}</p>
                     </div>
                   </div>
                 `;
