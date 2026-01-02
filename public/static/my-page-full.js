@@ -172,10 +172,11 @@
 
             const printWindow = window.open('', '_blank', 'width=800,height=600');
             
+            // Convert Markdown to HTML for prompts
             const promptsHTML = assignment.prompts && assignment.prompts.length > 0 
               ? '<div class="mb-6"><h2 class="text-xl font-bold mb-3">제시문</h2><div class="space-y-3">' +
                 assignment.prompts.map((prompt, idx) => 
-                  '<div class="border border-gray-300 rounded-lg p-4 bg-gray-50"><div class="font-semibold text-blue-900 mb-2">제시문 ' + (idx + 1) + '</div><div class="whitespace-pre-wrap">' + prompt + '</div></div>'
+                  '<div class="border border-gray-300 rounded-lg p-4 bg-gray-50"><div class="font-semibold text-blue-900 mb-2">제시문 ' + (idx + 1) + '</div><div class="prose max-w-none">' + convertMarkdownToHtml(prompt) + '</div></div>'
                 ).join('') + '</div></div>'
               : '';
 
@@ -197,7 +198,9 @@
               '<style>' +
               'body { padding: 40px; background: white; }' +
               '.print-title { font-size: 24px; font-weight: bold; margin-bottom: 30px; color: #111827; }' +
-              '@media print { .no-print { display: none; } }' +
+              '.prose img { max-width: 100%; height: auto; margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px; }' +
+              '.prose p { margin: 8px 0; line-height: 1.6; }' +
+              '@media print { .no-print { display: none; } img { max-width: 100%; page-break-inside: avoid; } }' +
               '</style>' +
               '</head><body>' +
               '<div class="print-title">📝 ' + assignment.title + '</div>' +
@@ -3337,8 +3340,8 @@
               const response = await axios.get(`/api/submission/${submissionId}`);
               const submission = response.data;
               
-              // Get feedback details
-              const feedbackResponse = await axios.get(`/api/student/submission/${submissionId}/feedback`);
+              // Get feedback details (use teacher API endpoint)
+              const feedbackResponse = await axios.get(`/api/submission/${submissionId}/feedback`);
               const feedback = feedbackResponse.data;
               
               // Generate print HTML
