@@ -1325,7 +1325,15 @@ app.post('/api/student/submit', async (c) => {
       `INSERT INTO student_submissions 
        (assignment_id, student_name, student_user_id, essay_text, submission_version, is_resubmission, previous_submission_id)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).bind(assignment.id, student.name, student.id, essay_text, submissionVersion, isResubmission ? 1 : 0, previousSubmissionId).run()
+    ).bind(
+      assignment.id, 
+      student.name, 
+      student.id, 
+      essay_text, 
+      submissionVersion, 
+      isResubmission ? 1 : 0, 
+      previousSubmissionId || null
+    ).run()
     
     return c.json({ 
       success: true, 
