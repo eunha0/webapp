@@ -3398,30 +3398,37 @@
           }
 
           function generatePrintHTML(submission, feedback) {
-            const summary = feedback.summary || {};
-            const criteriaFeedback = feedback.criteria || [];
+            // Handle API response structure
+            const gradingResult = feedback.grading_result || {};
+            const criterionScores = gradingResult.criterion_scores || [];
             
             // Calculate max score by summing up each criterion's max_score
-            const maxScore = criteriaFeedback.length > 0
-              ? criteriaFeedback.reduce((sum, criterion) => sum + (criterion.max_score || 4), 0)
+            const maxScore = criterionScores.length > 0
+              ? criterionScores.reduce((sum, criterion) => sum + (criterion.max_score || 4), 0)
               : 4;
             
+            const totalScore = gradingResult.total_score || feedback.overall_score || 0;
+            const summaryEvaluation = gradingResult.summary_evaluation || feedback.overall_feedback || '종합 평가 없음';
+            const overallComment = gradingResult.overall_comment || '전체 의견 없음';
+            const revisionSuggestions = gradingResult.revision_suggestions || '수정 제안 없음';
+            const nextSteps = gradingResult.next_steps_advice || '다음 단계 조언 없음';
+            
             let criterionHTML = '';
-            criteriaFeedback.forEach(criterion => {
+            criterionScores.forEach(criterion => {
               const maxScore = criterion.max_score || 4;
               criterionHTML += `
                 <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
                   <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                    <strong>${criterion.criterion_name}</strong>
-                    <span style="font-size: 18px; font-weight: bold; color: #1e3a8a;">${criterion.score}/${maxScore}</span>
+                    <strong>${criterion.criterion_name || '평가 기준'}</strong>
+                    <span style="font-size: 18px; font-weight: bold; color: #1e3a8a;">${criterion.score || 0}/${maxScore}</span>
                   </div>
                   <div style="margin-bottom: 8px;">
                     <strong style="color: #059669;">강점:</strong>
-                    <p style="margin: 5px 0; white-space: pre-wrap;">${criterion.positive_feedback || '없음'}</p>
+                    <p style="margin: 5px 0; white-space: pre-wrap;">${criterion.strengths || '없음'}</p>
                   </div>
                   <div>
                     <strong style="color: #ea580c;">개선점:</strong>
-                    <p style="margin: 5px 0; white-space: pre-wrap;">${criterion.improvement_areas || '없음'}</p>
+                    <p style="margin: 5px 0; white-space: pre-wrap;">${criterion.areas_for_improvement || '없음'}</p>
                   </div>
                 </div>
               `;
@@ -3492,7 +3499,7 @@
                 
                 <div class="score-box">
                   <h2>전체 점수</h2>
-                  <div class="score">${summary.total_score || 0} / ${maxScore}</div>
+                  <div class="score">${totalScore} / ${maxScore}</div>
                 </div>
                 
                 <div class="section">
@@ -3506,8 +3513,23 @@
                 </div>
                 
                 <div class="section">
-                  <h2>💬 종합 의견</h2>
-                  <p style="white-space: pre-wrap;">${summary.overall_comment || '없음'}</p>
+                  <h2>📊 종합 평가</h2>
+                  <p style="white-space: pre-wrap;">${summaryEvaluation}</p>
+                </div>
+                
+                <div class="section">
+                  <h2>💬 전체 의견</h2>
+                  <p style="white-space: pre-wrap;">${overallComment}</p>
+                </div>
+                
+                <div class="section">
+                  <h2>💡 수정 제안</h2>
+                  <p style="white-space: pre-wrap;">${revisionSuggestions}</p>
+                </div>
+                
+                <div class="section">
+                  <h2>🎯 다음 단계 조언</h2>
+                  <p style="white-space: pre-wrap;">${nextSteps}</p>
                 </div>
                 
                 <div class="no-print" style="text-align: center; margin-top: 30px;">
@@ -3530,26 +3552,26 @@
               const submission = submissions[i];
               
               try {
-                const feedbackResponse = await axios.get(`/api/student/submission/${submission.id}/feedback`);
+                const feedbackResponse = await axios.get(`/api/submission/${submission.id}/feedback`);
                 const feedback = feedbackResponse.data;
-                const summary = feedback.summary || {};
-                const criteriaFeedback = feedback.criteria || [];
+                const gradingResult = feedback.grading_result || {};
+                const criterionScores = gradingResult.criterion_scores || [];
                 
                 let criterionHTML = '';
-                criteriaFeedback.forEach(criterion => {
+                criterionScores.forEach(criterion => {
                   criterionHTML += `
                     <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
                       <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                        <strong>${criterion.criterion_name}</strong>
-                        <span style="font-size: 18px; font-weight: bold; color: #1e3a8a;">${criterion.score}/${criterion.max_score || 4}</span>
+                        <strong>${criterion.criterion_name || '평가 기준'}</strong>
+                        <span style="font-size: 18px; font-weight: bold; color: #1e3a8a;">${criterion.score || 0}/${criterion.max_score || 4}</span>
                       </div>
                       <div style="margin-bottom: 8px;">
                         <strong style="color: #059669;">강점:</strong>
-                        <p style="margin: 5px 0; white-space: pre-wrap;">${criterion.positive_feedback || '없음'}</p>
+                        <p style="margin: 5px 0; white-space: pre-wrap;">${criterion.strengths || '없음'}</p>
                       </div>
                       <div>
                         <strong style="color: #ea580c;">개선점:</strong>
-                        <p style="margin: 5px 0; white-space: pre-wrap;">${criterion.improvement_areas || '없음'}</p>
+                        <p style="margin: 5px 0; white-space: pre-wrap;">${criterion.areas_for_improvement || '없음'}</p>
                       </div>
                     </div>
                   `;
