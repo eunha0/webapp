@@ -7154,7 +7154,22 @@ app.get('/student/dashboard', (c) => {
         <title>학생 대시보드 | AI 논술 평가</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
+        <style>
+          .prose img {
+            max-width: 100%;
+            height: auto;
+            margin: 16px 0;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            display: block;
+          }
+          .prose p {
+            margin: 8px 0;
+            line-height: 1.6;
+          }
+        </style>
     </head>
     <body class="bg-gray-50">
         <!-- Navigation -->
@@ -7268,6 +7283,18 @@ app.get('/student/dashboard', (c) => {
           let currentAccessCode = null;
           let currentAssignment = null;
           
+          // Markdown to HTML conversion function
+          function convertMarkdownToHtml(markdown) {
+            if (!markdown) return '';
+            try {
+              const html = marked.parse(markdown);
+              return DOMPurify.sanitize(html);
+            } catch (error) {
+              console.error('Markdown conversion error:', error);
+              return markdown;
+            }
+          }
+          
           // Check if logged in
           window.addEventListener('DOMContentLoaded', () => {
             const sessionId = localStorage.getItem('student_session_id');
@@ -7320,7 +7347,7 @@ app.get('/student/dashboard', (c) => {
                     \${assignment.prompts.map((prompt, idx) => \`
                       <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg">
                         <div class="font-semibold text-blue-900 mb-2">제시문 \${idx + 1}</div>
-                        <div class="text-gray-700 whitespace-pre-wrap">\${prompt}</div>
+                        <div class="prose max-w-none text-gray-700">\${convertMarkdownToHtml(prompt)}</div>
                       </div>
                     \`).join('')}
                   </div>
