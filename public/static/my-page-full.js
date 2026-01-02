@@ -170,15 +170,22 @@
               return;
             }
 
-            const printWindow = window.open('', '_blank', 'width=800,height=600');
-            
-            // Convert Markdown to HTML for prompts
-            const promptsHTML = assignment.prompts && assignment.prompts.length > 0 
-              ? '<div class="mb-6"><h2 class="text-xl font-bold mb-3">제시문</h2><div class="space-y-3">' +
-                assignment.prompts.map((prompt, idx) => 
-                  '<div class="border border-gray-300 rounded-lg p-4 bg-gray-50"><div class="font-semibold text-blue-900 mb-2">제시문 ' + (idx + 1) + '</div><div class="prose max-w-none">' + convertMarkdownToHtml(prompt) + '</div></div>'
-                ).join('') + '</div></div>'
-              : '';
+            try {
+              const printWindow = window.open('', '_blank', 'width=800,height=600');
+              
+              // Check if popup was blocked
+              if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
+                alert('팝업이 차단되었습니다. 브라우저 설정에서 팝업을 허용해주세요.\n\n또는 브라우저 주소창 오른쪽의 팝업 차단 아이콘을 클릭하여 팝업을 허용해주세요.');
+                return;
+              }
+              
+              // Convert Markdown to HTML for prompts
+              const promptsHTML = assignment.prompts && assignment.prompts.length > 0 
+                ? '<div class="mb-6"><h2 class="text-xl font-bold mb-3">제시문</h2><div class="space-y-3">' +
+                  assignment.prompts.map((prompt, idx) => 
+                    '<div class="border border-gray-300 rounded-lg p-4 bg-gray-50"><div class="font-semibold text-blue-900 mb-2">제시문 ' + (idx + 1) + '</div><div class="prose max-w-none">' + convertMarkdownToHtml(prompt) + '</div></div>'
+                  ).join('') + '</div></div>'
+                : '';
 
             const rubricsHTML = '<div class="mb-6"><h2 class="text-xl font-bold mb-3">평가 루브릭</h2><div class="space-y-2">' +
               assignment.rubrics.map((rubric, idx) => 
@@ -215,6 +222,10 @@
               '</body></html>'
             );
             printWindow.document.close();
+            } catch (error) {
+              console.error('Print error:', error);
+              alert('출력 중 오류가 발생했습니다: ' + error.message + '\n\n브라우저에서 팝업을 차단했을 수 있습니다. 팝업 허용 후 다시 시도해주세요.');
+            }
           }
 
           async function loadAssignments() {
@@ -3327,11 +3338,26 @@
               
               // Open in new window
               const printWindow = window.open('', '_blank');
+              
+              // Check if popup was blocked
+              if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
+                alert('팝업이 차단되었습니다. 브라우저 설정에서 팝업을 허용해주세요.\n\n또는 브라우저 주소창 오른쪽의 팝업 차단 아이콘을 클릭하여 팝업을 허용해주세요.');
+                return;
+              }
+              
               printWindow.document.write(combinedHTML);
               printWindow.document.close();
             } catch (error) {
               console.error('Error generating combined PDF:', error);
-              alert('PDF 생성에 실패했습니다: ' + error.message);
+              
+              // Better error handling
+              if (error.response?.status === 401 || error.response?.status === 403) {
+                alert('인증 오류가 발생했습니다. 다시 로그인해주세요.');
+                localStorage.removeItem('session_id');
+                window.location.href = '/login';
+              } else {
+                alert('PDF 생성에 실패했습니다: ' + error.message);
+              }
             }
           }
 
@@ -3348,11 +3374,26 @@
               const printHTML = generatePrintHTML(submission, feedback);
               
               const printWindow = window.open('', '_blank');
+              
+              // Check if popup was blocked
+              if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
+                alert('팝업이 차단되었습니다. 브라우저 설정에서 팝업을 허용해주세요.\n\n또는 브라우저 주소창 오른쪽의 팝업 차단 아이콘을 클릭하여 팝업을 허용해주세요.');
+                return;
+              }
+              
               printWindow.document.write(printHTML);
               printWindow.document.close();
             } catch (error) {
               console.error('Error printing submission:', error);
-              alert(`답안지 ${submissionId} 출력에 실패했습니다.`);
+              
+              // Better error handling
+              if (error.response?.status === 401 || error.response?.status === 403) {
+                alert('인증 오류가 발생했습니다. 다시 로그인해주세요.');
+                localStorage.removeItem('session_id');
+                window.location.href = '/login';
+              } else {
+                alert(`답안지 ${submissionId} 출력에 실패했습니다: ${error.message}`);
+              }
             }
           }
 
