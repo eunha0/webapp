@@ -7180,22 +7180,22 @@ app.get('/student/dashboard', (c) => {
                     <i class="fas fa-key text-blue-600 mr-2"></i>과제 액세스 코드 입력
                 </h2>
                 <p class="text-gray-600 mb-6">선생님께서 제공한 6자리 액세스 코드를 입력하세요</p>
-                <form onsubmit="handleAccessCode(event)" class="flex gap-4">
+                <div class="flex gap-4">
                     <input 
                         id="accessCode" 
                         type="text" 
                         maxlength="6" 
-                        pattern="[0-9]{6}" 
-                        required
+                        pattern="[0-9]{6}"
                         class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-mono"
                         placeholder="예: 123456"
                     />
                     <button 
-                        type="submit" 
+                        onclick="handleAccessCode(event)" 
+                        type="button"
                         class="px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition">
                         과제 확인
                     </button>
-                </form>
+                </div>
             </div>
 
             <!-- Assignment Details (hidden by default) -->
@@ -7271,23 +7271,32 @@ app.get('/student/dashboard', (c) => {
           });
           
           async function handleAccessCode(event) {
-            console.log('[FRONTEND] === ACCESS CODE CHECK STARTED ===');
-            event.preventDefault();
-            
-            const accessCode = document.getElementById('accessCode').value;
-            const sessionId = localStorage.getItem('student_session_id');
-            
-            console.log('[FRONTEND] Access Code:', accessCode);
-            console.log('[FRONTEND] Session ID:', sessionId);
-            
-            if (!accessCode || accessCode.length !== 6) {
-              alert('6자리 액세스 코드를 입력해주세요');
-              return;
-            }
-            
-            console.log('[FRONTEND] Fetching assignment from:', '/api/assignment/code/' + accessCode);
-            
             try {
+              console.log('[FRONTEND] === ACCESS CODE CHECK STARTED ===');
+              if (event && event.preventDefault) {
+                event.preventDefault();
+              }
+              
+              const accessCodeInput = document.getElementById('accessCode');
+              if (!accessCodeInput) {
+                console.error('[FRONTEND] accessCode input element not found!');
+                alert('액세스 코드 입력 필드를 찾을 수 없습니다. 페이지를 새로고침 해주세요.');
+                return;
+              }
+              
+              const accessCode = accessCodeInput.value;
+              const sessionId = localStorage.getItem('student_session_id');
+              
+              console.log('[FRONTEND] Access Code:', accessCode);
+              console.log('[FRONTEND] Session ID:', sessionId);
+              
+              if (!accessCode || accessCode.length !== 6) {
+                alert('6자리 액세스 코드를 입력해주세요');
+                return;
+              }
+              
+              console.log('[FRONTEND] Fetching assignment from:', '/api/assignment/code/' + accessCode);
+              
               const response = await axios.get('/api/assignment/code/' + accessCode);
               
               console.log('[FRONTEND] Assignment received:', response.data);
@@ -7300,6 +7309,7 @@ app.get('/student/dashboard', (c) => {
             } catch (error) {
               console.error('[FRONTEND] Access code error:', error);
               console.error('[FRONTEND] Error response:', error.response);
+              console.error('[FRONTEND] Error stack:', error.stack);
               alert('과제를 찾을 수 없습니다: ' + (error.response?.data?.error || error.message));
             }
           }
