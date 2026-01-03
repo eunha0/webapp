@@ -1290,7 +1290,8 @@ app.post('/api/student/submit', async (c) => {
     const { access_code, essay_text } = await c.req.json()
     const db = c.env.DB
     
-    console.log('[DEBUG] Student submit - access_code:', access_code, 'student_id:', student.id)
+    console.log('[DEBUG] Student submit - Full student object:', JSON.stringify(student))
+    console.log('[DEBUG] access_code:', access_code, 'essay_text length:', essay_text?.length)
     
     // Find assignment by access code directly from assignments table
     const assignment = await db.prepare(
@@ -1305,10 +1306,29 @@ app.post('/api/student/submit', async (c) => {
       }, 404)
     }
     
-    // Check if student already submitted
+    // Validate all required fields BEFORE any database operations
+    if (!assignment.id) {
+      return c.json({ error: 'Assignment ID is missing' }, 500)
+    }
+    if (!student.name) {
+      return c.json({ error: 'Student name is missing' }, 500)
+    }
+    if (!student.id) {
+      return c.json({ error: 'Student ID is missing' }, 500)
+    }
+    if (!essay_text || essay_text.trim() === '') {
+      return c.json({ error: '답안 내용을 입력해주세요' }, 400)
+    }
+    
+    console.log('[DEBUG] Validation passed - assignment.id:', assignment.id, 
+                'student.name:', student.name, 
+                'student.id:', student.id,
+                'essay_text length:', essay_text.length)
+    
+    // Check if student already submitted (AFTER validation)
     const existing = await db.prepare(
       'SELECT id, submission_version FROM student_submissions WHERE assignment_id = ? AND student_user_id = ? ORDER BY submission_version DESC LIMIT 1'
-    ).bind(assignment.id, student.id).first()
+    ).bind(Number(assignment.id), Number(student.id)).first()
     
     let submissionVersion = 1
     let isResubmission = false
@@ -1320,19 +1340,19 @@ app.post('/api/student/submit', async (c) => {
       previousSubmissionId = existing.id as number
     }
     
-    // Insert submission
+    // Insert submission with explicit null handling
     const result = await db.prepare(
       `INSERT INTO student_submissions 
        (assignment_id, student_name, student_user_id, essay_text, submission_version, is_resubmission, previous_submission_id)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
     ).bind(
-      assignment.id, 
-      student.name, 
-      student.id, 
-      essay_text, 
-      submissionVersion, 
+      Number(assignment.id), 
+      String(student.name), 
+      Number(student.id), 
+      String(essay_text), 
+      Number(submissionVersion), 
       isResubmission ? 1 : 0, 
-      previousSubmissionId || null
+      previousSubmissionId ? Number(previousSubmissionId) : null
     ).run()
     
     return c.json({ 
