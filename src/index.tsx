@@ -7305,37 +7305,88 @@ app.get('/student/dashboard', (c) => {
           }
           
           function displayAssignment(assignment) {
-            document.getElementById('assignmentTitle').textContent = assignment.title;
-            document.getElementById('assignmentDescription').textContent = assignment.description;
+            console.log('[FRONTEND] === DISPLAY ASSIGNMENT CALLED ===');
+            console.log('[FRONTEND] Assignment object:', assignment);
             
-            // Display prompts if available
-            let promptsHTML = '';
-            if (assignment.prompts && assignment.prompts.length > 0) {
-              promptsHTML = \`
-                <div class="mb-6">
-                  <h3 class="font-semibold text-gray-800 mb-2">제시문:</h3>
-                  <div class="space-y-3">
-                    \${assignment.prompts.map((prompt, idx) => \`
-                      <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-                        <div class="font-semibold text-blue-900 mb-2">제시문 \${idx + 1}</div>
-                        <div class="prose max-w-none text-gray-700">\${convertMarkdownToHtml(prompt)}</div>
-                      </div>
-                    \`).join('')}
-                  </div>
-                </div>
-              \`;
+            try {
+              // Set title
+              const titleElement = document.getElementById('assignmentTitle');
+              if (!titleElement) {
+                console.error('[FRONTEND] assignmentTitle element not found!');
+                throw new Error('assignmentTitle element not found');
+              }
+              titleElement.textContent = assignment.title;
+              console.log('[FRONTEND] Title set:', assignment.title);
+              
+              // Set description
+              const descElement = document.getElementById('assignmentDescription');
+              if (!descElement) {
+                console.error('[FRONTEND] assignmentDescription element not found!');
+                throw new Error('assignmentDescription element not found');
+              }
+              descElement.textContent = assignment.description;
+              console.log('[FRONTEND] Description set');
+              
+              // Display prompts if available
+              let promptsHTML = '';
+              if (assignment.prompts && assignment.prompts.length > 0) {
+                console.log('[FRONTEND] Processing', assignment.prompts.length, 'prompts');
+                const promptItems = assignment.prompts.map((prompt, idx) => {
+                  const convertedPrompt = convertMarkdownToHtml(prompt);
+                  return '<div class="bg-blue-50 border border-blue-200 p-4 rounded-lg">' +
+                    '<div class="font-semibold text-blue-900 mb-2">제시문 ' + (idx + 1) + '</div>' +
+                    '<div class="prose max-w-none text-gray-700">' + convertedPrompt + '</div>' +
+                    '</div>';
+                }).join('');
+                
+                promptsHTML = '<div class="mb-6">' +
+                  '<h3 class="font-semibold text-gray-800 mb-2">제시문:</h3>' +
+                  '<div class="space-y-3">' + promptItems + '</div>' +
+                  '</div>';
+              }
+              console.log('[FRONTEND] Prompts HTML generated');
+              
+              // Display rubrics
+              const rubricsList = document.getElementById('rubricsList');
+              if (!rubricsList) {
+                console.error('[FRONTEND] rubricsList element not found!');
+                throw new Error('rubricsList element not found');
+              }
+              
+              const rubricsHTML = assignment.rubrics.map((r, idx) => {
+                return '<div class="bg-gray-50 p-3 rounded-lg">' +
+                  '<span class="font-semibold text-blue-700">' + (idx + 1) + '. ' + r.criterion_name + '</span>' +
+                  '<p class="text-sm text-gray-600 mt-1">' + r.criterion_description + '</p>' +
+                  '</div>';
+              }).join('');
+              
+              rubricsList.innerHTML = promptsHTML + rubricsHTML;
+              console.log('[FRONTEND] Rubrics list updated');
+              
+              // Show assignment details
+              const detailsElement = document.getElementById('assignmentDetails');
+              if (!detailsElement) {
+                console.error('[FRONTEND] assignmentDetails element not found!');
+                throw new Error('assignmentDetails element not found');
+              }
+              detailsElement.classList.remove('hidden');
+              console.log('[FRONTEND] Assignment details shown');
+              
+              // Focus on essay text
+              const essayText = document.getElementById('essayText');
+              if (essayText) {
+                essayText.focus();
+                console.log('[FRONTEND] Essay text focused');
+              } else {
+                console.warn('[FRONTEND] essayText element not found');
+              }
+              
+              console.log('[FRONTEND] === DISPLAY ASSIGNMENT COMPLETED ===');
+            } catch (error) {
+              console.error('[FRONTEND] Error in displayAssignment:', error);
+              alert('과제를 표시하는 중 오류가 발생했습니다: ' + error.message);
+              throw error;
             }
-            
-            const rubricsList = document.getElementById('rubricsList');
-            rubricsList.innerHTML = promptsHTML + assignment.rubrics.map((r, idx) => \`
-              <div class="bg-gray-50 p-3 rounded-lg">
-                <span class="font-semibold text-blue-700">\${idx + 1}. \${r.criterion_name}</span>
-                <p class="text-sm text-gray-600 mt-1">\${r.criterion_description}</p>
-              </div>
-            \`).join('');
-            
-            document.getElementById('assignmentDetails').classList.remove('hidden');
-            document.getElementById('essayText').focus();
           }
           
           async function handleSubmit() {
