@@ -1283,11 +1283,16 @@ app.get('/api/student/assignment/:code', async (c) => {
  * POST /api/student/submit - Submit student essay
  */
 app.post('/api/student/submit', async (c) => {
+  console.log('[DEBUG] === SUBMIT ENDPOINT CALLED ===')
   try {
+    console.log('[DEBUG] 1. Starting requireStudentAuth')
     const student = await requireStudentAuth(c)
+    console.log('[DEBUG] 2. Student auth result:', student)
     if (!student.id) return student
     
+    console.log('[DEBUG] 3. Parsing request body')
     const { access_code, essay_text } = await c.req.json()
+    console.log('[DEBUG] 4. Request body parsed:', { access_code, essay_text_length: essay_text?.length })
     const db = c.env.DB
     
     console.log('[DEBUG] Student submit - Full student object:', JSON.stringify(student))
