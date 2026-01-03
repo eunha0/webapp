@@ -7240,6 +7240,7 @@ app.get('/student/dashboard', (c) => {
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+          // Global variables
           let currentAccessCode = null;
           let currentAssignment = null;
           
@@ -7255,7 +7256,7 @@ app.get('/student/dashboard', (c) => {
             }
           }
           
-          // Check if logged in
+          // Check if logged in on page load
           window.addEventListener('DOMContentLoaded', () => {
             const sessionId = localStorage.getItem('student_session_id');
             const studentName = localStorage.getItem('student_name');
@@ -7270,7 +7271,8 @@ app.get('/student/dashboard', (c) => {
             loadSubmissions();
           });
           
-          async function handleAccessCode(event) {
+          // Access Code Handler (MOVED UP)
+          window.handleAccessCode = async function(event) {
             try {
               console.log('[FRONTEND] === ACCESS CODE CHECK STARTED ===');
               if (event && event.preventDefault) {
@@ -7312,9 +7314,10 @@ app.get('/student/dashboard', (c) => {
               console.error('[FRONTEND] Error stack:', error.stack);
               alert('과제를 찾을 수 없습니다: ' + (error.response?.data?.error || error.message));
             }
-          }
+          };
           
-          function displayAssignment(assignment) {
+          
+          window.displayAssignment = function(assignment) {
             console.log('[FRONTEND] === DISPLAY ASSIGNMENT CALLED ===');
             console.log('[FRONTEND] Assignment object:', assignment);
             
@@ -7399,7 +7402,7 @@ app.get('/student/dashboard', (c) => {
             }
           }
           
-          async function handleSubmit() {
+          window.handleSubmit = async function() {
             console.log('[FRONTEND] === SUBMIT BUTTON CLICKED ===');
             const essayText = document.getElementById('essayText').value.trim();
             console.log('[FRONTEND] Essay text length:', essayText.length);
@@ -7464,7 +7467,7 @@ app.get('/student/dashboard', (c) => {
             }
           }
           
-          async function loadSubmissions() {
+          window.loadSubmissions = async function() {
             const sessionId = localStorage.getItem('student_session_id');
             
             try {
@@ -7544,7 +7547,7 @@ app.get('/student/dashboard', (c) => {
             }
           });
           
-          function handleLogout() {
+          window.handleLogout = function() {
             localStorage.removeItem('student_session_id');
             localStorage.removeItem('student_name');
             localStorage.removeItem('student_email');
