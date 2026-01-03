@@ -45,11 +45,11 @@ export async function getUserFromSession(c: Context<{ Bindings: Bindings }>): Pr
 
 /**
  * Get student from session
- * Checks both Cookie (student_session_id) and Header (X-Session-ID)
+ * Checks both Cookie (student_session_id) and Header (X-Session-ID or X-Student-Session-ID)
  */
 export async function getStudentFromSession(c: Context<{ Bindings: Bindings }>): Promise<Student | null> {
   // Try to get session ID from header first (for frontend compatibility), then from cookie
-  let sessionId = c.req.header('X-Session-ID')
+  let sessionId = c.req.header('X-Session-ID') || c.req.header('X-Student-Session-ID')
   if (!sessionId) {
     sessionId = getCookie(c, 'student_session_id')
   }
