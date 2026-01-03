@@ -1282,94 +1282,21 @@ app.get('/api/student/assignment/:code', async (c) => {
 /**
  * POST /api/student/submit - Submit student essay
  */
+/**
+ * POST /api/student/submit - Submit student essay
+ */
 app.post('/api/student/submit', async (c) => {
-  console.log('[DEBUG] === SUBMIT ENDPOINT CALLED ===')
-  try {
-    console.log('[DEBUG] 1. Starting requireStudentAuth')
-    const student = await requireStudentAuth(c)
-    console.log('[DEBUG] 2. Student auth result:', student)
-    if (!student.id) return student
-    
-    console.log('[DEBUG] 3. Parsing request body')
-    const { access_code, essay_text } = await c.req.json()
-    console.log('[DEBUG] 4. Request body parsed:', { access_code, essay_text_length: essay_text?.length })
-    const db = c.env.DB
-    
-    console.log('[DEBUG] Student submit - Full student object:', JSON.stringify(student))
-    console.log('[DEBUG] access_code:', access_code, 'essay_text length:', essay_text?.length)
-    
-    // Find assignment by access code directly from assignments table
-    const assignment = await db.prepare(
-      'SELECT id FROM assignments WHERE access_code = ?'
-    ).bind(access_code).first()
-    
-    console.log('[DEBUG] Assignment found:', assignment)
-    
-    if (!assignment) {
-      return c.json({ 
-        error: '유효하지 않은 액세스 코드입니다. 교사에게 정확한 6자리 코드를 확인하세요.'
-      }, 404)
-    }
-    
-    // Validate all required fields BEFORE any database operations
-    if (!assignment.id) {
-      return c.json({ error: 'Assignment ID is missing' }, 500)
-    }
-    if (!student.name) {
-      return c.json({ error: 'Student name is missing' }, 500)
-    }
-    if (!student.id) {
-      return c.json({ error: 'Student ID is missing' }, 500)
-    }
-    if (!essay_text || essay_text.trim() === '') {
-      return c.json({ error: '답안 내용을 입력해주세요' }, 400)
-    }
-    
-    console.log('[DEBUG] Validation passed - assignment.id:', assignment.id, 
-                'student.name:', student.name, 
-                'student.id:', student.id,
-                'essay_text length:', essay_text.length)
-    
-    // Check if student already submitted (AFTER validation)
-    const existing = await db.prepare(
-      'SELECT id, submission_version FROM student_submissions WHERE assignment_id = ? AND student_user_id = ? ORDER BY submission_version DESC LIMIT 1'
-    ).bind(Number(assignment.id), Number(student.id)).first()
-    
-    let submissionVersion = 1
-    let isResubmission = false
-    let previousSubmissionId = null
-    
-    if (existing) {
-      submissionVersion = (existing.submission_version as number) + 1
-      isResubmission = true
-      previousSubmissionId = existing.id as number
-    }
-    
-    // Insert submission with explicit null handling
-    const result = await db.prepare(
-      `INSERT INTO student_submissions 
-       (assignment_id, student_name, student_user_id, essay_text, submission_version, is_resubmission, previous_submission_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
-      Number(assignment.id), 
-      String(student.name), 
-      Number(student.id), 
-      String(essay_text), 
-      Number(submissionVersion), 
-      isResubmission ? 1 : 0, 
-      previousSubmissionId ? Number(previousSubmissionId) : null
-    ).run()
-    
-    return c.json({ 
-      success: true, 
-      submission_id: result.meta.last_row_id,
-      is_resubmission: isResubmission,
-      version: submissionVersion
-    })
-  } catch (error) {
-    console.error('Error submitting essay:', error)
-    return c.json({ error: 'Failed to submit essay' }, 500)
-  }
+  // IMMEDIATE LOGGING - No try/catch
+  console.log('[SUBMIT ENDPOINT] ===== REACHED =====')
+  console.log('[SUBMIT ENDPOINT] URL:', c.req.url)
+  console.log('[SUBMIT ENDPOINT] Method:', c.req.method)
+  console.log('[SUBMIT ENDPOINT] Headers:', JSON.stringify(Object.fromEntries(c.req.raw.headers)))
+  
+  return c.json({ 
+    success: true,
+    test: 'SUBMIT ENDPOINT REACHED',
+    timestamp: new Date().toISOString()
+  })
 })
 
 /**
@@ -7401,7 +7328,9 @@ app.get('/student/dashboard', (c) => {
           }
           
           async function handleSubmit() {
+            console.log('[FRONTEND] === SUBMIT BUTTON CLICKED ===');
             const essayText = document.getElementById('essayText').value.trim();
+            console.log('[FRONTEND] Essay text length:', essayText.length);
             
             if (!essayText) {
               alert('답안을 작성해주세요');
@@ -7414,6 +7343,16 @@ app.get('/student/dashboard', (c) => {
             }
             
             const sessionId = localStorage.getItem('student_session_id');
+            console.log('[FRONTEND] Session ID:', sessionId);
+            console.log('[FRONTEND] Access Code:', currentAccessCode);
+            
+            if (!sessionId) {
+              alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+              window.location.href = '/student/login';
+              return;
+            }
+            
+            console.log('[FRONTEND] Sending POST request to /api/student/submit');
             
             try {
               const response = await axios.post('/api/student/submit', {
@@ -7422,6 +7361,8 @@ app.get('/student/dashboard', (c) => {
               }, {
                 headers: { 'X-Student-Session-ID': sessionId }
               });
+              
+              console.log('[FRONTEND] Response received:', response.data);
               
               if (response.data.success) {
                 const version = response.data.version;
@@ -7440,11 +7381,14 @@ app.get('/student/dashboard', (c) => {
                 loadSubmissions();
               }
             } catch (error) {
-              console.error('Submit error:', error);
+              console.error('[FRONTEND] Submit error:', error);
+              console.error('[FRONTEND] Error response:', error.response);
+              console.error('[FRONTEND] Error data:', error.response?.data);
+              
               const errorMsg = error.response?.data?.error || error.message;
               const debugInfo = error.response?.data?.debug || '';
               
-              alert('제출 실패: ' + errorMsg + (debugInfo ? '\\n\\n디버그 정보: ' + debugInfo : '') + '\\n\\n다음 사항을 확인해주세요:\\n1. 액세스 코드가 올바른지 확인\\n2. 로그인 상태 확인\\n3. 인터넷 연결 확인');
+              alert('제출 실패: ' + errorMsg + (debugInfo ? '\n\n디버그 정보: ' + debugInfo : '') + '\n\n다음 사항을 확인해주세요:\n1. 액세스 코드가 올바른지 확인\n2. 로그인 상태 확인\n3. 인터넷 연결 확인');
             }
           }
           
