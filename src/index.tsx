@@ -7164,6 +7164,17 @@ app.get('/student/dashboard', (c) => {
               
               const response = await axios.get('/api/assignment/code/' + accessCode);
               
+              console.log('[FRONTEND] Full response object:', response);
+              console.log('[FRONTEND] Response status:', response.status);
+              console.log('[FRONTEND] Response data:', response.data);
+              console.log('[FRONTEND] Response data type:', typeof response.data);
+              
+              if (!response.data) {
+                console.error('[FRONTEND] Response data is empty!');
+                alert('서버에서 빈 응답을 받았습니다. 관리자에게 문의하세요.');
+                return;
+              }
+              
               console.log('[FRONTEND] Assignment received:', response.data);
               
               currentAccessCode = accessCode;
