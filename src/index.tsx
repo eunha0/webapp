@@ -7116,6 +7116,84 @@ app.get('/student/dashboard', (c) => {
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script>
+          // Global variables
+          let currentAccessCode = null;
+          let currentAssignment = null;
+          
+          // Markdown to HTML conversion function
+          function convertMarkdownToHtml(markdown) {
+            if (!markdown) return '';
+            try {
+              const html = marked.parse(markdown);
+              return DOMPurify.sanitize(html);
+            } catch (error) {
+              console.error('Markdown conversion error:', error);
+              return markdown;
+            }
+          }
+          
+          // Access Code Handler
+          window.handleAccessCode = async function(event) {
+            try {
+              console.log('[FRONTEND] === ACCESS CODE CHECK STARTED ===');
+              if (event && event.preventDefault) {
+                event.preventDefault();
+              }
+              
+              const accessCodeInput = document.getElementById('accessCode');
+              if (!accessCodeInput) {
+                console.error('[FRONTEND] accessCode input element not found!');
+                alert('액세스 코드 입력 필드를 찾을 수 없습니다. 페이지를 새로고침 해주세요.');
+                return;
+              }
+              
+              const accessCode = accessCodeInput.value;
+              const sessionId = localStorage.getItem('student_session_id');
+              
+              console.log('[FRONTEND] Access Code:', accessCode);
+              console.log('[FRONTEND] Session ID:', sessionId);
+              
+              if (!accessCode || accessCode.length !== 6) {
+                alert('6자리 액세스 코드를 입력해주세요');
+                return;
+              }
+              
+              console.log('[FRONTEND] Fetching assignment from:', '/api/assignment/code/' + accessCode);
+              
+              const response = await axios.get('/api/assignment/code/' + accessCode);
+              
+              console.log('[FRONTEND] Assignment received:', response.data);
+              
+              currentAccessCode = accessCode;
+              currentAssignment = response.data;
+              
+              displayAssignment(response.data);
+              console.log('[FRONTEND] Assignment displayed successfully');
+            } catch (error) {
+              console.error('[FRONTEND] Access code error:', error);
+              console.error('[FRONTEND] Error response:', error.response);
+              console.error('[FRONTEND] Error stack:', error.stack);
+              alert('과제를 찾을 수 없습니다: ' + (error.response?.data?.error || error.message));
+            }
+          };
+          
+          // Profile Menu Toggle
+          window.toggleProfileMenu = function() {
+            const menu = document.getElementById('profileMenu');
+            if (menu) {
+              menu.classList.toggle('hidden');
+            }
+          };
+          
+          // Logout Handler
+          window.handleLogout = function() {
+            localStorage.removeItem('student_session_id');
+            localStorage.removeItem('student_name');
+            window.location.href = '/student/login';
+          };
+        </script>
         <style>
           .prose img {
             max-width: 100%;
