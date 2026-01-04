@@ -7426,9 +7426,15 @@ app.get('/student/dashboard', (c) => {
           
           // Profile Menu Toggle
           window.toggleProfileMenu = function() {
+            console.log('[FRONTEND] === TOGGLE PROFILE MENU CALLED ===');
             const menu = document.getElementById('profileMenu');
+            console.log('[FRONTEND] Profile menu element:', menu);
             if (menu) {
+              const wasHidden = menu.classList.contains('hidden');
               menu.classList.toggle('hidden');
+              console.log('[FRONTEND] Menu toggled. Was hidden:', wasHidden, 'Now hidden:', menu.classList.contains('hidden'));
+            } else {
+              console.error('[FRONTEND] Profile menu element not found!');
             }
           };
           
