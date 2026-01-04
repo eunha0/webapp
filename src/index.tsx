@@ -1286,17 +1286,69 @@ app.get('/api/student/assignment/:code', async (c) => {
  * POST /api/student/submit - Submit student essay
  */
 app.post('/api/student/submit', async (c) => {
-  // IMMEDIATE LOGGING - No try/catch
-  console.log('[SUBMIT ENDPOINT] ===== REACHED =====')
-  console.log('[SUBMIT ENDPOINT] URL:', c.req.url)
-  console.log('[SUBMIT ENDPOINT] Method:', c.req.method)
-  console.log('[SUBMIT ENDPOINT] Headers:', JSON.stringify(Object.fromEntries(c.req.raw.headers)))
-  
-  return c.json({ 
-    success: true,
-    test: 'SUBMIT ENDPOINT REACHED',
-    timestamp: new Date().toISOString()
-  })
+  try {
+    const student = await requireStudentAuth(c)
+    if (!student.id) return student
+    
+    const { accessCode, essayText } = await c.req.json()
+    const db = c.env.DB
+    
+    console.log('[SUBMIT] Student ID:', student.id, 'Access Code:', accessCode)
+    
+    // Get assignment by access code
+    const assignment = await db.prepare(
+      `SELECT a.id, a.title, a.user_id
+       FROM assignments a
+       WHERE a.access_code = ?`
+    ).bind(accessCode).first()
+    
+    if (!assignment) {
+      return c.json({ error: '과제를 찾을 수 없습니다' }, 404)
+    }
+    
+    console.log('[SUBMIT] Found assignment:', assignment.id)
+    
+    // Check for previous submission
+    const previousSubmission = await db.prepare(
+      `SELECT id FROM student_submissions 
+       WHERE assignment_id = ? AND student_user_id = ?
+       ORDER BY submitted_at DESC LIMIT 1`
+    ).bind(assignment.id, student.id).first()
+    
+    const submissionVersion = previousSubmission ? 
+      ((await db.prepare('SELECT MAX(submission_version) as max FROM student_submissions WHERE assignment_id = ? AND student_user_id = ?').bind(assignment.id, student.id).first())?.max || 0) + 1 : 1
+    
+    console.log('[SUBMIT] Submission version:', submissionVersion)
+    
+    // Insert submission
+    const result = await db.prepare(
+      `INSERT INTO student_submissions 
+       (assignment_id, student_user_id, essay_text, submission_version, is_resubmission, previous_submission_id, graded, submitted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+    ).bind(
+      assignment.id,
+      student.id,
+      essayText,
+      submissionVersion,
+      previousSubmission ? 1 : 0,
+      previousSubmission?.id || null,
+      0
+    ).run()
+    
+    console.log('[SUBMIT] Submission created:', result.meta.last_row_id)
+    
+    return c.json({ 
+      success: true, 
+      submission_id: result.meta.last_row_id,
+      message: '답안이 성공적으로 제출되었습니다'
+    })
+  } catch (error) {
+    console.error('[SUBMIT] Error:', error)
+    return c.json({ 
+      error: '에세이 제출에 실패했습니다',
+      debug: error instanceof Error ? error.message : String(error)
+    }, 500)
+  }
 })
 
 /**
@@ -7370,7 +7422,7 @@ app.get('/student/dashboard', (c) => {
               const debugInfo = error.response?.data?.debug || '';
               const parts = [String.fromCharCode(51228,52636,32,49892,54056,58), String.fromCharCode(32), errorMsg];
               if (debugInfo) { parts.push(String.fromCharCode(10,10,46356,48260,44536,32,51221,48372,58), String.fromCharCode(32), debugInfo); }
-              parts.push(String.fromCharCode(10,10,45796,51020,32,49324,54637,51012,32,54869,51064,54644,51452,49464,50836,58,10,49,46,32,50529,49464,49828,32,53076,46300,44032,32,50732,48148,47480,51648,32,54869,51064,10,50,46,32,47196,44536,51064,32,49345,53468,32,54869,51064,10,51,46,32,51064,53552,45691,32,50672,44208,32,54869,51064));
+              parts.push(String.fromCharCode(10,10,45796,51020,32,49324,54637,51012,32,54869,51064,54644,51452,49464,50836,58,10,49,46,32,50529,49464,49828,32,53076,46300,44032,32,50732,48148,47480,51648,32,54869,51064,10,50,46,32,47196,44536,51064,32,49345,53468,32,54869,51064,10,51,46,32,51064,53552,45367,32,50672,44208,32,54869,51064));
               alert(parts.join(''));
             }
           };
