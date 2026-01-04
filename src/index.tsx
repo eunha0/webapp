@@ -7368,17 +7368,10 @@ app.get('/student/dashboard', (c) => {
               
               const errorMsg = error.response?.data?.error || error.message;
               const debugInfo = error.response?.data?.debug || '';
-              
-              const messages = [];
-              messages.push('\u{C81C}\u{CD9C} \u{C2E4}\u{D328}: ' + errorMsg);
-              if (debugInfo) {
-                messages.push('\n\n\u{B514}\u{BC84}\u{ADF8} \u{C815}\u{BCF4}: ' + debugInfo);
-              }
-              messages.push('\n\n\u{B2E4}\u{C74C} \u{C0AC}\u{D56D}\u{C744} \u{D655}\u{C778}\u{D574}\u{C8FC}\u{C138}\u{C694}:');
-              messages.push('\n1. \u{C561}\u{C138}\u{C2A4} \u{CF54}\u{B4DC}\u{AC00} \u{C62C}\u{BC14}\u{B978}\u{C9C0} \u{D655}\u{C778}');
-              messages.push('\n2. \u{B85C}\u{ADF8}\u{C778} \u{C0C1}\u{D0DC} \u{D655}\u{C778}');
-              messages.push('\n3. \u{C778}\u{D130}\u{B137} \u{C5F0}\u{ACB0} \u{D655}\u{C778}');
-              alert(messages.join(''));
+              const parts = [String.fromCharCode(51228,52636,32,49892,54056,58), String.fromCharCode(32), errorMsg];
+              if (debugInfo) { parts.push(String.fromCharCode(10,10,46356,48260,44536,32,51221,48372,58), String.fromCharCode(32), debugInfo); }
+              parts.push(String.fromCharCode(10,10,45796,51020,32,49324,54637,51012,32,54869,51064,54644,51452,49464,50836,58,10,49,46,32,50529,49464,49828,32,53076,46300,44032,32,50732,48148,47480,51648,32,54869,51064,10,50,46,32,47196,44536,51064,32,49345,53468,32,54869,51064,10,51,46,32,51064,53552,45691,32,50672,44208,32,54869,51064));
+              alert(parts.join(''));
             }
           };
           
