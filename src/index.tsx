@@ -7134,6 +7134,92 @@ app.get('/student/dashboard', (c) => {
             }
           }
           
+          // Display Assignment Function (MUST BE DEFINED BEFORE USAGE)
+          window.displayAssignment = function(assignment) {
+            console.log('[FRONTEND] === DISPLAY ASSIGNMENT CALLED ===');
+            console.log('[FRONTEND] Assignment object:', assignment);
+            
+            try {
+              // Set title
+              const titleElement = document.getElementById('assignmentTitle');
+              if (!titleElement) {
+                console.error('[FRONTEND] assignmentTitle element not found!');
+                throw new Error('assignmentTitle element not found');
+              }
+              titleElement.textContent = assignment.title;
+              console.log('[FRONTEND] Title set:', assignment.title);
+              
+              // Set description
+              const descElement = document.getElementById('assignmentDescription');
+              if (!descElement) {
+                console.error('[FRONTEND] assignmentDescription element not found!');
+                throw new Error('assignmentDescription element not found');
+              }
+              descElement.textContent = assignment.description;
+              console.log('[FRONTEND] Description set');
+              
+              // Display prompts if available
+              let promptsHTML = '';
+              if (assignment.prompts && assignment.prompts.length > 0) {
+                console.log('[FRONTEND] Processing', assignment.prompts.length, 'prompts');
+                const promptItems = assignment.prompts.map((prompt, idx) => {
+                  const convertedPrompt = convertMarkdownToHtml(prompt);
+                  return '<div class="bg-blue-50 border border-blue-200 p-4 rounded-lg">' +
+                    '<div class="font-semibold text-blue-900 mb-2">제시문 ' + (idx + 1) + '</div>' +
+                    '<div class="prose max-w-none text-gray-700">' + convertedPrompt + '</div>' +
+                    '</div>';
+                }).join('');
+                
+                promptsHTML = '<div class="mb-6">' +
+                  '<h3 class="font-semibold text-gray-800 mb-2">제시문:</h3>' +
+                  '<div class="space-y-3">' + promptItems + '</div>' +
+                  '</div>';
+              }
+              console.log('[FRONTEND] Prompts HTML generated');
+              
+              // Display rubrics
+              const rubricsList = document.getElementById('rubricsList');
+              if (!rubricsList) {
+                console.error('[FRONTEND] rubricsList element not found!');
+                throw new Error('rubricsList element not found');
+              }
+              
+              const rubricsHTML = assignment.rubrics.map((r, idx) => {
+                return '<div class="bg-gray-50 p-3 rounded-lg">' +
+                  '<span class="font-semibold text-blue-700">' + (idx + 1) + '. ' + r.criterion_name + '</span>' +
+                  '<p class="text-sm text-gray-600 mt-1">' + r.criterion_description + '</p>' +
+                  '</div>';
+              }).join('');
+              
+              rubricsList.innerHTML = promptsHTML + rubricsHTML;
+              console.log('[FRONTEND] Rubrics list updated');
+              
+              // Show assignment details
+              const detailsElement = document.getElementById('assignmentDetails');
+              if (!detailsElement) {
+                console.error('[FRONTEND] assignmentDetails element not found!');
+                throw new Error('assignmentDetails element not found');
+              }
+              detailsElement.classList.remove('hidden');
+              console.log('[FRONTEND] Assignment details shown');
+              
+              // Focus on essay text
+              const essayText = document.getElementById('essayText');
+              if (essayText) {
+                essayText.focus();
+                console.log('[FRONTEND] Essay text focused');
+              } else {
+                console.warn('[FRONTEND] essayText element not found');
+              }
+              
+              console.log('[FRONTEND] === DISPLAY ASSIGNMENT COMPLETED ===');
+            } catch (error) {
+              console.error('[FRONTEND] Error in displayAssignment:', error);
+              alert('과제를 표시하는 중 오류가 발생했습니다: ' + error.message);
+              throw error;
+            }
+          };
+          
           // Access Code Handler
           window.handleAccessCode = async function(event) {
             try {
@@ -7180,13 +7266,130 @@ app.get('/student/dashboard', (c) => {
               currentAccessCode = accessCode;
               currentAssignment = response.data;
               
-              displayAssignment(response.data);
+              window.displayAssignment(response.data);
               console.log('[FRONTEND] Assignment displayed successfully');
             } catch (error) {
               console.error('[FRONTEND] Access code error:', error);
               console.error('[FRONTEND] Error response:', error.response);
               console.error('[FRONTEND] Error stack:', error.stack);
               alert('과제를 찾을 수 없습니다: ' + (error.response?.data?.error || error.message));
+            }
+          };
+          
+          // Submit Handler
+          window.handleSubmit = async function() {
+            console.log('[FRONTEND] === SUBMIT BUTTON CLICKED ===');
+            const essayText = document.getElementById('essayText').value.trim();
+            console.log('[FRONTEND] Essay text length:', essayText.length);
+            
+            if (!essayText) {
+              alert('답안을 작성해주세요');
+              return;
+            }
+            
+            if (!currentAccessCode) {
+              alert('과제 액세스 코드를 먼저 입력해주세요');
+              return;
+            }
+            
+            const sessionId = localStorage.getItem('student_session_id');
+            console.log('[FRONTEND] Session ID:', sessionId);
+            console.log('[FRONTEND] Access Code:', currentAccessCode);
+            
+            if (!sessionId) {
+              alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+              window.location.href = '/student/login';
+              return;
+            }
+            
+            console.log('[FRONTEND] Sending POST request to /api/student/submit');
+            
+            try {
+              const response = await axios.post('/api/student/submit', {
+                access_code: currentAccessCode,
+                essay_text: essayText
+              }, {
+                headers: { 'X-Student-Session-ID': sessionId }
+              });
+              
+              console.log('[FRONTEND] Response received:', response.data);
+              
+              if (response.data.success) {
+                const version = response.data.version;
+                const isResubmission = response.data.is_resubmission;
+                
+                alert(isResubmission 
+                  ? '답안이 재제출되었습니다! (버전 ' + version + ')'
+                  : '답안이 제출되었습니다! 선생님의 채점을 기다려주세요.');
+                
+                document.getElementById('essayText').value = '';
+                document.getElementById('assignmentDetails').classList.add('hidden');
+                document.getElementById('accessCode').value = '';
+                currentAccessCode = null;
+                currentAssignment = null;
+                
+                window.loadSubmissions();
+              }
+            } catch (error) {
+              console.error('[FRONTEND] Submit error:', error);
+              console.error('[FRONTEND] Error response:', error.response);
+              console.error('[FRONTEND] Error data:', error.response?.data);
+              
+              const errorMsg = error.response?.data?.error || error.message;
+              const debugInfo = error.response?.data?.debug || '';
+              
+              alert('제출 실패: ' + errorMsg + (debugInfo ? '\n\n디버그 정보: ' + debugInfo : '') + '\n\n다음 사항을 확인해주세요:\n1. 액세스 코드가 올바른지 확인\n2. 로그인 상태 확인\n3. 인터넷 연결 확인');
+            }
+          };
+          
+          // Load Submissions
+          window.loadSubmissions = async function() {
+            const sessionId = localStorage.getItem('student_session_id');
+            const submissionsList = document.getElementById('submissionsList');
+            
+            if (!sessionId) {
+              submissionsList.innerHTML = '<p class="text-red-500 text-center py-8">로그인이 필요합니다</p>';
+              return;
+            }
+            
+            try {
+              const response = await axios.get('/api/student/my-submissions', {
+                headers: { 'X-Student-Session-ID': sessionId }
+              });
+              
+              if (!response.data || !Array.isArray(response.data)) {
+                submissionsList.innerHTML = '<p class="text-gray-500 text-center py-8">아직 제출한 답안이 없습니다</p>';
+                return;
+              }
+              
+              if (response.data.length === 0) {
+                submissionsList.innerHTML = '<p class="text-gray-500 text-center py-8">아직 제출한 답안이 없습니다</p>';
+                return;
+              }
+              
+              const html = response.data.map(sub => {
+                const submittedDate = new Date(sub.submitted_at).toLocaleString('ko-KR');
+                const statusBadge = sub.total_score !== null 
+                  ? '<span class="inline-block bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">채점 완료: ' + sub.total_score + '점</span>'
+                  : '<span class="inline-block bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">채점 대기중</span>';
+                
+                const versionBadge = sub.is_resubmission 
+                  ? '<span class="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs ml-2">버전 ' + sub.version + '</span>'
+                  : '';
+                
+                return '<div class="border-b border-gray-200 last:border-0 py-4">' +
+                  '<div class="flex justify-between items-start mb-2">' +
+                  '<h3 class="font-semibold text-gray-900">' + sub.assignment_title + versionBadge + '</h3>' +
+                  statusBadge +
+                  '</div>' +
+                  '<p class="text-sm text-gray-500">제출 시각: ' + submittedDate + '</p>' +
+                  '</div>';
+              }).join('');
+              
+              submissionsList.innerHTML = html;
+            } catch (error) {
+              console.error('[FRONTEND] Load submissions error:', error);
+              submissionsList.innerHTML = '<p class="text-red-500 text-center py-8">제출물을 불러오는데 실패했습니다</p>';
             }
           };
           
