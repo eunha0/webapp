@@ -7369,7 +7369,16 @@ app.get('/student/dashboard', (c) => {
               const errorMsg = error.response?.data?.error || error.message;
               const debugInfo = error.response?.data?.debug || '';
               
-              alert('제출 실패: ' + errorMsg + (debugInfo ? '\n\n디버그 정보: ' + debugInfo : '') + '\n\n다음 사항을 확인해주세요:\n1. 액세스 코드가 올바른지 확인\n2. 로그인 상태 확인\n3. 인터넷 연결 확인');
+              const messages = [];
+              messages.push('\u{C81C}\u{CD9C} \u{C2E4}\u{D328}: ' + errorMsg);
+              if (debugInfo) {
+                messages.push('\n\n\u{B514}\u{BC84}\u{ADF8} \u{C815}\u{BCF4}: ' + debugInfo);
+              }
+              messages.push('\n\n\u{B2E4}\u{C74C} \u{C0AC}\u{D56D}\u{C744} \u{D655}\u{C778}\u{D574}\u{C8FC}\u{C138}\u{C694}:');
+              messages.push('\n1. \u{C561}\u{C138}\u{C2A4} \u{CF54}\u{B4DC}\u{AC00} \u{C62C}\u{BC14}\u{B978}\u{C9C0} \u{D655}\u{C778}');
+              messages.push('\n2. \u{B85C}\u{ADF8}\u{C778} \u{C0C1}\u{D0DC} \u{D655}\u{C778}');
+              messages.push('\n3. \u{C778}\u{D130}\u{B137} \u{C5F0}\u{ACB0} \u{D655}\u{C778}');
+              alert(messages.join(''));
             }
           };
           
