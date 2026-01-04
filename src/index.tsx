@@ -7158,40 +7158,71 @@ app.get('/student/dashboard', (c) => {
               descElement.textContent = assignment.description;
               console.log('[FRONTEND] Description set');
               
-              // Display prompts if available
-              let promptsHTML = '';
-              if (assignment.prompts && assignment.prompts.length > 0) {
-                console.log('[FRONTEND] Processing', assignment.prompts.length, 'prompts');
-                const promptItems = assignment.prompts.map((prompt, idx) => {
-                  const convertedPrompt = convertMarkdownToHtml(prompt);
-                  return '<div class="bg-blue-50 border border-blue-200 p-4 rounded-lg">' +
-                    '<div class="font-semibold text-blue-900 mb-2">제시문 ' + (idx + 1) + '</div>' +
-                    '<div class="prose max-w-none text-gray-700">' + convertedPrompt + '</div>' +
-                    '</div>';
-                }).join('');
-                
-                promptsHTML = '<div class="mb-6">' +
-                  '<h3 class="font-semibold text-gray-800 mb-2">제시문:</h3>' +
-                  '<div class="space-y-3">' + promptItems + '</div>' +
-                  '</div>';
-              }
-              console.log('[FRONTEND] Prompts HTML generated');
-              
-              // Display rubrics
+              // Clear rubrics list first
               const rubricsList = document.getElementById('rubricsList');
               if (!rubricsList) {
                 console.error('[FRONTEND] rubricsList element not found!');
                 throw new Error('rubricsList element not found');
               }
+              rubricsList.innerHTML = '';
               
-              const rubricsHTML = assignment.rubrics.map((r, idx) => {
-                return '<div class="bg-gray-50 p-3 rounded-lg">' +
-                  '<span class="font-semibold text-blue-700">' + (idx + 1) + '. ' + r.criterion_name + '</span>' +
-                  '<p class="text-sm text-gray-600 mt-1">' + r.criterion_description + '</p>' +
-                  '</div>';
-              }).join('');
+              // Display prompts if available
+              if (assignment.prompts && assignment.prompts.length > 0) {
+                console.log('[FRONTEND] Processing', assignment.prompts.length, 'prompts');
+                
+                // Create prompts container
+                const promptsContainer = document.createElement('div');
+                promptsContainer.className = 'mb-6';
+                
+                const promptsTitle = document.createElement('h3');
+                promptsTitle.className = 'font-semibold text-gray-800 mb-2';
+                promptsTitle.textContent = '\u{C81C}\u{C2DC}\u{BB38}:';
+                promptsContainer.appendChild(promptsTitle);
+                
+                const promptsList = document.createElement('div');
+                promptsList.className = 'space-y-3';
+                
+                assignment.prompts.forEach((prompt, idx) => {
+                  const convertedPrompt = convertMarkdownToHtml(prompt);
+                  
+                  const promptItem = document.createElement('div');
+                  promptItem.className = 'bg-blue-50 border border-blue-200 p-4 rounded-lg';
+                  
+                  const promptHeader = document.createElement('div');
+                  promptHeader.className = 'font-semibold text-blue-900 mb-2';
+                  promptHeader.textContent = '\u{C81C}\u{C2DC}\u{BB38} ' + (idx + 1);
+                  
+                  const promptContent = document.createElement('div');
+                  promptContent.className = 'prose max-w-none text-gray-700';
+                  promptContent.innerHTML = convertedPrompt;
+                  
+                  promptItem.appendChild(promptHeader);
+                  promptItem.appendChild(promptContent);
+                  promptsList.appendChild(promptItem);
+                });
+                
+                promptsContainer.appendChild(promptsList);
+                rubricsList.appendChild(promptsContainer);
+              }
+              console.log('[FRONTEND] Prompts processed');
               
-              rubricsList.innerHTML = promptsHTML + rubricsHTML;
+              // Display rubrics
+              assignment.rubrics.forEach((r, idx) => {
+                const rubricItem = document.createElement('div');
+                rubricItem.className = 'bg-gray-50 p-3 rounded-lg';
+                
+                const rubricName = document.createElement('span');
+                rubricName.className = 'font-semibold text-blue-700';
+                rubricName.textContent = (idx + 1) + '. ' + r.criterion_name;
+                
+                const rubricDesc = document.createElement('p');
+                rubricDesc.className = 'text-sm text-gray-600 mt-1';
+                rubricDesc.textContent = r.criterion_description;
+                
+                rubricItem.appendChild(rubricName);
+                rubricItem.appendChild(rubricDesc);
+                rubricsList.appendChild(rubricItem);
+              });
               console.log('[FRONTEND] Rubrics list updated');
               
               // Show assignment details
