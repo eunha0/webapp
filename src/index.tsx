@@ -1299,7 +1299,8 @@ app.post('/api/student/submit', async (c) => {
     const assignment = await db.prepare(
       `SELECT a.id, a.title, a.user_id
        FROM assignments a
-       WHERE a.access_code = ?`
+       JOIN assignment_access_codes ac ON a.id = ac.assignment_id
+       WHERE ac.access_code = ?`
     ).bind(accessCode).first()
     
     if (!assignment) {
@@ -1331,7 +1332,7 @@ app.post('/api/student/submit', async (c) => {
       essayText,
       submissionVersion,
       previousSubmission ? 1 : 0,
-      previousSubmission?.id || null,
+      previousSubmission ? previousSubmission.id : null,
       0
     ).run()
     
