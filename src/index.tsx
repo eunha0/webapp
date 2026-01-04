@@ -7105,7 +7105,7 @@ app.get('/admin/cms', (c) => {
 
 // Student Dashboard Page
 app.get('/student/dashboard', (c) => {
-  return c.html(`
+  const html = `
     <!DOCTYPE html>
     <html lang="ko">
     <head>
@@ -7598,7 +7598,9 @@ app.get('/student/dashboard', (c) => {
 
     </body>
     </html>
-  `)
+  `;
+  
+  return c.html(html);
 })
 
 // Student Feedback View Page
