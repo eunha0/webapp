@@ -85,11 +85,20 @@ export async function requireAuth(c: Context<{ Bindings: Bindings }>): Promise<U
  * Require student authentication middleware - returns student or sends 401 response
  */
 export async function requireStudentAuth(c: Context<{ Bindings: Bindings }>): Promise<Student | Response> {
-  const student = await getStudentFromSession(c)
-  if (!student) {
-    return c.json({ error: 'Unauthorized - Please login as student' }, 401)
+  console.log('[AUTH] requireStudentAuth called')
+  try {
+    const student = await getStudentFromSession(c)
+    console.log('[AUTH] Student from session:', student ? { id: student.id, name: student.name } : null)
+    if (!student) {
+      console.log('[AUTH] No student found, returning 401')
+      return c.json({ error: 'Unauthorized - Please login as student' }, 401)
+    }
+    console.log('[AUTH] Student authenticated:', student.id)
+    return student
+  } catch (error) {
+    console.error('[AUTH] Error in requireStudentAuth:', error)
+    return c.json({ error: 'Authentication error', debug: error instanceof Error ? error.message : String(error) }, 500)
   }
-  return student
 }
 
 /**

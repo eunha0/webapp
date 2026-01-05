@@ -10,10 +10,10 @@ import upload from './routes/upload'
 import assignments from './routes/assignments'
 import submissions from './routes/submissions'
 import admin from './routes/admin'
-import students from './routes/students'
+// import students from './routes/students' // REMOVED: Using inline routes instead
 
 // Import authentication helpers from middleware
-import { getUserFromSession, requireAuth } from './middleware/auth'
+import { getUserFromSession, requireAuth, requireStudentAuth, getStudentFromSession } from './middleware/auth'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -101,7 +101,7 @@ app.route('/api/upload', upload)
 app.route('/api/assignment', assignments)
 app.route('/api/submission', submissions)
 app.route('/api/admin', admin)
-app.route('/api/student', students)
+// app.route('/api/student', students) // REMOVED: Using inline routes instead
 
 // Rubric detail pages
 app.get('/rubric-detail/:rubricId', (c) => {
