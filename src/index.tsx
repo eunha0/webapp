@@ -1374,6 +1374,28 @@ app.post('/api/student/submit', async (c) => {
     
     // 5. 새 제출 생성 (안전한 NULL 처리)
     try {
+      // 디버그: 모든 값 출력
+      console.log('[SUBMIT] Bind values check:', {
+        'assignment.id': assignment.id,
+        'student.id': student.id,
+        'student.name': student.name,
+        'essayText.length': essayText?.length,
+        'submissionVersion': submissionVersion,
+        'previousSubmission': previousSubmission ? { id: previousSubmission.id } : null
+      })
+      
+      // 값 검증 (undefined 방지)
+      if (!assignment.id || !student.id || !essayText) {
+        return c.json({
+          error: '필수 값이 누락되었습니다',
+          debug: {
+            hasAssignmentId: !!assignment.id,
+            hasStudentId: !!student.id,
+            hasEssayText: !!essayText
+          }
+        }, 400)
+      }
+      
       // D1은 NULL을 지원하지 않으므로 조건부로 다른 쿼리 사용
       let result: any
       
@@ -2046,7 +2068,11 @@ app.get('/api/student/my-submissions', async (c) => {
   try {
     // 1. 학생 인증 확인
     const student = await requireStudentAuth(c)
-    if (!student.id) return student
+    if (!student.id) {
+      // 인증 실패 시 빈 배열 반환 (프론트엔드 호환)
+      console.log('[MY_SUBMISSIONS] Authentication failed')
+      return c.json([])
+    }
     
     const db = c.env.DB
     console.log('[MY_SUBMISSIONS] Fetching for student:', student.id)
