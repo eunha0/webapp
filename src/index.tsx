@@ -1283,70 +1283,151 @@ app.get('/api/student/assignment/:code', async (c) => {
  * POST /api/student/submit - Submit student essay
  */
 /**
- * POST /api/student/submit - Submit student essay
+ * POST /api/student/submit - Submit student essay (안 터지는 구조)
  */
 app.post('/api/student/submit', async (c) => {
   try {
+    // 1. 학생 인증 확인 (안전한 에러 처리)
     const student = await requireStudentAuth(c)
     if (!student.id) return student
     
-    const { accessCode, essayText } = await c.req.json()
-    const db = c.env.DB
-    
-    console.log('[SUBMIT] Student ID:', student.id, 'Access Code:', accessCode)
-    
-    // Get assignment by access code
-    const assignment = await db.prepare(
-      `SELECT a.id, a.title, a.user_id
-       FROM assignments a
-       JOIN assignment_access_codes ac ON a.id = ac.assignment_id
-       WHERE ac.access_code = ?`
-    ).bind(accessCode).first()
-    
-    if (!assignment) {
-      return c.json({ error: '과제를 찾을 수 없습니다' }, 404)
+    // 2. 요청 데이터 파싱 (안전한 에러 처리)
+    let accessCode: string, essayText: string
+    try {
+      const body = await c.req.json()
+      accessCode = body.accessCode?.trim()
+      essayText = body.essayText?.trim()
+      
+      if (!accessCode || !essayText) {
+        return c.json({ 
+          error: '액세스 코드와 답안을 모두 입력해주세요',
+          debug: `accessCode: ${!!accessCode}, essayText: ${!!essayText}`
+        }, 400)
+      }
+      
+      if (essayText.length < 50) {
+        return c.json({ 
+          error: '답안은 최소 50자 이상이어야 합니다',
+          debug: `현재 길이: ${essayText.length}자`
+        }, 400)
+      }
+    } catch (err) {
+      return c.json({ 
+        error: '요청 데이터를 파싱하는데 실패했습니다',
+        debug: err instanceof Error ? err.message : String(err)
+      }, 400)
     }
     
-    console.log('[SUBMIT] Found assignment:', assignment.id)
+    const db = c.env.DB
+    console.log('[SUBMIT] Student:', { id: student.id, name: student.name, accessCode })
     
-    // Check for previous submission
-    const previousSubmission = await db.prepare(
-      `SELECT id FROM student_submissions 
-       WHERE assignment_id = ? AND student_user_id = ?
-       ORDER BY submitted_at DESC LIMIT 1`
-    ).bind(assignment.id, student.id).first()
+    // 3. 과제 조회 (안전한 에러 처리)
+    let assignment: any
+    try {
+      assignment = await db.prepare(
+        `SELECT a.id, a.title, a.user_id
+         FROM assignments a
+         JOIN assignment_access_codes ac ON a.id = ac.assignment_id
+         WHERE ac.access_code = ?`
+      ).bind(accessCode).first()
+      
+      if (!assignment) {
+        return c.json({ 
+          error: '과제를 찾을 수 없습니다',
+          debug: `액세스 코드: ${accessCode}`
+        }, 404)
+      }
+      
+      console.log('[SUBMIT] Found assignment:', { id: assignment.id, title: assignment.title })
+    } catch (err) {
+      console.error('[SUBMIT] Assignment query error:', err)
+      return c.json({ 
+        error: '과제를 조회하는데 실패했습니다',
+        debug: err instanceof Error ? err.message : String(err)
+      }, 500)
+    }
     
-    const submissionVersion = previousSubmission ? 
-      ((await db.prepare('SELECT MAX(submission_version) as max FROM student_submissions WHERE assignment_id = ? AND student_user_id = ?').bind(assignment.id, student.id).first())?.max || 0) + 1 : 1
+    // 4. 이전 제출 확인 (안전한 에러 처리)
+    let previousSubmission: any = null
+    let submissionVersion = 1
+    try {
+      previousSubmission = await db.prepare(
+        `SELECT id, submission_version FROM student_submissions 
+         WHERE assignment_id = ? AND student_user_id = ?
+         ORDER BY submitted_at DESC LIMIT 1`
+      ).bind(assignment.id, student.id).first()
+      
+      if (previousSubmission) {
+        const maxVersionResult = await db.prepare(
+          'SELECT MAX(submission_version) as max FROM student_submissions WHERE assignment_id = ? AND student_user_id = ?'
+        ).bind(assignment.id, student.id).first()
+        
+        submissionVersion = (maxVersionResult?.max || 0) + 1
+      }
+      
+      console.log('[SUBMIT] Submission version:', submissionVersion, 'Previous:', previousSubmission?.id || 'none')
+    } catch (err) {
+      console.error('[SUBMIT] Previous submission query error:', err)
+      // 이전 제출 확인 실패해도 계속 진행 (기본값 1 사용)
+      submissionVersion = 1
+    }
     
-    console.log('[SUBMIT] Submission version:', submissionVersion)
-    
-    // Insert submission
-    const result = await db.prepare(
-      `INSERT INTO student_submissions 
-       (assignment_id, student_user_id, essay_text, submission_version, is_resubmission, previous_submission_id, graded, submitted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`
-    ).bind(
-      assignment.id,
-      student.id,
-      essayText,
-      submissionVersion,
-      previousSubmission ? 1 : 0,
-      previousSubmission ? previousSubmission.id : null,
-      0
-    ).run()
-    
-    console.log('[SUBMIT] Submission created:', result.meta.last_row_id)
-    
-    return c.json({ 
-      success: true, 
-      submission_id: result.meta.last_row_id,
-      message: '답안이 성공적으로 제출되었습니다'
-    })
+    // 5. 새 제출 생성 (안전한 NULL 처리)
+    try {
+      // D1은 NULL을 지원하지 않으므로 조건부로 다른 쿼리 사용
+      let result: any
+      
+      if (previousSubmission) {
+        // 재제출인 경우
+        result = await db.prepare(
+          `INSERT INTO student_submissions 
+           (assignment_id, student_user_id, student_name, essay_text, submission_version, is_resubmission, previous_submission_id, graded, submitted_at)
+           VALUES (?, ?, ?, ?, ?, 1, ?, 0, datetime('now'))`
+        ).bind(
+          assignment.id,
+          student.id,
+          student.name || '익명 학생',
+          essayText,
+          submissionVersion,
+          previousSubmission.id
+        ).run()
+      } else {
+        // 첫 제출인 경우
+        result = await db.prepare(
+          `INSERT INTO student_submissions 
+           (assignment_id, student_user_id, student_name, essay_text, submission_version, is_resubmission, graded, submitted_at)
+           VALUES (?, ?, ?, ?, ?, 0, 0, datetime('now'))`
+        ).bind(
+          assignment.id,
+          student.id,
+          student.name || '익명 학생',
+          essayText,
+          submissionVersion
+        ).run()
+      }
+      
+      const submissionId = result.meta.last_row_id
+      console.log('[SUBMIT] Success:', { submissionId, version: submissionVersion })
+      
+      return c.json({ 
+        success: true, 
+        submission_id: submissionId,
+        submission_version: submissionVersion,
+        message: previousSubmission ? 
+          `답안이 성공적으로 재제출되었습니다 (버전 ${submissionVersion})` :
+          '답안이 성공적으로 제출되었습니다'
+      })
+    } catch (err) {
+      console.error('[SUBMIT] Insert error:', err)
+      return c.json({ 
+        error: '답안 저장에 실패했습니다',
+        debug: err instanceof Error ? err.message : String(err)
+      }, 500)
+    }
   } catch (error) {
-    console.error('[SUBMIT] Error:', error)
+    console.error('[SUBMIT] Unexpected error:', error)
     return c.json({ 
-      error: '에세이 제출에 실패했습니다',
+      error: '예상치 못한 오류가 발생했습니다',
       debug: error instanceof Error ? error.message : String(error)
     }, 500)
   }
@@ -1412,30 +1493,70 @@ app.post('/api/submission/:id/grade', async (c) => {
     // Create essay
     const essayId = await createEssay(db, sessionId, submission.essay_text as string)
     
-    // Grade the essay using AI
-    const gradingResult = await gradeEssayHybrid(gradingRequest, c.env)
+    // Grade the essay using AI (with graceful fallback)
+    let gradingResult: any
+    let detailedFeedback: any
+    
+    try {
+      gradingResult = await gradeEssayHybrid(gradingRequest, c.env)
+      
+      // Generate detailed feedback with grade-level tone adjustment and custom settings
+      detailedFeedback = await generateDetailedFeedback({
+        essay_text: submission.essay_text as string,
+        grade_level: submission.grade_level as string,
+        rubric_criteria: rubrics.results.map((r: any) => ({
+          criterion_name: r.criterion_name,
+          criterion_description: r.criterion_description,
+          max_score: r.max_score || 4
+        })),
+        criterion_scores: gradingResult.criterion_scores.map((cs: any) => ({
+          criterion_name: cs.criterion_name,
+          score: cs.score,
+          strengths: cs.strengths,
+          areas_for_improvement: cs.areas_for_improvement
+        })),
+        feedback_level: feedbackLevel,
+        grading_strictness: gradingStrictness
+      })
+    } catch (aiError) {
+      console.error('[GRADING] AI grading failed, using fallback:', aiError)
+      
+      // Graceful fallback: 기본 채점 생성
+      const criteriaCount = rubrics.results.length
+      const defaultScore = 2 // 중간 점수
+      
+      gradingResult = {
+        criterion_scores: rubrics.results.map((r: any) => ({
+          criterion_name: r.criterion_name,
+          score: defaultScore,
+          strengths: 'AI 채점 시스템이 일시적으로 사용할 수 없습니다. 교사의 수동 채점을 기다려주세요.',
+          areas_for_improvement: '자동 채점 실패로 인해 세부 피드백을 제공할 수 없습니다.'
+        })),
+        revision_suggestions: 'AI 채점 시스템 오류로 인해 수정 제안을 생성할 수 없습니다.',
+        next_steps_advice: '교사의 피드백을 기다려주세요.',
+        summary_evaluation: 'AI 채점 실패 - 교사 검토 필요'
+      }
+      
+      detailedFeedback = {
+        criterion_feedbacks: rubrics.results.map((r: any) => ({
+          criterion_name: r.criterion_name,
+          score: defaultScore,
+          positive_feedback: 'AI 채점 시스템이 일시적으로 사용할 수 없습니다.',
+          improvement_areas: '교사의 수동 채점을 기다려주세요.',
+          specific_suggestions: '자동 피드백을 생성할 수 없습니다.'
+        })),
+        overall_summary: {
+          total_score: defaultScore * criteriaCount,
+          strengths: 'AI 채점 시스템 오류',
+          weaknesses: '자동 채점 실패',
+          overall_comment: 'AI 채점 시스템이 일시적으로 사용할 수 없어 기본 점수를 부여했습니다. 교사의 수동 채점을 기다려주세요.',
+          improvement_priority: '교사 검토 필요'
+        }
+      }
+    }
     
     // Store grading result
     const resultId = await storeGradingResult(db, essayId, sessionId, gradingResult)
-    
-    // Generate detailed feedback with grade-level tone adjustment and custom settings
-    const detailedFeedback = await generateDetailedFeedback({
-      essay_text: submission.essay_text as string,
-      grade_level: submission.grade_level as string,
-      rubric_criteria: rubrics.results.map((r: any) => ({
-        criterion_name: r.criterion_name,
-        criterion_description: r.criterion_description,
-        max_score: r.max_score || 4
-      })),
-      criterion_scores: gradingResult.criterion_scores.map((cs: any) => ({
-        criterion_name: cs.criterion_name,
-        score: cs.score,
-        strengths: cs.strengths,
-        areas_for_improvement: cs.areas_for_improvement
-      })),
-      feedback_level: feedbackLevel,
-      grading_strictness: gradingStrictness
-    })
     
     // Delete existing feedback for regrade (if any)
     await db.prepare(
@@ -1923,35 +2044,53 @@ app.delete('/api/submissions/:id', async (c) => {
  */
 app.get('/api/student/my-submissions', async (c) => {
   try {
+    // 1. 학생 인증 확인
     const student = await requireStudentAuth(c)
     if (!student.id) return student
     
     const db = c.env.DB
+    console.log('[MY_SUBMISSIONS] Fetching for student:', student.id)
     
-    const submissions = await db.prepare(
-      `SELECT 
-        s.id,
-        s.assignment_id,
-        s.submitted_at,
-        s.graded,
-        s.submission_version,
-        s.is_resubmission,
-        a.title as assignment_title,
-        a.grade_level,
-        ss.total_score,
-        ss.strengths,
-        ss.weaknesses
-       FROM student_submissions s
-       JOIN assignments a ON s.assignment_id = a.id
-       LEFT JOIN submission_summary ss ON s.id = ss.submission_id
-       WHERE s.student_user_id = ?
-       ORDER BY s.submitted_at DESC`
-    ).bind(student.id).all()
-    
-    return c.json(submissions.results || [])
+    // 2. 제출물 조회 (안전한 에러 처리)
+    try {
+      const submissions = await db.prepare(
+        `SELECT 
+          s.id,
+          s.assignment_id,
+          s.submitted_at,
+          s.graded,
+          s.submission_version,
+          s.is_resubmission,
+          s.overall_score,
+          a.title as assignment_title,
+          a.grade_level,
+          ss.total_score,
+          ss.strengths,
+          ss.weaknesses
+         FROM student_submissions s
+         JOIN assignments a ON s.assignment_id = a.id
+         LEFT JOIN submission_summary ss ON s.id = ss.submission_id
+         WHERE s.student_user_id = ?
+         ORDER BY s.submitted_at DESC`
+      ).bind(student.id).all()
+      
+      const results = submissions.results || []
+      console.log('[MY_SUBMISSIONS] Found:', results.length, 'submissions')
+      
+      return c.json(results)
+    } catch (err) {
+      console.error('[MY_SUBMISSIONS] Query error:', err)
+      return c.json({ 
+        error: '제출물을 불러오는데 실패했습니다',
+        debug: err instanceof Error ? err.message : String(err)
+      }, 500)
+    }
   } catch (error) {
-    console.error('Error fetching student submissions:', error)
-    return c.json({ error: '제출물을 불러오는데 실패했습니다' }, 500)
+    console.error('[MY_SUBMISSIONS] Unexpected error:', error)
+    return c.json({ 
+      error: '예상치 못한 오류가 발생했습니다',
+      debug: error instanceof Error ? error.message : String(error)
+    }, 500)
   }
 })
 
