@@ -7555,8 +7555,8 @@ app.get('/student/dashboard', (c) => {
             
             try {
               const response = await axios.post('/api/student/submit', {
-                access_code: currentAccessCode,
-                essay_text: essayText
+                accessCode: currentAccessCode,
+                essayText: essayText
               }, {
                 headers: { 'X-Student-Session-ID': sessionId }
               });
