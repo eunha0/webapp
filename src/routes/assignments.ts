@@ -68,10 +68,17 @@ assignments.get('/code/:accessCode', async (c) => {
     const accessCode = c.req.param('accessCode')
     const db = c.env.DB
     
-    // Find assignment by access code
+    console.log('[ASSIGNMENTS_ROUTE] Looking for access code:', accessCode)
+    
+    // Find assignment by access code (from assignment_access_codes table)
     const assignment = await db.prepare(
-      'SELECT * FROM assignments WHERE access_code = ?'
+      `SELECT a.* 
+       FROM assignments a
+       JOIN assignment_access_codes ac ON a.id = ac.assignment_id
+       WHERE ac.access_code = ?`
     ).bind(accessCode).first()
+    
+    console.log('[ASSIGNMENTS_ROUTE] Found assignment:', assignment ? assignment.id : 'NOT FOUND')
     
     if (!assignment) {
       return c.json({ error: '유효하지 않은 액세스 코드입니다.' }, 404)
@@ -94,6 +101,8 @@ assignments.get('/code/:accessCode', async (c) => {
     ).bind(assignment.id).all()
     
     assignment.rubrics = rubrics.results || []
+    
+    console.log('[ASSIGNMENTS_ROUTE] Returning assignment with', (assignment.rubrics as any[]).length, 'rubrics')
     
     return c.json(assignment)
   } catch (error) {

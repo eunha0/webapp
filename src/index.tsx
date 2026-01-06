@@ -1003,10 +1003,17 @@ app.get('/api/assignment/code/:accessCode', async (c) => {
     const accessCode = c.req.param('accessCode')
     const db = c.env.DB
     
-    // Find assignment by access code
+    console.log('[ACCESS_CODE] Looking for:', accessCode)
+    
+    // Find assignment by access code (from assignment_access_codes table)
     const assignment = await db.prepare(
-      'SELECT * FROM assignments WHERE access_code = ?'
+      `SELECT a.* 
+       FROM assignments a
+       JOIN assignment_access_codes ac ON a.id = ac.assignment_id
+       WHERE ac.access_code = ?`
     ).bind(accessCode).first()
+    
+    console.log('[ACCESS_CODE] Found assignment:', assignment ? assignment.id : 'NOT FOUND')
     
     if (!assignment) {
       return c.json({ error: '유효하지 않은 액세스 코드입니다.' }, 404)
