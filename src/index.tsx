@@ -98,7 +98,7 @@ app.get('/favicon.svg', (c) => {
 app.route('/api/auth', auth)
 app.route('/api', grading)
 app.route('/api/upload', upload)
-app.route('/api/assignment', assignments)
+// app.route('/api/assignment', assignments) // REMOVED: Using inline routes instead to support library assignments
 app.route('/api/submission', submissions)
 app.route('/api/admin', admin)
 // app.route('/api/student', students) // REMOVED: Using inline routes instead
