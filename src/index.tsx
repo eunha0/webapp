@@ -1301,17 +1301,20 @@ app.get('/api/library/assignments', async (c) => {
     const db = c.env.DB
     
     // Get query parameters
-    const sortBy = c.req.query('sortBy') || 'created_at' // title, author, grade_level, subject, created_at
+    const sortBy = c.req.query('sortBy') || 'created_at'
     const sortOrder = c.req.query('sortOrder') || 'DESC'
-    const authorFilter = c.req.query('author') // '관리자' or '사용자'
-    const gradeLevelFilter = c.req.query('gradeLevel') // '초등학교', '중학교', '고등학교'
-    const subjectFilter = c.req.query('subject') // '과학', '국어', '사회', '수학', '역사'
+    const authorFilter = c.req.query('author')
+    const gradeLevelFilter = c.req.query('gradeLevel')
+    const subjectFilter = c.req.query('subject')
+    const searchQuery = c.req.query('search') // NEW: 키워드 검색
+    const tagFilter = c.req.query('tag') // NEW: 태그 필터
     
-    // Build query
+    // Build query with new fields
     let query = `
       SELECT 
         a.id, a.title, a.description, a.grade_level, a.subject, 
         a.created_at, a.library_registered_at,
+        a.usage_count, a.average_rating, a.rating_count,
         u.name as author_name, u.id as author_id
       FROM assignments a
       JOIN users u ON a.user_id = u.id
@@ -1341,13 +1344,28 @@ app.get('/api/library/assignments', async (c) => {
       params.push(subjectFilter)
     }
     
-    // Apply sorting
-    const validSortFields = ['title', 'author_name', 'grade_level', 'subject', 'created_at']
+    // NEW: Search filter
+    if (searchQuery) {
+      query += ' AND (a.title LIKE ? OR a.description LIKE ?)'
+      params.push(`%${searchQuery}%`, `%${searchQuery}%`)
+    }
+    
+    // NEW: Tag filter
+    if (tagFilter) {
+      query += ` AND a.id IN (SELECT assignment_id FROM assignment_tags WHERE tag = ?)`
+      params.push(tagFilter)
+    }
+    
+    // Apply sorting - add new sort options
+    const validSortFields = ['title', 'author_name', 'grade_level', 'subject', 'created_at', 'usage_count', 'average_rating']
     const sortField = validSortFields.includes(sortBy) ? sortBy : 'created_at'
     const validSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC'
     
-    // Handle created_at with table alias
-    const sortColumn = sortField === 'created_at' ? 'a.created_at' : sortField
+    // Handle table aliases
+    const sortColumn = sortField === 'created_at' ? 'a.created_at' : 
+                      sortField === 'usage_count' ? 'a.usage_count' :
+                      sortField === 'average_rating' ? 'a.average_rating' :
+                      sortField
     query += ` ORDER BY ${sortColumn} ${validSortOrder}`
     
     // Execute query
@@ -1358,10 +1376,180 @@ app.get('/api/library/assignments', async (c) => {
     
     const result = await statement.all()
     
-    return c.json({ assignments: result.results || [] })
+    // Get tags for each assignment
+    const assignments = result.results || []
+    for (const assignment of assignments) {
+      const tags = await db.prepare(
+        'SELECT tag FROM assignment_tags WHERE assignment_id = ?'
+      ).bind(assignment.id).all()
+      assignment.tags = tags.results?.map((t: any) => t.tag) || []
+    }
+    
+    return c.json({ assignments })
   } catch (error) {
     console.error('Error fetching library assignments:', error)
     return c.json({ error: '라이브러리 과제 조회에 실패했습니다' }, 500)
+  }
+})
+
+/**
+ * POST /api/assignment/:id/increment-usage - Increment assignment usage count (when loaded from library)
+ */
+app.post('/api/assignment/:id/increment-usage', async (c) => {
+  try {
+    const user = await requireAuth(c)
+    if (!user.id) return user
+    
+    const assignmentId = parseInt(c.req.param('id'))
+    const db = c.env.DB
+    
+    // Increment usage count
+    await db.prepare(
+      'UPDATE assignments SET usage_count = usage_count + 1 WHERE id = ?'
+    ).bind(assignmentId).run()
+    
+    return c.json({ success: true })
+  } catch (error) {
+    console.error('Error incrementing usage count:', error)
+    return c.json({ error: 'Failed to update usage count' }, 500)
+  }
+})
+
+/**
+ * POST /api/assignment/:id/rating - Add or update rating for an assignment
+ */
+app.post('/api/assignment/:id/rating', async (c) => {
+  try {
+    const user = await requireAuth(c)
+    if (!user.id) return user
+    
+    const assignmentId = parseInt(c.req.param('id'))
+    const { rating, review } = await c.req.json()
+    const db = c.env.DB
+    
+    // Validate rating
+    if (!rating || rating < 1 || rating > 5) {
+      return c.json({ error: '별점은 1~5 사이여야 합니다' }, 400)
+    }
+    
+    // Check if user already rated
+    const existing = await db.prepare(
+      'SELECT id FROM assignment_ratings WHERE assignment_id = ? AND user_id = ?'
+    ).bind(assignmentId, user.id).first()
+    
+    if (existing) {
+      // Update existing rating
+      await db.prepare(
+        'UPDATE assignment_ratings SET rating = ?, review = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).bind(rating, review || null, existing.id).run()
+    } else {
+      // Insert new rating
+      await db.prepare(
+        'INSERT INTO assignment_ratings (assignment_id, user_id, rating, review) VALUES (?, ?, ?, ?)'
+      ).bind(assignmentId, user.id, rating, review || null).run()
+    }
+    
+    // Update assignment average rating
+    const stats = await db.prepare(
+      'SELECT AVG(rating) as avg_rating, COUNT(*) as count FROM assignment_ratings WHERE assignment_id = ?'
+    ).bind(assignmentId).first()
+    
+    await db.prepare(
+      'UPDATE assignments SET average_rating = ?, rating_count = ? WHERE id = ?'
+    ).bind(stats.avg_rating || 0, stats.count || 0, assignmentId).run()
+    
+    return c.json({ success: true, average_rating: stats.avg_rating, rating_count: stats.count })
+  } catch (error) {
+    console.error('Error saving rating:', error)
+    return c.json({ error: '별점 저장에 실패했습니다' }, 500)
+  }
+})
+
+/**
+ * GET /api/assignment/:id/ratings - Get all ratings for an assignment
+ */
+app.get('/api/assignment/:id/ratings', async (c) => {
+  try {
+    const assignmentId = parseInt(c.req.param('id'))
+    const db = c.env.DB
+    
+    const ratings = await db.prepare(
+      `SELECT r.id, r.rating, r.review, r.created_at, r.updated_at,
+              u.name as user_name
+       FROM assignment_ratings r
+       JOIN users u ON r.user_id = u.id
+       WHERE r.assignment_id = ?
+       ORDER BY r.created_at DESC`
+    ).bind(assignmentId).all()
+    
+    return c.json({ ratings: ratings.results || [] })
+  } catch (error) {
+    console.error('Error fetching ratings:', error)
+    return c.json({ error: '별점 조회에 실패했습니다' }, 500)
+  }
+})
+
+/**
+ * POST /api/assignment/:id/tags - Add tags to an assignment
+ */
+app.post('/api/assignment/:id/tags', async (c) => {
+  try {
+    const user = await requireAuth(c)
+    if (!user.id) return user
+    
+    const assignmentId = parseInt(c.req.param('id'))
+    const { tags } = await c.req.json()
+    const db = c.env.DB
+    
+    // Verify ownership
+    const assignment = await db.prepare(
+      'SELECT id FROM assignments WHERE id = ? AND user_id = ?'
+    ).bind(assignmentId, user.id).first()
+    
+    if (!assignment) {
+      return c.json({ error: 'Assignment not found or access denied' }, 404)
+    }
+    
+    // Delete existing tags
+    await db.prepare(
+      'DELETE FROM assignment_tags WHERE assignment_id = ?'
+    ).bind(assignmentId).run()
+    
+    // Insert new tags
+    if (tags && Array.isArray(tags) && tags.length > 0) {
+      for (const tag of tags) {
+        await db.prepare(
+          'INSERT INTO assignment_tags (assignment_id, tag) VALUES (?, ?)'
+        ).bind(assignmentId, tag).run()
+      }
+    }
+    
+    return c.json({ success: true })
+  } catch (error) {
+    console.error('Error saving tags:', error)
+    return c.json({ error: '태그 저장에 실패했습니다' }, 500)
+  }
+})
+
+/**
+ * GET /api/library/tags - Get all unique tags used in library
+ */
+app.get('/api/library/tags', async (c) => {
+  try {
+    const db = c.env.DB
+    
+    const tags = await db.prepare(
+      `SELECT DISTINCT tag, COUNT(*) as count
+       FROM assignment_tags
+       WHERE assignment_id IN (SELECT id FROM assignments WHERE is_library = 1)
+       GROUP BY tag
+       ORDER BY count DESC, tag ASC`
+    ).all()
+    
+    return c.json({ tags: tags.results || [] })
+  } catch (error) {
+    console.error('Error fetching tags:', error)
+    return c.json({ error: '태그 조회에 실패했습니다' }, 500)
   }
 })
 
@@ -6470,7 +6658,21 @@ app.get('/my-page', (c) => {
 
                 <!-- Filters and Sort -->
                 <div class="mb-6 p-4 bg-gray-50 rounded-lg">
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <!-- Search Bar -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            <i class="fas fa-search mr-2"></i>키워드 검색
+                        </label>
+                        <input 
+                            type="text" 
+                            id="librarySearch" 
+                            placeholder="과제 제목이나 설명에서 검색..." 
+                            onkeyup="handleSearchKeyup(event)"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        >
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">작성자</label>
                             <select id="libraryFilterAuthorType" onchange="filterLibrary()" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
@@ -6500,9 +6702,18 @@ app.get('/my-page', (c) => {
                             </select>
                         </div>
                         <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">태그</label>
+                            <select id="libraryFilterTag" onchange="filterLibrary()" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                <option value="">전체</option>
+                                <!-- Tags will be loaded dynamically -->
+                            </select>
+                        </div>
+                        <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">정렬</label>
                             <select id="librarySortBy" onchange="sortLibrary()" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                                 <option value="created_at">생성일</option>
+                                <option value="usage_count">인기순 (사용 횟수)</option>
+                                <option value="average_rating">별점순</option>
                                 <option value="title">과제명</option>
                                 <option value="author">작성자</option>
                                 <option value="grade_level">학교급</option>

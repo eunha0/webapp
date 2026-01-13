@@ -3907,13 +3907,20 @@
           async function loadLibraryAssignments() {
             try {
               const token = localStorage.getItem('token');
-              const response = await axios.get('/api/library/assignments', {
+              
+              // Load tags first
+              const tagsResponse = await axios.get('/api/library/tags', {
                 headers: { Authorization: `Bearer ${token}` }
               });
               
-              libraryAssignments = response.data.assignments || [];
-              filteredLibraryAssignments = [...libraryAssignments];
-              renderLibraryList();
+              const tagSelect = document.getElementById('libraryFilterTag');
+              tagSelect.innerHTML = '<option value="">전체</option>';
+              (tagsResponse.data.tags || []).forEach(tag => {
+                tagSelect.innerHTML += `<option value="${tag.tag}">${tag.tag} (${tag.count})</option>`;
+              });
+              
+              // Load assignments
+              await filterLibrary();
             } catch (error) {
               console.error('Error loading library:', error);
               document.getElementById('libraryList').innerHTML = `
@@ -3925,40 +3932,45 @@
             }
           }
           
-          function filterLibrary() {
-            const authorType = document.getElementById('libraryFilterAuthorType').value;
-            const grade = document.getElementById('libraryFilterGrade').value;
-            const subject = document.getElementById('libraryFilterSubject').value;
-            
-            filteredLibraryAssignments = libraryAssignments.filter(assignment => {
-              if (authorType && assignment.author_type !== authorType) return false;
-              if (grade && !assignment.grade_level.includes(grade)) return false;
-              if (subject && assignment.subject !== subject) return false;
-              return true;
-            });
-            
-            sortLibrary();
+          async function filterLibrary() {
+            try {
+              const token = localStorage.getItem('token');
+              const authorType = document.getElementById('libraryFilterAuthorType').value;
+              const grade = document.getElementById('libraryFilterGrade').value;
+              const subject = document.getElementById('libraryFilterSubject').value;
+              const tag = document.getElementById('libraryFilterTag').value;
+              const search = document.getElementById('librarySearch').value;
+              const sortBy = document.getElementById('librarySortBy').value;
+              
+              // Build query parameters
+              const params = new URLSearchParams();
+              if (authorType) params.append('author', authorType);
+              if (grade) params.append('gradeLevel', grade);
+              if (subject) params.append('subject', subject);
+              if (tag) params.append('tag', tag);
+              if (search) params.append('search', search);
+              if (sortBy) params.append('sortBy', sortBy);
+              params.append('sortOrder', 'DESC');
+              
+              const response = await axios.get(`/api/library/assignments?${params.toString()}`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              
+              filteredLibraryAssignments = response.data.assignments || [];
+              renderLibraryList();
+            } catch (error) {
+              console.error('Error filtering library:', error);
+            }
           }
           
           function sortLibrary() {
-            const sortBy = document.getElementById('librarySortBy').value;
-            
-            filteredLibraryAssignments.sort((a, b) => {
-              if (sortBy === 'created_at') {
-                return new Date(b.created_at) - new Date(a.created_at);
-              } else if (sortBy === 'title') {
-                return a.title.localeCompare(b.title);
-              } else if (sortBy === 'author') {
-                return a.author_name.localeCompare(b.author_name);
-              } else if (sortBy === 'grade_level') {
-                return a.grade_level.localeCompare(b.grade_level);
-              } else if (sortBy === 'subject') {
-                return (a.subject || '').localeCompare(b.subject || '');
-              }
-              return 0;
-            });
-            
-            renderLibraryList();
+            filterLibrary(); // Re-fetch with new sort
+          }
+          
+          function handleSearchKeyup(event) {
+            if (event.key === 'Enter') {
+              filterLibrary();
+            }
           }
           
           function renderLibraryList() {
@@ -3974,12 +3986,49 @@
               return;
             }
             
-            libraryList.innerHTML = filteredLibraryAssignments.map(assignment => `
+            libraryList.innerHTML = filteredLibraryAssignments.map(assignment => {
+              // Generate star rating HTML
+              const rating = assignment.average_rating || 0;
+              const fullStars = Math.floor(rating);
+              const halfStar = rating % 1 >= 0.5;
+              const emptyStars = 5 - fullStars - (halfStar ? 1 : 0);
+              
+              let starsHtml = '';
+              for (let i = 0; i < fullStars; i++) {
+                starsHtml += '<i class="fas fa-star text-yellow-500"></i>';
+              }
+              if (halfStar) {
+                starsHtml += '<i class="fas fa-star-half-alt text-yellow-500"></i>';
+              }
+              for (let i = 0; i < emptyStars; i++) {
+                starsHtml += '<i class="far fa-star text-yellow-500"></i>';
+              }
+              
+              // Generate tags HTML
+              const tagsHtml = (assignment.tags || []).map(tag => 
+                `<span class="px-2 py-1 bg-indigo-100 text-indigo-800 rounded text-xs">
+                  <i class="fas fa-tag mr-1"></i>${tag}
+                </span>`
+              ).join('');
+              
+              return `
               <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition">
                 <div class="flex justify-between items-start">
                   <div class="flex-1">
                     <h3 class="font-semibold text-gray-900 mb-2">${assignment.title}</h3>
                     <p class="text-sm text-gray-600 mb-3 line-clamp-2">${assignment.description}</p>
+                    
+                    <!-- Statistics -->
+                    <div class="flex items-center gap-4 mb-2">
+                      <div class="flex items-center">
+                        ${starsHtml}
+                        <span class="ml-1 text-sm text-gray-600">${rating.toFixed(1)} (${assignment.rating_count || 0})</span>
+                      </div>
+                      <span class="text-sm text-gray-600">
+                        <i class="fas fa-download mr-1"></i>${assignment.usage_count || 0}회 사용
+                      </span>
+                    </div>
+                    
                     <div class="flex flex-wrap gap-2 text-xs">
                       <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded">
                         <i class="fas fa-user mr-1"></i>${assignment.author_name}
@@ -3995,10 +4044,20 @@
                       <span class="px-2 py-1 bg-gray-100 text-gray-800 rounded">
                         <i class="fas fa-calendar mr-1"></i>${new Date(assignment.created_at).toLocaleDateString()}
                       </span>
+                      ${tagsHtml}
                     </div>
                   </div>
                   <button 
                     onclick="loadFromLibrary(${assignment.id})" 
+                    class="ml-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold text-sm whitespace-nowrap"
+                  >
+                    <i class="fas fa-download mr-2"></i>불러오기
+                  </button>
+                </div>
+              </div>
+            `;
+            }).join('');
+          }
                     class="ml-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold text-sm whitespace-nowrap"
                   >
                     <i class="fas fa-download mr-2"></i>불러오기
@@ -4016,6 +4075,15 @@
               });
               
               const assignment = response.data;
+              
+              // Increment usage count
+              try {
+                await axios.post(`/api/assignment/${assignmentId}/increment-usage`, {}, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+              } catch (err) {
+                console.error('Failed to increment usage count:', err);
+              }
               
               // Fill form with library assignment data
               document.getElementById('assignmentTitle').value = assignment.title + ' (복사본)';
@@ -4060,4 +4128,5 @@
           window.closeLibraryModal = closeLibraryModal;
           window.filterLibrary = filterLibrary;
           window.sortLibrary = sortLibrary;
+          window.handleSearchKeyup = handleSearchKeyup;
           window.loadFromLibrary = loadFromLibrary;
