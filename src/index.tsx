@@ -1108,12 +1108,20 @@ app.get('/api/assignment/:id', async (c) => {
       'SELECT * FROM assignments WHERE id = ?'
     ).bind(assignmentId).first()
     
+    console.log('[ASSIGNMENT_ACCESS] Assignment:', assignment?.id, 'User:', user.id, 'Owner:', assignment?.user_id, 'is_library:', assignment?.is_library, 'Type:', typeof assignment?.is_library)
+    
     if (!assignment) {
       return c.json({ error: 'Assignment not found' }, 404)
     }
     
     // Check if user owns the assignment OR if it's a library assignment
-    if (assignment.user_id !== user.id && !assignment.is_library) {
+    // is_library is 1 or 0 (number) from SQLite, need to convert to boolean
+    const isLibrary = Boolean(assignment.is_library)
+    const isOwner = assignment.user_id === user.id
+    
+    console.log('[ASSIGNMENT_ACCESS] isOwner:', isOwner, 'isLibrary:', isLibrary, 'Access allowed:', isOwner || isLibrary)
+    
+    if (!isOwner && !isLibrary) {
       return c.json({ error: 'Access denied' }, 403)
     }
     
