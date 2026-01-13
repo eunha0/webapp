@@ -968,14 +968,14 @@ app.post('/api/assignments', async (c) => {
     const user = await requireAuth(c)
     if (!user.id) return user // Return error response
     
-    const { title, description, grade_level, due_date, rubric_criteria, prompts } = await c.req.json()
+    const { title, description, grade_level, due_date, rubric_criteria, prompts, subject } = await c.req.json()
     const db = c.env.DB
     
     // Create assignment without access code (will be generated later if needed)
     const promptsJSON = prompts ? JSON.stringify(prompts) : null
     const result = await db.prepare(
-      'INSERT INTO assignments (user_id, title, description, grade_level, due_date, prompts, access_code) VALUES (?, ?, ?, ?, ?, ?, NULL)'
-    ).bind(user.id, title, description, grade_level, due_date, promptsJSON).run()
+      'INSERT INTO assignments (user_id, title, description, grade_level, due_date, prompts, access_code, subject) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)'
+    ).bind(user.id, title, description, grade_level, due_date, promptsJSON, subject || null).run()
     
     const assignmentId = result.meta.last_row_id
     
@@ -1245,6 +1245,108 @@ app.post('/api/assignment/:id/access-code', async (c) => {
   } catch (error) {
     console.error('Error generating access code:', error)
     return c.json({ error: 'Failed to generate access code' }, 500)
+  }
+})
+
+/**
+ * POST /api/assignment/:id/register-to-library - Register assignment to library
+ */
+app.post('/api/assignment/:id/register-to-library', async (c) => {
+  try {
+    const user = await requireAuth(c)
+    if (!user.id) return user
+    
+    const assignmentId = parseInt(c.req.param('id'))
+    const db = c.env.DB
+    
+    // Check if assignment belongs to user
+    const assignment = await db.prepare(
+      'SELECT * FROM assignments WHERE id = ? AND user_id = ?'
+    ).bind(assignmentId, user.id).first()
+    
+    if (!assignment) {
+      return c.json({ error: '과제를 찾을 수 없습니다' }, 404)
+    }
+    
+    // Register to library
+    await db.prepare(
+      'UPDATE assignments SET is_library = 1, library_registered_at = datetime(\'now\') WHERE id = ?'
+    ).bind(assignmentId).run()
+    
+    return c.json({ success: true, message: '과제가 라이브러리에 등록되었습니다' })
+  } catch (error) {
+    console.error('Error registering assignment to library:', error)
+    return c.json({ error: '라이브러리 등록에 실패했습니다' }, 500)
+  }
+})
+
+/**
+ * GET /api/library/assignments - Get library assignments with filtering and sorting
+ */
+app.get('/api/library/assignments', async (c) => {
+  try {
+    const db = c.env.DB
+    
+    // Get query parameters
+    const sortBy = c.req.query('sortBy') || 'created_at' // title, author, grade_level, subject, created_at
+    const sortOrder = c.req.query('sortOrder') || 'DESC'
+    const authorFilter = c.req.query('author') // '관리자' or '사용자'
+    const gradeLevelFilter = c.req.query('gradeLevel') // '초등학교', '중학교', '고등학교'
+    const subjectFilter = c.req.query('subject') // '과학', '국어', '사회', '수학', '역사'
+    
+    // Build query
+    let query = `
+      SELECT 
+        a.id, a.title, a.description, a.grade_level, a.subject, 
+        a.created_at, a.library_registered_at,
+        u.name as author_name, u.id as author_id
+      FROM assignments a
+      JOIN users u ON a.user_id = u.id
+      WHERE a.is_library = 1
+    `
+    
+    const params: any[] = []
+    
+    // Apply filters
+    if (authorFilter) {
+      if (authorFilter === '관리자') {
+        query += ' AND u.name LIKE ?'
+        params.push('%관리자%')
+      } else if (authorFilter === '사용자') {
+        query += ' AND u.name NOT LIKE ?'
+        params.push('%관리자%')
+      }
+    }
+    
+    if (gradeLevelFilter) {
+      query += ' AND a.grade_level = ?'
+      params.push(gradeLevelFilter)
+    }
+    
+    if (subjectFilter) {
+      query += ' AND a.subject = ?'
+      params.push(subjectFilter)
+    }
+    
+    // Apply sorting
+    const validSortFields = ['title', 'author_name', 'grade_level', 'subject', 'created_at']
+    const sortField = validSortFields.includes(sortBy) ? sortBy : 'created_at'
+    const validSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC'
+    
+    query += ` ORDER BY ${sortField} ${validSortOrder}`
+    
+    // Execute query
+    let statement = db.prepare(query)
+    if (params.length > 0) {
+      statement = statement.bind(...params)
+    }
+    
+    const result = await statement.all()
+    
+    return c.json({ assignments: result.results || [] })
+  } catch (error) {
+    console.error('Error fetching library assignments:', error)
+    return c.json({ error: '라이브러리 과제 조회에 실패했습니다' }, 500)
   }
 })
 
@@ -6130,6 +6232,21 @@ app.get('/my-page', (c) => {
                     </p>
                 </div>
 
+                <!-- Load from Library -->
+                <div class="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-semibold text-gray-700">
+                            <i class="fas fa-book-open mr-2 text-green-600"></i>과제 라이브러리에서 불러오기
+                        </label>
+                        <button type="button" onclick="openLibraryModal()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold text-sm">
+                            <i class="fas fa-search mr-2"></i>라이브러리 열기
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-600">
+                        <i class="fas fa-info-circle mr-1"></i>다른 교사들이 공유한 과제나 플랫폼 제공 과제를 불러올 수 있습니다.
+                    </p>
+                </div>
+
                 <form id="createAssignmentForm" onsubmit="handleCreateAssignment(event)">
                     <div class="space-y-4">
                         <div>
@@ -6252,6 +6369,18 @@ app.get('/my-page', (c) => {
                             </div>
 
                             <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">교과목 구분</label>
+                                <select id="assignmentSubject" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-700">
+                                    <option value="">교과목 선택</option>
+                                    <option value="국어">국어</option>
+                                    <option value="수학">수학</option>
+                                    <option value="사회">사회</option>
+                                    <option value="과학">과학</option>
+                                    <option value="역사">역사</option>
+                                </select>
+                            </div>
+
+                            <div>
                                 <label class="block text-sm font-semibold text-gray-700 mb-2">제출 마감일</label>
                                 <input type="date" id="assignmentDueDate" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-700">
                             </div>
@@ -6309,6 +6438,73 @@ app.get('/my-page', (c) => {
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Assignment Library Modal -->
+        <div id="libraryModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl shadow-2xl p-8 max-w-6xl w-full max-h-[90vh] overflow-y-auto mx-4">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900">
+                        <i class="fas fa-book-open mr-2 text-green-600"></i>과제 라이브러리
+                    </h2>
+                    <button onclick="closeLibraryModal()" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times text-2xl"></i>
+                    </button>
+                </div>
+
+                <!-- Filters and Sort -->
+                <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">작성자</label>
+                            <select id="libraryFilterAuthorType" onchange="filterLibrary()" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                <option value="">전체</option>
+                                <option value="admin">관리자</option>
+                                <option value="user">사용자</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">학교급</label>
+                            <select id="libraryFilterGrade" onchange="filterLibrary()" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                <option value="">전체</option>
+                                <option value="초등학교">초등학교</option>
+                                <option value="중학교">중학교</option>
+                                <option value="고등학교">고등학교</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">교과목</label>
+                            <select id="libraryFilterSubject" onchange="filterLibrary()" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                <option value="">전체</option>
+                                <option value="국어">국어</option>
+                                <option value="수학">수학</option>
+                                <option value="사회">사회</option>
+                                <option value="과학">과학</option>
+                                <option value="역사">역사</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">정렬</label>
+                            <select id="librarySortBy" onchange="sortLibrary()" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                <option value="created_at">생성일</option>
+                                <option value="title">과제명</option>
+                                <option value="author">작성자</option>
+                                <option value="grade_level">학교급</option>
+                                <option value="subject">교과목</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Library List -->
+                <div id="libraryList" class="space-y-3">
+                    <!-- Library assignments will be loaded here -->
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+                        <p>라이브러리를 불러오는 중...</p>
+                    </div>
+                </div>
             </div>
         </div>
 

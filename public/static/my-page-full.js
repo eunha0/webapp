@@ -314,8 +314,11 @@
 
               document.getElementById('assignmentDetailContent').innerHTML = `
                 <div class="space-y-6">
-                  <!-- Top buttons (original) -->
-                  <div class="flex justify-end mb-4">
+                  <!-- Top buttons (with library registration) -->
+                  <div class="flex justify-end gap-2 mb-4">
+                    <button onclick="registerToLibrary(${assignmentId})" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-sm">
+                      <i class="fas fa-bookmark mr-2"></i>라이브러리에 등록하기
+                    </button>
                     <button onclick="printAssignment()" class="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition text-sm">
                       <i class="fas fa-print mr-2"></i>출력
                     </button>
@@ -1415,6 +1418,7 @@
             const title = document.getElementById('assignmentTitle').value;
             const description = document.getElementById('assignmentDescription').value;
             const grade_level = document.getElementById('assignmentGradeLevel').value;
+            const subject = document.getElementById('assignmentSubject').value;
             const due_date = document.getElementById('assignmentDueDate').value;
 
             // Collect prompts from reference materials
@@ -1460,6 +1464,7 @@
                 title,
                 description,
                 grade_level,
+                subject: subject || null,
                 due_date: due_date || null,
                 rubric_criteria,
                 prompts
@@ -3866,3 +3871,193 @@
           // Make functions globally accessible
           window.toggleReferencePreview = toggleReferencePreview;
           window.updateReferencePreview = updateReferencePreview;
+
+          // Register assignment to library
+          async function registerToLibrary(assignmentId) {
+            if (!confirm('이 과제를 라이브러리에 등록하시겠습니까? 등록된 과제는 모든 사용자가 볼 수 있습니다.')) {
+              return;
+            }
+
+            try {
+              const response = await axios.post(`/api/assignment/${assignmentId}/register-to-library`);
+              if (response.data.success) {
+                alert('과제가 라이브러리에 등록되었습니다!');
+              }
+            } catch (error) {
+              console.error('Error registering to library:', error);
+              alert('라이브러리 등록에 실패했습니다: ' + (error.response?.data?.error || error.message));
+            }
+          }
+          
+          window.registerToLibrary = registerToLibrary;
+
+          // Library Modal Functions
+          let libraryAssignments = [];
+          let filteredLibraryAssignments = [];
+          
+          async function openLibraryModal() {
+            document.getElementById('libraryModal').classList.remove('hidden');
+            await loadLibraryAssignments();
+          }
+          
+          function closeLibraryModal() {
+            document.getElementById('libraryModal').classList.add('hidden');
+          }
+          
+          async function loadLibraryAssignments() {
+            try {
+              const token = localStorage.getItem('token');
+              const response = await axios.get('/api/library/assignments', {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              
+              libraryAssignments = response.data.assignments || [];
+              filteredLibraryAssignments = [...libraryAssignments];
+              renderLibraryList();
+            } catch (error) {
+              console.error('Error loading library:', error);
+              document.getElementById('libraryList').innerHTML = `
+                <div class="text-center py-8 text-red-600">
+                  <i class="fas fa-exclamation-triangle text-3xl mb-3"></i>
+                  <p>라이브러리를 불러오는데 실패했습니다.</p>
+                </div>
+              `;
+            }
+          }
+          
+          function filterLibrary() {
+            const authorType = document.getElementById('libraryFilterAuthorType').value;
+            const grade = document.getElementById('libraryFilterGrade').value;
+            const subject = document.getElementById('libraryFilterSubject').value;
+            
+            filteredLibraryAssignments = libraryAssignments.filter(assignment => {
+              if (authorType && assignment.author_type !== authorType) return false;
+              if (grade && !assignment.grade_level.includes(grade)) return false;
+              if (subject && assignment.subject !== subject) return false;
+              return true;
+            });
+            
+            sortLibrary();
+          }
+          
+          function sortLibrary() {
+            const sortBy = document.getElementById('librarySortBy').value;
+            
+            filteredLibraryAssignments.sort((a, b) => {
+              if (sortBy === 'created_at') {
+                return new Date(b.created_at) - new Date(a.created_at);
+              } else if (sortBy === 'title') {
+                return a.title.localeCompare(b.title);
+              } else if (sortBy === 'author') {
+                return a.author_name.localeCompare(b.author_name);
+              } else if (sortBy === 'grade_level') {
+                return a.grade_level.localeCompare(b.grade_level);
+              } else if (sortBy === 'subject') {
+                return (a.subject || '').localeCompare(b.subject || '');
+              }
+              return 0;
+            });
+            
+            renderLibraryList();
+          }
+          
+          function renderLibraryList() {
+            const libraryList = document.getElementById('libraryList');
+            
+            if (filteredLibraryAssignments.length === 0) {
+              libraryList.innerHTML = `
+                <div class="text-center py-8 text-gray-500">
+                  <i class="fas fa-inbox text-3xl mb-3"></i>
+                  <p>조건에 맞는 과제가 없습니다.</p>
+                </div>
+              `;
+              return;
+            }
+            
+            libraryList.innerHTML = filteredLibraryAssignments.map(assignment => `
+              <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition">
+                <div class="flex justify-between items-start">
+                  <div class="flex-1">
+                    <h3 class="font-semibold text-gray-900 mb-2">${assignment.title}</h3>
+                    <p class="text-sm text-gray-600 mb-3 line-clamp-2">${assignment.description}</p>
+                    <div class="flex flex-wrap gap-2 text-xs">
+                      <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                        <i class="fas fa-user mr-1"></i>${assignment.author_name}
+                      </span>
+                      <span class="px-2 py-1 bg-purple-100 text-purple-800 rounded">
+                        <i class="fas fa-graduation-cap mr-1"></i>${assignment.grade_level}
+                      </span>
+                      ${assignment.subject ? `
+                        <span class="px-2 py-1 bg-green-100 text-green-800 rounded">
+                          <i class="fas fa-book mr-1"></i>${assignment.subject}
+                        </span>
+                      ` : ''}
+                      <span class="px-2 py-1 bg-gray-100 text-gray-800 rounded">
+                        <i class="fas fa-calendar mr-1"></i>${new Date(assignment.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                  <button 
+                    onclick="loadFromLibrary(${assignment.id})" 
+                    class="ml-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold text-sm whitespace-nowrap"
+                  >
+                    <i class="fas fa-download mr-2"></i>불러오기
+                  </button>
+                </div>
+              </div>
+            `).join('');
+          }
+          
+          async function loadFromLibrary(assignmentId) {
+            try {
+              const token = localStorage.getItem('token');
+              const response = await axios.get(`/api/assignment/${assignmentId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              
+              const assignment = response.data;
+              
+              // Fill form with library assignment data
+              document.getElementById('assignmentTitle').value = assignment.title + ' (복사본)';
+              document.getElementById('assignmentDescription').value = assignment.description;
+              document.getElementById('assignmentGradeLevel').value = assignment.grade_level || '';
+              document.getElementById('assignmentSubject').value = assignment.subject || '';
+              document.getElementById('assignmentDueDate').value = assignment.due_date ? assignment.due_date.split('T')[0] : '';
+              
+              // Load prompts if available
+              if (assignment.prompts && assignment.prompts.length > 0) {
+                const referenceMaterials = document.getElementById('assignmentReferenceMaterials');
+                referenceMaterials.innerHTML = '';
+                assignment.prompts.forEach((prompt, index) => {
+                  const referenceItem = createReferenceItem(prompt);
+                  referenceMaterials.appendChild(referenceItem);
+                });
+              }
+              
+              closeLibraryModal();
+              alert('라이브러리에서 과제를 불러왔습니다. 내용을 수정하여 사용하세요.');
+            } catch (error) {
+              console.error('Error loading from library:', error);
+              alert('과제를 불러오는데 실패했습니다: ' + (error.response?.data?.error || error.message));
+            }
+          }
+          
+          function createReferenceItem(content = '') {
+            const div = document.createElement('div');
+            div.className = 'reference-item';
+            div.innerHTML = `
+              <div class="flex gap-2 mb-2">
+                <textarea class="reference-input flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm overflow-y-auto" rows="5" placeholder="제시문 내용 (선택사항)">${content}</textarea>
+                <button type="button" onclick="removeReferenceMaterial(this)" class="px-3 py-2 text-red-600 hover:text-red-800 text-sm self-start">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            `;
+            return div;
+          }
+          
+          window.openLibraryModal = openLibraryModal;
+          window.closeLibraryModal = closeLibraryModal;
+          window.filterLibrary = filterLibrary;
+          window.sortLibrary = sortLibrary;
+          window.loadFromLibrary = loadFromLibrary;
