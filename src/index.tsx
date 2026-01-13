@@ -1333,7 +1333,9 @@ app.get('/api/library/assignments', async (c) => {
     const sortField = validSortFields.includes(sortBy) ? sortBy : 'created_at'
     const validSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC'
     
-    query += ` ORDER BY ${sortField} ${validSortOrder}`
+    // Handle created_at with table alias
+    const sortColumn = sortField === 'created_at' ? 'a.created_at' : sortField
+    query += ` ORDER BY ${sortColumn} ${validSortOrder}`
     
     // Execute query
     let statement = db.prepare(query)
