@@ -1103,13 +1103,18 @@ app.get('/api/assignment/:id', async (c) => {
     const assignmentId = parseInt(c.req.param('id'))
     const db = c.env.DB
     
-    // Get assignment and verify ownership
+    // Get assignment first
     const assignment = await db.prepare(
-      'SELECT * FROM assignments WHERE id = ? AND user_id = ?'
-    ).bind(assignmentId, user.id).first()
+      'SELECT * FROM assignments WHERE id = ?'
+    ).bind(assignmentId).first()
     
     if (!assignment) {
-      return c.json({ error: 'Assignment not found or access denied' }, 404)
+      return c.json({ error: 'Assignment not found' }, 404)
+    }
+    
+    // Check if user owns the assignment OR if it's a library assignment
+    if (assignment.user_id !== user.id && !assignment.is_library) {
+      return c.json({ error: 'Access denied' }, 403)
     }
     
     // Get rubrics
