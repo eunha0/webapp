@@ -4593,6 +4593,34 @@ app.get('/student/login', (c) => {
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+          // Storage fallback for Safari's tracking prevention
+          function getStorageItem(key) {
+            try {
+              return localStorage.getItem(key) || sessionStorage.getItem(key);
+            } catch (e) {
+              console.warn('localStorage blocked, using sessionStorage:', e);
+              return sessionStorage.getItem(key);
+            }
+          }
+          
+          function setStorageItem(key, value) {
+            try {
+              localStorage.setItem(key, value);
+            } catch (e) {
+              console.warn('localStorage blocked, using sessionStorage:', e);
+              sessionStorage.setItem(key, value);
+            }
+          }
+          
+          function removeStorageItem(key) {
+            try {
+              localStorage.removeItem(key);
+            } catch (e) {
+              console.warn('localStorage blocked, using sessionStorage:', e);
+            }
+            sessionStorage.removeItem(key);
+          }
+          
           async function handleLogin(event) {
             event.preventDefault();
             
@@ -4922,6 +4950,34 @@ app.get('/login', (c) => {
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+          // Storage fallback for Safari's tracking prevention
+          function getStorageItem(key) {
+            try {
+              return localStorage.getItem(key) || sessionStorage.getItem(key);
+            } catch (e) {
+              console.warn('localStorage blocked, using sessionStorage:', e);
+              return sessionStorage.getItem(key);
+            }
+          }
+          
+          function setStorageItem(key, value) {
+            try {
+              localStorage.setItem(key, value);
+            } catch (e) {
+              console.warn('localStorage blocked, using sessionStorage:', e);
+              sessionStorage.setItem(key, value);
+            }
+          }
+          
+          function removeStorageItem(key) {
+            try {
+              localStorage.removeItem(key);
+            } catch (e) {
+              console.warn('localStorage blocked, using sessionStorage:', e);
+            }
+            sessionStorage.removeItem(key);
+          }
+          
           const urlParams = new URLSearchParams(window.location.search);
           const loginType = urlParams.get('type') || 'teacher';
           const isStudentLogin = loginType === 'student';
@@ -7798,6 +7854,34 @@ app.get('/student/dashboard', (c) => {
         <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+          // Storage fallback for Safari's tracking prevention
+          function getStorageItem(key) {
+            try {
+              return localStorage.getItem(key) || sessionStorage.getItem(key);
+            } catch (e) {
+              console.warn('localStorage blocked, using sessionStorage:', e);
+              return sessionStorage.getItem(key);
+            }
+          }
+          
+          function setStorageItem(key, value) {
+            try {
+              localStorage.setItem(key, value);
+            } catch (e) {
+              console.warn('localStorage blocked, using sessionStorage:', e);
+              sessionStorage.setItem(key, value);
+            }
+          }
+          
+          function removeStorageItem(key) {
+            try {
+              localStorage.removeItem(key);
+            } catch (e) {
+              console.warn('localStorage blocked, using sessionStorage:', e);
+            }
+            sessionStorage.removeItem(key);
+          }
+          
           // Global variables
           let currentAccessCode = null;
           let currentAssignment = null;
