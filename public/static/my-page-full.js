@@ -1,61 +1,57 @@
-// Wait for all scripts to load
-window.addEventListener('load', function() {
-  console.log('[DEBUG] window.onload fired - all scripts loaded');
+// CRITICAL: Storage fallback MUST be defined FIRST (outside window.onload)
+// Storage fallback for Safari's tracking prevention
+function getStorageItem(key) {
+  try {
+    return localStorage.getItem(key) || sessionStorage.getItem(key);
+  } catch (e) {
+    console.warn('localStorage blocked, using sessionStorage:', e);
+    return sessionStorage.getItem(key);
+  }
+}
 
-          // CRITICAL: Session management must be first
-          // Storage fallback for Safari's tracking prevention
-          function getStorageItem(key) {
-            try {
-              return localStorage.getItem(key) || sessionStorage.getItem(key);
-            } catch (e) {
-              console.warn('localStorage blocked, using sessionStorage:', e);
-              return sessionStorage.getItem(key);
-            }
-          }
-          
-          function setStorageItem(key, value) {
-            try {
-              localStorage.setItem(key, value);
-            } catch (e) {
-              console.warn('localStorage blocked, using sessionStorage:', e);
-              sessionStorage.setItem(key, value);
-            }
-          }
-          
-          function removeStorageItem(key) {
-            try {
-              localStorage.removeItem(key);
-            } catch (e) {
-              console.warn('localStorage blocked, using sessionStorage:', e);
-            }
-            sessionStorage.removeItem(key);
-          }
-          
-          // Make these functions globally available
-          window.getStorageItem = getStorageItem;
-          window.setStorageItem = setStorageItem;
-          window.removeStorageItem = removeStorageItem;
-          
-          console.log('[DEBUG] Starting my-page-full.js');
-          console.log('[DEBUG] Checking session_id...');
-          const sessionId = getStorageItem('session_id');
-          console.log('[DEBUG] Session ID:', sessionId ? 'EXISTS' : 'NULL');
-          
-          if (!sessionId) {
-            console.error('[DEBUG] No session ID found! Redirecting to login...');
-            alert('로그인이 필요합니다.');
-            window.location.href = '/login';
-            return; // Stop execution gracefully
-          }
-          
-          console.log('[DEBUG] Session ID verified, continuing...');
-          
-          let currentAssignmentId = null;
-          let criterionCounter = 0;
+function setStorageItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    console.warn('localStorage blocked, using sessionStorage:', e);
+    sessionStorage.setItem(key, value);
+  }
+}
 
-          // Helper: Convert Markdown to HTML safely
-          function convertMarkdownToHtml(markdown) {
-            if (!markdown) return '';
+function removeStorageItem(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch (e) {
+    console.warn('localStorage blocked, using sessionStorage:', e);
+  }
+  sessionStorage.removeItem(key);
+}
+
+// Make these functions globally available
+window.getStorageItem = getStorageItem;
+window.setStorageItem = setStorageItem;
+window.removeStorageItem = removeStorageItem;
+
+// Session check BEFORE window.onload
+console.log('[DEBUG] Starting my-page-full.js');
+console.log('[DEBUG] Checking session_id...');
+const sessionId = getStorageItem('session_id');
+console.log('[DEBUG] Session ID:', sessionId ? 'EXISTS' : 'NULL');
+
+if (!sessionId) {
+  console.error('[DEBUG] No session ID found! Redirecting to login...');
+  alert('로그인이 필요합니다.');
+  window.location.href = '/login';
+  // Stop script execution - don't define window.onload
+} else {
+  console.log('[DEBUG] Session ID verified, continuing to window.onload...');
+  
+  // Wait for all scripts to load, then initialize
+  window.addEventListener('load', function() {
+    console.log('[DEBUG] window.onload fired - all scripts loaded');
+    
+    let currentAssignmentId = null;
+    let criterionCounter = 0;
             try {
               // Check if marked library is available
               if (typeof marked === 'undefined') {
@@ -4237,4 +4233,5 @@ window.addEventListener('load', function() {
           window.handleSearchKeyup = handleSearchKeyup;
           window.loadFromLibrary = loadFromLibrary;
 
-});
+  }); // end window.addEventListener('load')
+} // end else (session exists)
