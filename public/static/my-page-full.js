@@ -1,5 +1,38 @@
           // CRITICAL: Session management must be first
-          const sessionId = localStorage.getItem('session_id');
+          // Storage fallback for Safari's tracking prevention
+          function getStorageItem(key) {
+            try {
+              return localStorage.getItem(key) || sessionStorage.getItem(key);
+            } catch (e) {
+              console.warn('localStorage blocked, using sessionStorage:', e);
+              return sessionStorage.getItem(key);
+            }
+          }
+          
+          function setStorageItem(key, value) {
+            try {
+              localStorage.setItem(key, value);
+            } catch (e) {
+              console.warn('localStorage blocked, using sessionStorage:', e);
+              sessionStorage.setItem(key, value);
+            }
+          }
+          
+          function removeStorageItem(key) {
+            try {
+              localStorage.removeItem(key);
+            } catch (e) {
+              console.warn('localStorage blocked, using sessionStorage:', e);
+            }
+            sessionStorage.removeItem(key);
+          }
+          
+          // Make these functions globally available
+          window.getStorageItem = getStorageItem;
+          window.setStorageItem = setStorageItem;
+          window.removeStorageItem = removeStorageItem;
+          
+          const sessionId = getStorageItem('session_id');
           if (!sessionId) {
             alert('로그인이 필요합니다.');
             window.location.href = '/login';
@@ -38,7 +71,7 @@
                 if (!authErrorShown) {
                   authErrorShown = true;
                   alert('세션이 만료되었습니다. 다시 로그인해주세요.');
-                  localStorage.removeItem('session_id');
+                  removeStorageItem('session_id');
                   window.location.href = '/login';
                 }
               }
@@ -3143,7 +3176,7 @@
           async function reviewSubmissionFromHistory(submissionId) {
             try {
               // Check session before making requests
-              const sessionId = localStorage.getItem('session_id');
+              const sessionId = getStorageItem('session_id');
               console.log('Review submission - Session ID:', sessionId);
               console.log('Review submission - Submission ID:', submissionId);
               
@@ -3161,7 +3194,7 @@
               // Check if response indicates authentication error
               if (submissionResponse.status === 401) {
                 alert('세션이 만료되었습니다. 다시 로그인해주세요.');
-                localStorage.removeItem('session_id');
+                removeStorageItem('session_id');
                 window.location.href = '/login';
                 return;
               }
@@ -3373,7 +3406,7 @@
               // Better error handling
               if (error.response?.status === 401 || error.response?.status === 403) {
                 alert('인증 오류가 발생했습니다. 다시 로그인해주세요.');
-                localStorage.removeItem('session_id');
+                removeStorageItem('session_id');
                 window.location.href = '/login';
               } else {
                 alert('PDF 생성에 실패했습니다: ' + error.message);
@@ -3409,7 +3442,7 @@
               // Better error handling
               if (error.response?.status === 401 || error.response?.status === 403) {
                 alert('인증 오류가 발생했습니다. 다시 로그인해주세요.');
-                localStorage.removeItem('session_id');
+                removeStorageItem('session_id');
                 window.location.href = '/login';
               } else {
                 alert(`답안지 ${submissionId} 출력에 실패했습니다: ${error.message}`);
@@ -3770,16 +3803,16 @@
               return;
             }
             
-            // Clear all localStorage data
-            localStorage.removeItem('session_id');
-            localStorage.removeItem('user_name');
-            localStorage.removeItem('user_email');
-            localStorage.removeItem('isLoggedIn');
-            localStorage.removeItem('student_session_id');
-            localStorage.removeItem('student_name');
-            localStorage.removeItem('student_email');
-            localStorage.removeItem('student_grade_level');
-            localStorage.removeItem('isStudentLoggedIn');
+            // Clear all storage data
+            removeStorageItem('session_id');
+            removeStorageItem('user_name');
+            removeStorageItem('user_email');
+            removeStorageItem('isLoggedIn');
+            removeStorageItem('student_session_id');
+            removeStorageItem('student_name');
+            removeStorageItem('student_email');
+            removeStorageItem('student_grade_level');
+            removeStorageItem('isStudentLoggedIn');
             
             // Redirect to home page
             window.location.href = '/';
@@ -3906,7 +3939,7 @@
           
           async function loadLibraryAssignments() {
             try {
-              const token = localStorage.getItem('token');
+              const token = getStorageItem('token');
               
               // Load tags first
               const tagsResponse = await axios.get('/api/library/tags', {
@@ -3934,7 +3967,7 @@
           
           async function filterLibrary() {
             try {
-              const token = localStorage.getItem('token');
+              const token = getStorageItem('token');
               const authorType = document.getElementById('libraryFilterAuthorType').value;
               const grade = document.getElementById('libraryFilterGrade').value;
               const subject = document.getElementById('libraryFilterSubject').value;
@@ -4069,7 +4102,7 @@
           
           async function loadFromLibrary(assignmentId) {
             try {
-              const token = localStorage.getItem('token');
+              const token = getStorageItem('token');
               const response = await axios.get(`/api/assignment/${assignmentId}`, {
                 headers: { Authorization: `Bearer ${token}` }
               });

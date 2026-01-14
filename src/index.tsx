@@ -4016,9 +4016,42 @@ app.get('/', (c) => {
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+          // Storage fallback for Safari's tracking prevention
+          function getStorageItem(key) {
+            try {
+              return getStorageItem(key) || sessionStorage.getItem(key);
+            } catch (e) {
+              console.warn('localStorage blocked, using sessionStorage:', e);
+              return sessionStorage.getItem(key);
+            }
+          }
+          
+          function setStorageItem(key, value) {
+            try {
+              setStorageItem(key, value);
+            } catch (e) {
+              console.warn('localStorage blocked, using sessionStorage:', e);
+              sessionStorage.setItem(key, value);
+            }
+          }
+          
+          function removeStorageItem(key) {
+            try {
+              removeStorageItem(key);
+            } catch (e) {
+              console.warn('localStorage blocked, using sessionStorage:', e);
+            }
+            sessionStorage.removeItem(key);
+          }
+          
+          // Make these functions globally available
+          window.getStorageItem = getStorageItem;
+          window.setStorageItem = setStorageItem;
+          window.removeStorageItem = removeStorageItem;
+          
           // Check if user is logged in and show "나의 페이지" link
           function checkLoginStatus() {
-            const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+            const isLoggedIn = getStorageItem('isLoggedIn') === 'true';
             const myPageLink = document.getElementById('myPageLink');
             if (isLoggedIn && myPageLink) {
               myPageLink.style.display = 'inline-block';
@@ -4573,11 +4606,11 @@ app.get('/student/login', (c) => {
               });
               
               if (response.data.success) {
-                localStorage.setItem('student_session_id', response.data.session_id);
-                localStorage.setItem('student_name', response.data.student.name);
-                localStorage.setItem('student_email', response.data.student.email);
-                localStorage.setItem('student_grade_level', response.data.student.grade_level);
-                localStorage.setItem('isLoggedIn', 'true');
+                setStorageItem('student_session_id', response.data.session_id);
+                setStorageItem('student_name', response.data.student.name);
+                setStorageItem('student_email', response.data.student.email);
+                setStorageItem('student_grade_level', response.data.student.grade_level);
+                setStorageItem('isLoggedIn', 'true');
                 
                 alert(\`환영합니다, \${response.data.student.name}님!\`);
                 window.location.href = '/student/dashboard';
@@ -4910,20 +4943,20 @@ app.get('/login', (c) => {
               if (response.data.success) {
                 if (isStudentLogin) {
                   // Student login - store student session
-                  localStorage.setItem('student_session_id', response.data.session_id);
-                  localStorage.setItem('student_name', response.data.student.name);
-                  localStorage.setItem('student_email', response.data.student.email);
-                  localStorage.setItem('student_grade_level', response.data.student.grade_level);
-                  localStorage.setItem('isStudentLoggedIn', 'true');
+                  setStorageItem('student_session_id', response.data.session_id);
+                  setStorageItem('student_name', response.data.student.name);
+                  setStorageItem('student_email', response.data.student.email);
+                  setStorageItem('student_grade_level', response.data.student.grade_level);
+                  setStorageItem('isStudentLoggedIn', 'true');
                   
                   alert(\`환영합니다, \${response.data.student.name}님!\`);
                   window.location.href = '/student/dashboard';
                 } else {
                   // Teacher login - store teacher session
-                  localStorage.setItem('session_id', response.data.session_id);
-                  localStorage.setItem('user_name', response.data.user.name);
-                  localStorage.setItem('user_email', response.data.user.email);
-                  localStorage.setItem('isLoggedIn', 'true');
+                  setStorageItem('session_id', response.data.session_id);
+                  setStorageItem('user_name', response.data.user.name);
+                  setStorageItem('user_email', response.data.user.email);
+                  setStorageItem('isLoggedIn', 'true');
                   
                   alert(\`환영합니다, \${response.data.user.name}님!\`);
                   window.location.href = '/my-page';
@@ -5783,8 +5816,8 @@ app.get('/pricing', (c) => {
           // Get current plan from URL parameter
           window.addEventListener('DOMContentLoaded', () => {
             // Check login status and show/hide navigation links
-            const isTeacherLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-            const isStudentLoggedIn = localStorage.getItem('isStudentLoggedIn') === 'true';
+            const isTeacherLoggedIn = getStorageItem('isLoggedIn') === 'true';
+            const isStudentLoggedIn = getStorageItem('isStudentLoggedIn') === 'true';
             const isLoggedIn = isTeacherLoggedIn || isStudentLoggedIn;
             
             const myPageLink = document.getElementById('myPageLink');
@@ -6953,7 +6986,7 @@ app.get('/admin', (c) => {
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
           // Configure axios to include session ID in all requests
-          const sessionId = localStorage.getItem('session_id');
+          const sessionId = getStorageItem('session_id');
           if (sessionId) {
             axios.defaults.headers.common['X-Session-ID'] = sessionId;
           } else {
@@ -7914,7 +7947,7 @@ app.get('/student/dashboard', (c) => {
               }
               
               const accessCode = accessCodeInput.value;
-              const sessionId = localStorage.getItem('student_session_id');
+              const sessionId = getStorageItem('student_session_id');
               
               console.log('[FRONTEND] Access Code:', accessCode);
               console.log('[FRONTEND] Session ID:', sessionId);
@@ -7970,7 +8003,7 @@ app.get('/student/dashboard', (c) => {
               return;
             }
             
-            const sessionId = localStorage.getItem('student_session_id');
+            const sessionId = getStorageItem('student_session_id');
             console.log('[FRONTEND] Session ID:', sessionId);
             console.log('[FRONTEND] Access Code:', currentAccessCode);
             
@@ -8024,7 +8057,7 @@ app.get('/student/dashboard', (c) => {
           
           // Load Submissions
           window.loadSubmissions = async function() {
-            const sessionId = localStorage.getItem('student_session_id');
+            const sessionId = getStorageItem('student_session_id');
             const submissionsList = document.getElementById('submissionsList');
             
             if (!sessionId) {
@@ -8089,8 +8122,8 @@ app.get('/student/dashboard', (c) => {
           
           // Logout Handler
           window.handleLogout = function() {
-            localStorage.removeItem('student_session_id');
-            localStorage.removeItem('student_name');
+            removeStorageItem('student_session_id');
+            removeStorageItem('student_name');
             window.location.href = '/student/login';
           };
         </script>
@@ -8219,8 +8252,8 @@ app.get('/student/dashboard', (c) => {
         <script>
           // DOM loaded event handler (initialization only)
           window.addEventListener('DOMContentLoaded', () => {
-            const sessionId = localStorage.getItem('student_session_id');
-            const studentName = localStorage.getItem('student_name');
+            const sessionId = getStorageItem('student_session_id');
+            const studentName = getStorageItem('student_name');
             
             if (!sessionId || !studentName) {
               alert('로그인이 필요합니다');
@@ -8315,7 +8348,7 @@ app.get('/student/feedback/:id', (c) => {
           const submissionId = ${submissionId};
           
           window.addEventListener('DOMContentLoaded', () => {
-            const sessionId = localStorage.getItem('student_session_id');
+            const sessionId = getStorageItem('student_session_id');
             if (!sessionId) {
               alert('로그인이 필요합니다');
               window.location.href = '/student/login';
@@ -8326,7 +8359,7 @@ app.get('/student/feedback/:id', (c) => {
           });
           
           async function loadFeedback() {
-            const sessionId = localStorage.getItem('student_session_id');
+            const sessionId = getStorageItem('student_session_id');
             
             try {
               const response = await axios.get(\`/api/student/submission/\${submissionId}/feedback\`, {
