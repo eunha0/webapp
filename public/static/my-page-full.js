@@ -53,13 +53,36 @@
           function convertMarkdownToHtml(markdown) {
             if (!markdown) return '';
             try {
+              // Check if marked library is available
+              if (typeof marked === 'undefined') {
+                console.warn('Marked library not available, returning plain text');
+                // Simple fallback: convert newlines to <br> and escape HTML
+                return markdown
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/\n/g, '<br>');
+              }
+              
               // Use marked.js to convert Markdown to HTML
               const rawHtml = marked.parse(markdown);
+              
+              // Check if DOMPurify is available
+              if (typeof DOMPurify === 'undefined') {
+                console.warn('DOMPurify not available, using raw HTML');
+                return rawHtml;
+              }
+              
               // Use DOMPurify to sanitize HTML (prevent XSS)
               return DOMPurify.sanitize(rawHtml);
             } catch (error) {
               console.error('Markdown conversion error:', error);
-              return markdown; // Fallback to original text
+              // Fallback to plain text with basic HTML escaping
+              return markdown
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\n/g, '<br>');
             }
           }
 
