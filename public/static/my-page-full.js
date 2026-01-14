@@ -3898,6 +3898,7 @@
           async function openLibraryModal() {
             document.getElementById('libraryModal').classList.remove('hidden');
             await loadLibraryAssignments();
+            await loadLibraryTags(); // Load tags for filter
           }
           
           function closeLibraryModal() {
@@ -3925,15 +3926,52 @@
             }
           }
           
+          async function loadLibraryTags() {
+            try {
+              const response = await axios.get('/api/library/tags');
+              const tags = response.data.tags || [];
+              
+              const tagSelect = document.getElementById('libraryFilterTag');
+              if (tagSelect) {
+                // Keep the "전체" option and add all tags
+                tagSelect.innerHTML = '<option value="">전체</option>' + 
+                  tags.map(tag => `<option value="${tag.tag}">${tag.tag} (${tag.count})</option>`).join('');
+              }
+            } catch (error) {
+              console.error('Error loading tags:', error);
+            }
+          }
+          
           function filterLibrary() {
             const authorType = document.getElementById('libraryFilterAuthorType').value;
             const grade = document.getElementById('libraryFilterGrade').value;
             const subject = document.getElementById('libraryFilterSubject').value;
+            const searchQuery = document.getElementById('librarySearch')?.value?.trim().toLowerCase() || '';
+            const tagFilter = document.getElementById('libraryFilterTag')?.value || '';
             
             filteredLibraryAssignments = libraryAssignments.filter(assignment => {
-              if (authorType && assignment.author_type !== authorType) return false;
+              // Author filter
+              if (authorType === 'admin' && !assignment.author_name.includes('관리자')) return false;
+              if (authorType === 'user' && assignment.author_name.includes('관리자')) return false;
+              
+              // Grade filter
               if (grade && !assignment.grade_level.includes(grade)) return false;
+              
+              // Subject filter
               if (subject && assignment.subject !== subject) return false;
+              
+              // Search filter (title or description)
+              if (searchQuery) {
+                const titleMatch = assignment.title.toLowerCase().includes(searchQuery);
+                const descMatch = assignment.description.toLowerCase().includes(searchQuery);
+                if (!titleMatch && !descMatch) return false;
+              }
+              
+              // Tag filter
+              if (tagFilter && (!assignment.tags || !assignment.tags.includes(tagFilter))) {
+                return false;
+              }
+              
               return true;
             });
             
@@ -4093,6 +4131,13 @@
           window.filterLibrary = filterLibrary;
           window.sortLibrary = sortLibrary;
           window.loadFromLibrary = loadFromLibrary;
+          
+          // Search handler
+          window.handleSearchKeyup = function(event) {
+            if (event.key === 'Enter') {
+              filterLibrary();
+            }
+          };
           
           // Rating modal functions
           let currentRatingAssignmentId = null;
