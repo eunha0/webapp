@@ -88,6 +88,17 @@
             );
             
             console.log('Axios initialized successfully');
+            
+            // Initialize page after axios is ready
+            initializePage();
+          }
+          
+          // Page initialization function
+          function initializePage() {
+            console.log('Initializing page...');
+            loadUserInfo();
+            loadPlatformRubrics();
+            loadAssignments();
           }
           
           // Call initialization
@@ -3843,9 +3854,8 @@
             }
           });
           
-          loadUserInfo();
-          loadPlatformRubrics();
-          loadAssignments();
+          // Page initialization is now handled by initializeAxios()
+          // loadUserInfo(), loadPlatformRubrics(), loadAssignments() are called after axios is ready
           
           // === Markdown Preview Functions ===
           
