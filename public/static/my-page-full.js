@@ -134,12 +134,13 @@ window.addEventListener('load', function() {
           // Page initialization function
           function initializePage() {
             console.log('[DEBUG] initializePage called');
+            console.log('[DEBUG] Axios available?', typeof axios !== 'undefined');
             console.log('[DEBUG] Calling loadUserInfo...');
-            loadUserInfo();
+            loadUserInfo().catch(e => console.error('[DEBUG] loadUserInfo failed:', e));
             console.log('[DEBUG] Calling loadPlatformRubrics...');
-            loadPlatformRubrics();
+            loadPlatformRubrics().catch(e => console.error('[DEBUG] loadPlatformRubrics failed:', e));
             console.log('[DEBUG] Calling loadAssignments...');
-            loadAssignments();
+            loadAssignments().catch(e => console.error('[DEBUG] loadAssignments failed:', e));
           }
           
           // Call initialization
@@ -344,8 +345,14 @@ window.addEventListener('load', function() {
           }
 
           async function loadAssignments() {
+            console.log('[DEBUG] loadAssignments started');
+            console.log('[DEBUG] axios type:', typeof axios);
+            console.log('[DEBUG] axios.get type:', typeof axios?.get);
+            
             try {
+              console.log('[DEBUG] Making GET request to /api/assignments');
               const response = await axios.get('/api/assignments');
+              console.log('[DEBUG] Response received:', response.data);
               const assignments = response.data;
 
               const container = document.getElementById('assignmentsList');
