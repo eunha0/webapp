@@ -1,3 +1,7 @@
+// Wait for all scripts to load
+window.addEventListener('load', function() {
+  console.log('[DEBUG] window.onload fired - all scripts loaded');
+
           // CRITICAL: Session management must be first
           // Storage fallback for Safari's tracking prevention
           function getStorageItem(key) {
@@ -41,7 +45,7 @@
             console.error('[DEBUG] No session ID found! Redirecting to login...');
             alert('로그인이 필요합니다.');
             window.location.href = '/login';
-            throw new Error('No session'); // Stop execution
+            return; // Stop execution gracefully
           }
           
           console.log('[DEBUG] Session ID verified, continuing...');
@@ -4225,3 +4229,5 @@
           window.sortLibrary = sortLibrary;
           window.handleSearchKeyup = handleSearchKeyup;
           window.loadFromLibrary = loadFromLibrary;
+
+});
