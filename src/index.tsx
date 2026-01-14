@@ -7062,6 +7062,7 @@ app.get('/admin', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        ${STORAGE_UTILS_SCRIPT}
         <script>
           // Configure axios to include session ID in all requests
           const sessionId = getStorageItem('session_id');
