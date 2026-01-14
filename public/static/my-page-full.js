@@ -4011,12 +4011,21 @@
                       ` : ''}
                     </div>
                   </div>
-                  <button 
-                    onclick="loadFromLibrary(${assignment.id})" 
-                    class="ml-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold text-sm whitespace-nowrap"
-                  >
-                    <i class="fas fa-download mr-2"></i>불러오기
-                  </button>
+                  <div class="flex gap-2 ml-4">
+                    <button 
+                      onclick="openRatingModal(${assignment.id}, '${assignment.title.replace(/'/g, "\\'")}', ${assignment.average_rating || 0})"
+                      class="px-3 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition text-sm whitespace-nowrap"
+                      title="별점 남기기"
+                    >
+                      <i class="fas fa-star"></i>
+                    </button>
+                    <button 
+                      onclick="loadFromLibrary(${assignment.id})" 
+                      class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold text-sm whitespace-nowrap"
+                    >
+                      <i class="fas fa-download mr-2"></i>불러오기
+                    </button>
+                  </div>
                 </div>
               </div>
             `).join('');
@@ -4084,3 +4093,124 @@
           window.filterLibrary = filterLibrary;
           window.sortLibrary = sortLibrary;
           window.loadFromLibrary = loadFromLibrary;
+          
+          // Rating modal functions
+          let currentRatingAssignmentId = null;
+          let currentRatingValue = 0;
+          
+          window.openRatingModal = function(assignmentId, title, currentRating) {
+            currentRatingAssignmentId = assignmentId;
+            currentRatingValue = 0;
+            
+            const modalHTML = `
+              <div id="ratingModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-6">
+                  <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold text-gray-900">과제 평가</h3>
+                    <button onclick="closeRatingModal()" class="text-gray-400 hover:text-gray-600">
+                      <i class="fas fa-times text-xl"></i>
+                    </button>
+                  </div>
+                  
+                  <div class="mb-4">
+                    <p class="text-sm text-gray-600 mb-2">${title}</p>
+                    <p class="text-xs text-gray-500">현재 평균: ${currentRating > 0 ? currentRating.toFixed(1) + '점' : '평가 없음'}</p>
+                  </div>
+                  
+                  <div class="mb-6">
+                    <label class="block text-sm font-semibold text-gray-700 mb-3">별점</label>
+                    <div class="flex gap-2 justify-center">
+                      ${[1, 2, 3, 4, 5].map(star => `
+                        <button 
+                          onclick="setRating(${star})" 
+                          class="rating-star text-4xl text-gray-300 hover:text-yellow-400 transition"
+                          data-star="${star}"
+                        >
+                          <i class="fas fa-star"></i>
+                        </button>
+                      `).join('')}
+                    </div>
+                    <p class="text-center text-sm text-gray-600 mt-2">
+                      선택한 별점: <span id="selectedRating" class="font-bold">0</span>점
+                    </p>
+                  </div>
+                  
+                  <div class="mb-6">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">리뷰 (선택사항)</label>
+                    <textarea 
+                      id="ratingReview" 
+                      rows="4" 
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      placeholder="이 과제에 대한 의견을 남겨주세요..."
+                    ></textarea>
+                  </div>
+                  
+                  <div class="flex gap-3">
+                    <button 
+                      onclick="closeRatingModal()" 
+                      class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+                    >
+                      취소
+                    </button>
+                    <button 
+                      onclick="submitRating()" 
+                      class="flex-1 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition font-semibold"
+                    >
+                      평가 제출
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+          };
+          
+          window.closeRatingModal = function() {
+            const modal = document.getElementById('ratingModal');
+            if (modal) modal.remove();
+            currentRatingAssignmentId = null;
+            currentRatingValue = 0;
+          };
+          
+          window.setRating = function(rating) {
+            currentRatingValue = rating;
+            document.getElementById('selectedRating').textContent = rating;
+            
+            // Update star colors
+            document.querySelectorAll('.rating-star').forEach((star, index) => {
+              if (index < rating) {
+                star.classList.remove('text-gray-300');
+                star.classList.add('text-yellow-400');
+              } else {
+                star.classList.remove('text-yellow-400');
+                star.classList.add('text-gray-300');
+              }
+            });
+          };
+          
+          window.submitRating = async function() {
+            if (currentRatingValue === 0) {
+              alert('별점을 선택해주세요 (1~5점)');
+              return;
+            }
+            
+            try {
+              const review = document.getElementById('ratingReview').value.trim();
+              
+              const response = await axios.post(`/api/assignment/${currentRatingAssignmentId}/rating`, {
+                rating: currentRatingValue,
+                review: review || null
+              });
+              
+              console.log('[DEBUG] Rating submitted:', response.data);
+              alert('평가가 저장되었습니다!');
+              closeRatingModal();
+              
+              // Reload library to show updated rating
+              await openLibraryModal();
+            } catch (error) {
+              console.error('Error submitting rating:', error);
+              alert('평가 저장에 실패했습니다: ' + (error.response?.data?.error || error.message));
+            }
+          };
