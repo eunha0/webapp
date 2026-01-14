@@ -42,9 +42,6 @@
           let currentAssignmentId = null;
           let criterionCounter = 0;
 
-          // Configure axios to include session ID in all requests
-          axios.defaults.headers.common['X-Session-ID'] = sessionId;
-
           // Helper: Convert Markdown to HTML safely
           function convertMarkdownToHtml(markdown) {
             if (!markdown) return '';
@@ -59,25 +56,42 @@
             }
           }
 
-          // Handle authentication errors
-          let authErrorShown = false;
-          axios.interceptors.response.use(
-            response => response,
-            error => {
-              if (error.response && error.response.status === 401) {
-                console.error('401 Unauthorized error:', error.response.data);
-                console.log('Session ID:', sessionId);
-                
-                if (!authErrorShown) {
-                  authErrorShown = true;
-                  alert('세션이 만료되었습니다. 다시 로그인해주세요.');
-                  removeStorageItem('session_id');
-                  window.location.href = '/login';
-                }
-              }
-              return Promise.reject(error);
+          // Initialize axios after it's loaded
+          function initializeAxios() {
+            if (typeof axios === 'undefined') {
+              console.warn('Axios not loaded yet, retrying...');
+              setTimeout(initializeAxios, 100);
+              return;
             }
-          );
+            
+            // Configure axios to include session ID in all requests
+            axios.defaults.headers.common['X-Session-ID'] = sessionId;
+
+            // Handle authentication errors
+            let authErrorShown = false;
+            axios.interceptors.response.use(
+              response => response,
+              error => {
+                if (error.response && error.response.status === 401) {
+                  console.error('401 Unauthorized error:', error.response.data);
+                  console.log('Session ID:', sessionId);
+                  
+                  if (!authErrorShown) {
+                    authErrorShown = true;
+                    alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+                    removeStorageItem('session_id');
+                    window.location.href = '/login';
+                  }
+                }
+                return Promise.reject(error);
+              }
+            );
+            
+            console.log('Axios initialized successfully');
+          }
+          
+          // Call initialization
+          initializeAxios();
 
           // Switch between tabs
           function switchTab(tab) {
