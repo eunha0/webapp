@@ -32,12 +32,19 @@
           window.setStorageItem = setStorageItem;
           window.removeStorageItem = removeStorageItem;
           
+          console.log('[DEBUG] Starting my-page-full.js');
+          console.log('[DEBUG] Checking session_id...');
           const sessionId = getStorageItem('session_id');
+          console.log('[DEBUG] Session ID:', sessionId ? 'EXISTS' : 'NULL');
+          
           if (!sessionId) {
+            console.error('[DEBUG] No session ID found! Redirecting to login...');
             alert('로그인이 필요합니다.');
             window.location.href = '/login';
             throw new Error('No session'); // Stop execution
           }
+          
+          console.log('[DEBUG] Session ID verified, continuing...');
           
           let currentAssignmentId = null;
           let criterionCounter = 0;
@@ -58,11 +65,14 @@
 
           // Initialize axios after it's loaded
           function initializeAxios() {
+            console.log('[DEBUG] initializeAxios called, checking axios...');
             if (typeof axios === 'undefined') {
-              console.warn('Axios not loaded yet, retrying...');
+              console.warn('[DEBUG] Axios not loaded yet, retrying in 100ms...');
               setTimeout(initializeAxios, 100);
               return;
             }
+            
+            console.log('[DEBUG] Axios found! Configuring...');
             
             // Configure axios to include session ID in all requests
             axios.defaults.headers.common['X-Session-ID'] = sessionId;
@@ -87,21 +97,26 @@
               }
             );
             
-            console.log('Axios initialized successfully');
+            console.log('[DEBUG] Axios configured successfully');
             
             // Initialize page after axios is ready
+            console.log('[DEBUG] Calling initializePage...');
             initializePage();
           }
           
           // Page initialization function
           function initializePage() {
-            console.log('Initializing page...');
+            console.log('[DEBUG] initializePage called');
+            console.log('[DEBUG] Calling loadUserInfo...');
             loadUserInfo();
+            console.log('[DEBUG] Calling loadPlatformRubrics...');
             loadPlatformRubrics();
+            console.log('[DEBUG] Calling loadAssignments...');
             loadAssignments();
           }
           
           // Call initialization
+          console.log('[DEBUG] Starting axios initialization...');
           initializeAxios();
 
           // Switch between tabs
