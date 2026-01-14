@@ -17,6 +17,59 @@ import { getUserFromSession, requireAuth, requireStudentAuth, getStudentFromSess
 
 const app = new Hono<{ Bindings: Bindings }>()
 
+// CRITICAL: Global storage utility functions (defined ONCE for all pages)
+// These are injected into every HTML page to handle Safari's localStorage blocking
+const STORAGE_UTILS_SCRIPT = `
+<script>
+// Storage fallback for Safari's tracking prevention
+function getStorageItem(key) {
+  try {
+    const value = localStorage.getItem(key);
+    return value || sessionStorage.getItem(key);
+  } catch (e) {
+    // If localStorage is blocked, use sessionStorage
+    try {
+      return sessionStorage.getItem(key);
+    } catch (e2) {
+      console.error('Both localStorage and sessionStorage blocked:', e2);
+      return null;
+    }
+  }
+}
+
+function setStorageItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    // If localStorage is blocked, use sessionStorage
+    try {
+      sessionStorage.setItem(key, value);
+    } catch (e2) {
+      console.error('Both localStorage and sessionStorage blocked:', e2);
+    }
+  }
+}
+
+function removeStorageItem(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch (e) {
+    // Ignore errors for localStorage
+  }
+  try {
+    sessionStorage.removeItem(key);
+  } catch (e) {
+    // Ignore errors for sessionStorage
+  }
+}
+
+// Make globally available
+window.getStorageItem = getStorageItem;
+window.setStorageItem = setStorageItem;
+window.removeStorageItem = removeStorageItem;
+</script>
+`
+
 // Helper function to convert ArrayBuffer to base64
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
@@ -4015,40 +4068,8 @@ app.get('/', (c) => {
         </footer>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        ${STORAGE_UTILS_SCRIPT}
         <script>
-          // Storage fallback for Safari's tracking prevention
-          function getStorageItem(key) {
-            try {
-              return getStorageItem(key) || sessionStorage.getItem(key);
-            } catch (e) {
-              console.warn('localStorage blocked, using sessionStorage:', e);
-              return sessionStorage.getItem(key);
-            }
-          }
-          
-          function setStorageItem(key, value) {
-            try {
-              setStorageItem(key, value);
-            } catch (e) {
-              console.warn('localStorage blocked, using sessionStorage:', e);
-              sessionStorage.setItem(key, value);
-            }
-          }
-          
-          function removeStorageItem(key) {
-            try {
-              removeStorageItem(key);
-            } catch (e) {
-              console.warn('localStorage blocked, using sessionStorage:', e);
-            }
-            sessionStorage.removeItem(key);
-          }
-          
-          // Make these functions globally available
-          window.getStorageItem = getStorageItem;
-          window.setStorageItem = setStorageItem;
-          window.removeStorageItem = removeStorageItem;
-          
           // Check if user is logged in and show "나의 페이지" link
           function checkLoginStatus() {
             const isLoggedIn = getStorageItem('isLoggedIn') === 'true';
@@ -6869,6 +6890,7 @@ app.get('/my-page', (c) => {
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
+        ${STORAGE_UTILS_SCRIPT}
         <script src="/static/my-page-full.js"></script>
     </body>
     </html>

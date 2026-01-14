@@ -1,41 +1,10 @@
-// CRITICAL: Storage fallback MUST be defined FIRST (outside window.onload)
-// Storage fallback for Safari's tracking prevention
-function getStorageItem(key) {
-  try {
-    return localStorage.getItem(key) || sessionStorage.getItem(key);
-  } catch (e) {
-    console.warn('localStorage blocked, using sessionStorage:', e);
-    return sessionStorage.getItem(key);
-  }
-}
-
-function setStorageItem(key, value) {
-  try {
-    localStorage.setItem(key, value);
-  } catch (e) {
-    console.warn('localStorage blocked, using sessionStorage:', e);
-    sessionStorage.setItem(key, value);
-  }
-}
-
-function removeStorageItem(key) {
-  try {
-    localStorage.removeItem(key);
-  } catch (e) {
-    console.warn('localStorage blocked, using sessionStorage:', e);
-  }
-  sessionStorage.removeItem(key);
-}
-
-// Make these functions globally available
-window.getStorageItem = getStorageItem;
-window.setStorageItem = setStorageItem;
-window.removeStorageItem = removeStorageItem;
+// CRITICAL: Storage functions are defined in HTML page (STORAGE_UTILS_SCRIPT)
+// DO NOT redefine them here to avoid infinite recursion!
 
 // Session check BEFORE window.onload
 console.log('[DEBUG] Starting my-page-full.js');
 console.log('[DEBUG] Checking session_id...');
-const sessionId = getStorageItem('session_id');
+const sessionId = window.getStorageItem('session_id');
 console.log('[DEBUG] Session ID:', sessionId ? 'EXISTS' : 'NULL');
 
 if (!sessionId) {
