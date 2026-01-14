@@ -1021,7 +1021,7 @@ app.post('/api/assignments', async (c) => {
     const user = await requireAuth(c)
     if (!user.id) return user // Return error response
     
-    const { title, description, grade_level, due_date, rubric_criteria, prompts, subject } = await c.req.json()
+    const { title, description, grade_level, due_date, rubric_criteria, prompts, subject, tags } = await c.req.json()
     const db = c.env.DB
     
     // Create assignment without access code (will be generated later if needed)
@@ -1038,6 +1038,15 @@ app.post('/api/assignments', async (c) => {
         await db.prepare(
           'INSERT INTO assignment_rubrics (assignment_id, criterion_name, criterion_description, criterion_order, max_score) VALUES (?, ?, ?, ?, ?)'
         ).bind(assignmentId, criterion.name, criterion.description, criterion.order, criterion.max_score || 4).run()
+      }
+    }
+    
+    // Add tags (NEW)
+    if (tags && Array.isArray(tags) && tags.length > 0) {
+      for (const tag of tags) {
+        await db.prepare(
+          'INSERT INTO assignment_tags (assignment_id, tag) VALUES (?, ?)'
+        ).bind(assignmentId, tag).run()
       }
     }
     
@@ -6696,6 +6705,21 @@ app.get('/my-page', (c) => {
                             <div>
                                 <label class="block text-sm font-semibold text-gray-700 mb-2">제출 마감일</label>
                                 <input type="date" id="assignmentDueDate" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-700">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-tags mr-2"></i>태그 (선택사항)
+                                </label>
+                                <input 
+                                    type="text" 
+                                    id="assignmentTags" 
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-700" 
+                                    placeholder="태그를 쉼표로 구분하여 입력 (예: 역사, 논술, 세계사)"
+                                >
+                                <p class="text-xs text-gray-500 mt-1">
+                                    태그를 추가하면 다른 교사들이 라이브러리에서 쉽게 찾을 수 있습니다.
+                                </p>
                             </div>
                         </div>
 

@@ -1420,6 +1420,10 @@
             const grade_level = document.getElementById('assignmentGradeLevel').value;
             const subject = document.getElementById('assignmentSubject').value;
             const due_date = document.getElementById('assignmentDueDate').value;
+            
+            // Get tags (NEW)
+            const tagsInput = document.getElementById('assignmentTags')?.value.trim() || '';
+            const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
 
             // Collect prompts from reference materials
             const promptInputs = document.querySelectorAll('#assignmentReferenceMaterials .reference-input');
@@ -1467,7 +1471,8 @@
                 subject: subject || null,
                 due_date: due_date || null,
                 rubric_criteria,
-                prompts
+                prompts,
+                tags // Add tags to request
               });
 
               alert('과제가 생성되었습니다!');
@@ -4048,6 +4053,15 @@
                         </span>
                       ` : ''}
                     </div>
+                    ${assignment.tags && assignment.tags.length > 0 ? `
+                      <div class="flex flex-wrap gap-1 mt-2">
+                        ${assignment.tags.map(tag => `
+                          <span class="px-2 py-0.5 bg-gray-200 text-gray-700 rounded text-xs">
+                            <i class="fas fa-tag mr-1"></i>${tag}
+                          </span>
+                        `).join('')}
+                      </div>
+                    ` : ''}
                   </div>
                   <div class="flex gap-2 ml-4">
                     <button 
