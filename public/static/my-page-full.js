@@ -3954,6 +3954,10 @@
                 return a.grade_level.localeCompare(b.grade_level);
               } else if (sortBy === 'subject') {
                 return (a.subject || '').localeCompare(b.subject || '');
+              } else if (sortBy === 'usage_count') {
+                return (b.usage_count || 0) - (a.usage_count || 0);
+              } else if (sortBy === 'average_rating') {
+                return (b.average_rating || 0) - (a.average_rating || 0);
               }
               return 0;
             });
@@ -3995,6 +3999,16 @@
                       <span class="px-2 py-1 bg-gray-100 text-gray-800 rounded">
                         <i class="fas fa-calendar mr-1"></i>${new Date(assignment.created_at).toLocaleDateString()}
                       </span>
+                      ${assignment.usage_count > 0 ? `
+                        <span class="px-2 py-1 bg-orange-100 text-orange-800 rounded" title="사용 횟수">
+                          <i class="fas fa-download mr-1"></i>${assignment.usage_count}회
+                        </span>
+                      ` : ''}
+                      ${assignment.average_rating > 0 ? `
+                        <span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded" title="평균 별점">
+                          <i class="fas fa-star mr-1"></i>${assignment.average_rating.toFixed(1)} (${assignment.rating_count})
+                        </span>
+                      ` : ''}
                     </div>
                   </div>
                   <button 
@@ -4016,6 +4030,15 @@
               });
               
               const assignment = response.data;
+              
+              // Increment usage count
+              try {
+                await axios.post(`/api/assignment/${assignmentId}/increment-usage`);
+                console.log('[DEBUG] Usage count incremented for assignment', assignmentId);
+              } catch (err) {
+                console.error('Failed to increment usage count:', err);
+                // Continue even if increment fails
+              }
               
               // Fill form with library assignment data
               document.getElementById('assignmentTitle').value = assignment.title + ' (복사본)';
