@@ -1024,38 +1024,6 @@ app.post('/api/assignments', async (c) => {
     const { title, description, grade_level, due_date, rubric_criteria, prompts, subject, tags } = await c.req.json()
     const db = c.env.DB
     
-    // Check subscription limits
-    const userInfo = await db.prepare(
-      'SELECT subscription FROM users WHERE id = ?'
-    ).bind(user.id).first()
-    
-    const currentAssignmentCount = await db.prepare(
-      'SELECT COUNT(*) as count FROM assignments WHERE user_id = ?'
-    ).bind(user.id).first()
-    
-    const subscription = userInfo?.subscription || '무료'
-    const assignmentCount = currentAssignmentCount?.count || 0
-    
-    // Define subscription limits
-    const limits = {
-      '무료': 3,
-      '스타터': 10,
-      '베이직': 30,
-      '프로': Infinity
-    }
-    
-    const limit = limits[subscription] || limits['무료']
-    
-    if (assignmentCount >= limit) {
-      return c.json({ 
-        error: `현재 구독 플랜(${subscription})의 과제 생성 한도(${limit}개)를 초과했습니다. 구독 플랜을 업그레이드해주세요.`,
-        limit_reached: true,
-        current_plan: subscription,
-        current_count: assignmentCount,
-        max_limit: limit
-      }, 403)
-    }
-    
     // Create assignment without access code (will be generated later if needed)
     const promptsJSON = prompts ? JSON.stringify(prompts) : null
     const result = await db.prepare(
@@ -1871,6 +1839,42 @@ app.post('/api/submission/:id/grade', async (c) => {
     
     const submissionId = parseInt(c.req.param('id'))
     const db = c.env.DB
+    
+    // Check subscription limits for grading (NEW)
+    const userInfo = await db.prepare(
+      'SELECT subscription FROM users WHERE id = ?'
+    ).bind(user.id).first()
+    
+    // Count graded submissions for this user
+    const gradedCount = await db.prepare(
+      `SELECT COUNT(*) as count 
+       FROM student_submissions s
+       JOIN assignments a ON s.assignment_id = a.id
+       WHERE a.user_id = ? AND s.graded = 1`
+    ).bind(user.id).first()
+    
+    const subscription = userInfo?.subscription || '무료'
+    const currentGradedCount = gradedCount?.count || 0
+    
+    // Define subscription limits for grading (채점 횟수 제한)
+    const gradingLimits = {
+      '무료': 20,
+      '스타터': 90,
+      '베이직': 300,
+      '프로': 600
+    }
+    
+    const limit = gradingLimits[subscription] || gradingLimits['무료']
+    
+    if (currentGradedCount >= limit) {
+      return c.json({ 
+        error: `현재 구독 플랜(${subscription})의 채점 한도(${limit}회)를 초과했습니다. 구독 플랜을 업그레이드해주세요.`,
+        limit_reached: true,
+        current_plan: subscription,
+        current_count: currentGradedCount,
+        max_limit: limit
+      }, 403)
+    }
     
     // Get grading settings from request body (optional)
     const body = await c.req.json().catch(() => ({}))
@@ -7240,6 +7244,47 @@ app.get('/admin', (c) => {
           function displayStats(data) {
             const overview = data.overview;
             const recent = data.recent_activity;
+            
+            // Build subscription statistics HTML (NEW)
+            let subscriptionStatsHTML = '';
+            if (data.subscription_stats && data.subscription_stats.length > 0) {
+              const colors = {
+                '무료': { bg: 'from-gray-400 to-gray-500', icon: 'fa-gift' },
+                '스타터': { bg: 'from-blue-400 to-blue-500', icon: 'fa-rocket' },
+                '베이직': { bg: 'from-indigo-400 to-indigo-500', icon: 'fa-star' },
+                '프로': { bg: 'from-yellow-400 to-yellow-500', icon: 'fa-crown' }
+              };
+              
+              const subStatsCards = data.subscription_stats.map(stat => {
+                const color = colors[stat.subscription] || colors['무료'];
+                return \`
+                  <div class="stat-card bg-gradient-to-br \${color.bg} rounded-xl shadow-lg p-6 text-white">
+                    <div class="flex items-center justify-between mb-4">
+                      <div class="bg-white/20 rounded-lg p-3">
+                        <i class="fas \${color.icon} text-3xl"></i>
+                      </div>
+                      <div class="text-right">
+                        <div class="text-3xl font-bold">\${stat.count}</div>
+                        <div class="text-sm opacity-90">명</div>
+                      </div>
+                    </div>
+                    <div class="text-lg font-semibold">\${stat.subscription} 플랜</div>
+                  </div>
+                \`;
+              }).join('');
+              
+              subscriptionStatsHTML = \`
+                <div class="col-span-full mt-8 mb-4">
+                  <h3 class="text-lg font-bold text-gray-900 mb-4">
+                    <i class="fas fa-crown text-yellow-500 mr-2"></i>
+                    구독 플랜 통계
+                  </h3>
+                  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    \${subStatsCards}
+                  </div>
+                </div>
+              \`;
+            }
 
             document.getElementById('statsOverview').innerHTML = \`
               <div class="stat-card bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
@@ -7345,51 +7390,10 @@ app.get('/admin', (c) => {
                 </div>
                 <div class="text-lg font-semibold text-gray-800">전체 과제</div>
               </div>
+              
+              \${subscriptionStatsHTML}
             \`;
             
-            // Display subscription statistics (NEW)
-            if (data.subscription_stats && data.subscription_stats.length > 0) {
-              const subStatsHTML = data.subscription_stats.map(stat => {
-                const colors = {
-                  '무료': { bg: 'from-gray-400 to-gray-500', icon: 'fa-gift' },
-                  '스타터': { bg: 'from-blue-400 to-blue-500', icon: 'fa-rocket' },
-                  '베이직': { bg: 'from-indigo-400 to-indigo-500', icon: 'fa-star' },
-                  '프로': { bg: 'from-yellow-400 to-yellow-500', icon: 'fa-crown' }
-                };
-                const color = colors[stat.subscription] || colors['무료'];
-                
-                return \`
-                  <div class="stat-card bg-gradient-to-br \${color.bg} rounded-xl shadow-lg p-6 text-white">
-                    <div class="flex items-center justify-between mb-4">
-                      <div class="bg-white/20 rounded-lg p-3">
-                        <i class="fas \${color.icon} text-3xl"></i>
-                      </div>
-                      <div class="text-right">
-                        <div class="text-3xl font-bold">\${stat.count}</div>
-                        <div class="text-sm opacity-90">명</div>
-                      </div>
-                    </div>
-                    <div class="text-lg font-semibold">\${stat.subscription} 플랜</div>
-                  </div>
-                \`;
-              }).join('');
-              
-              // Add subscription stats section
-              const statsContainer = document.getElementById('statsOverview');
-              const subscriptionSection = document.createElement('div');
-              subscriptionSection.className = 'col-span-full mt-6';
-              subscriptionSection.innerHTML = \`
-                <h3 class="text-lg font-bold text-gray-900 mb-4">
-                  <i class="fas fa-crown text-yellow-500 mr-2"></i>
-                  구독 플랜 통계
-                </h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  \${subStatsHTML}
-                </div>
-              \`;
-              statsContainer.appendChild(subscriptionSection);
-            }
-
             // Display top teachers
             if (data.top_teachers.length > 0) {
               document.getElementById('topTeachers').innerHTML = data.top_teachers.map((t, idx) => \`
