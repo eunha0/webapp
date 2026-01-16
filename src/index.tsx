@@ -2433,6 +2433,58 @@ app.get('/api/admin/users', async (c) => {
 })
 
 /**
+ * GET /api/user/grading-quota - Get user's grading quota information
+ */
+app.get('/api/user/grading-quota', async (c) => {
+  try {
+    const user = await requireAuth(c)
+    if (!user.id) return user
+    
+    const db = c.env.DB
+    
+    // Get user subscription
+    const userInfo = await db.prepare(
+      'SELECT subscription FROM users WHERE id = ?'
+    ).bind(user.id).first()
+    
+    // Count graded submissions
+    const gradedCount = await db.prepare(
+      `SELECT COUNT(*) as count 
+       FROM student_submissions s
+       JOIN assignments a ON s.assignment_id = a.id
+       WHERE a.user_id = ? AND s.graded = 1`
+    ).bind(user.id).first()
+    
+    const subscription = userInfo?.subscription || '무료'
+    const currentCount = gradedCount?.count || 0
+    
+    // Define limits
+    const gradingLimits = {
+      '무료': 20,
+      '스타터': 90,
+      '베이직': 300,
+      '프로': 600
+    }
+    
+    const maxLimit = gradingLimits[subscription] || gradingLimits['무료']
+    const remaining = Math.max(0, maxLimit - currentCount)
+    const percentage = maxLimit > 0 ? Math.round((currentCount / maxLimit) * 100) : 0
+    
+    return c.json({
+      subscription,
+      current_count: currentCount,
+      max_limit: maxLimit,
+      remaining,
+      percentage,
+      limit_reached: currentCount >= maxLimit
+    })
+  } catch (error) {
+    console.error('Error fetching grading quota:', error)
+    return c.json({ error: 'Failed to fetch grading quota' }, 500)
+  }
+})
+
+/**
  * PUT /api/admin/users/:id/subscription - Update user subscription plan (Admin only)
  */
 app.put('/api/admin/users/:id/subscription', async (c) => {
@@ -3679,10 +3731,10 @@ app.get('/', (c) => {
                         </span>
                     </div>
                     <div class="hidden md:flex items-center space-x-8">
-                        <a href="#features" class="text-gray-700 hover:text-navy-700 font-medium">기능</a>
-                        <a href="/guide" class="text-gray-700 hover:text-navy-700 font-medium">사용법 안내</a>
+                        <a href="#features" class="text-gray-700 hover:text-navy-700 font-bold">기능</a>
+                        <a href="/guide" class="text-gray-700 hover:text-navy-700 font-bold">사용법 안내</a>
                         <div class="dropdown">
-                            <button class="text-gray-700 hover:text-navy-700 font-medium cursor-pointer">
+                            <button class="text-gray-700 hover:text-navy-700 font-bold cursor-pointer">
                                 평가 관련 자료 <i class="fas fa-chevron-down text-xs ml-1"></i>
                             </button>
                             <div class="dropdown-content">
@@ -3691,11 +3743,11 @@ app.get('/', (c) => {
                                 <a href="/resources/evaluation"><i class="fas fa-book mr-2 text-navy-700"></i>논술 평가 자료</a>
                             </div>
                         </div>
-                        <a href="#faq" class="text-gray-700 hover:text-navy-700 font-medium">자주 묻는 질문</a>
-                        <a href="/pricing" class="text-gray-700 hover:text-navy-700 font-medium">요금제</a>
-                        <a href="/my-page" id="myPageLink" class="text-gray-700 hover:text-navy-700 font-medium" style="display: none;">나의 페이지</a>
+                        <a href="#faq" class="text-gray-700 hover:text-navy-700 font-bold">자주 묻는 질문</a>
+                        <a href="/pricing" class="text-gray-700 hover:text-navy-700 font-bold">요금제</a>
+                        <a href="/my-page" id="myPageLink" class="text-gray-700 hover:text-navy-700 font-bold" style="display: none;">나의 페이지</a>
                         <div class="dropdown" id="loginDropdown">
-                            <button class="text-gray-700 hover:text-navy-700 font-medium cursor-pointer">
+                            <button class="text-gray-700 hover:text-navy-700 font-bold cursor-pointer">
                                 로그인 <i class="fas fa-chevron-down text-xs ml-1"></i>
                             </button>
                             <div class="dropdown-content">
@@ -7242,12 +7294,16 @@ app.get('/admin', (c) => {
           }
 
           function displayStats(data) {
+            console.log('[DEBUG] displayStats called with data:', data);
+            console.log('[DEBUG] subscription_stats:', data.subscription_stats);
+            
             const overview = data.overview;
             const recent = data.recent_activity;
             
             // Build subscription statistics HTML (NEW)
             let subscriptionStatsHTML = '';
             if (data.subscription_stats && data.subscription_stats.length > 0) {
+              console.log('[DEBUG] Building subscription stats HTML...');
               const colors = {
                 '무료': { bg: 'from-gray-400 to-gray-500', icon: 'fa-gift' },
                 '스타터': { bg: 'from-blue-400 to-blue-500', icon: 'fa-rocket' },
@@ -7257,33 +7313,31 @@ app.get('/admin', (c) => {
               
               const subStatsCards = data.subscription_stats.map(stat => {
                 const color = colors[stat.subscription] || colors['무료'];
-                return \`
-                  <div class="stat-card bg-gradient-to-br \${color.bg} rounded-xl shadow-lg p-6 text-white">
-                    <div class="flex items-center justify-between mb-4">
-                      <div class="bg-white/20 rounded-lg p-3">
-                        <i class="fas \${color.icon} text-3xl"></i>
-                      </div>
-                      <div class="text-right">
-                        <div class="text-3xl font-bold">\${stat.count}</div>
-                        <div class="text-sm opacity-90">명</div>
-                      </div>
-                    </div>
-                    <div class="text-lg font-semibold">\${stat.subscription} 플랜</div>
-                  </div>
-                \`;
+                return '<div class="stat-card bg-gradient-to-br ' + color.bg + ' rounded-xl shadow-lg p-6 text-white">' +
+                  '<div class="flex items-center justify-between mb-4">' +
+                    '<div class="bg-white/20 rounded-lg p-3">' +
+                      '<i class="fas ' + color.icon + ' text-3xl"></i>' +
+                    '</div>' +
+                    '<div class="text-right">' +
+                      '<div class="text-3xl font-bold">' + stat.count + '</div>' +
+                      '<div class="text-sm opacity-90">명</div>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="text-lg font-semibold">' + stat.subscription + ' 플랜</div>' +
+                '</div>';
               }).join('');
               
-              subscriptionStatsHTML = \`
-                <div class="col-span-full mt-8 mb-4">
-                  <h3 class="text-lg font-bold text-gray-900 mb-4">
-                    <i class="fas fa-crown text-yellow-500 mr-2"></i>
-                    구독 플랜 통계
-                  </h3>
-                  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    \${subStatsCards}
-                  </div>
-                </div>
-              \`;
+              subscriptionStatsHTML = 
+                '<div class="col-span-full mt-8 mb-4">' +
+                  '<h3 class="text-lg font-bold text-gray-900 mb-4">' +
+                    '<i class="fas fa-crown text-yellow-500 mr-2"></i>' +
+                    '구독 플랜 통계' +
+                  '</h3>' +
+                  '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">' +
+                    subStatsCards +
+                  '</div>' +
+                '</div>';
+              console.log('[DEBUG] subscriptionStatsHTML generated:', subscriptionStatsHTML);
             }
 
             document.getElementById('statsOverview').innerHTML = \`
@@ -7390,9 +7444,7 @@ app.get('/admin', (c) => {
                 </div>
                 <div class="text-lg font-semibold text-gray-800">전체 과제</div>
               </div>
-              
-              \${subscriptionStatsHTML}
-            \`;
+            \` + subscriptionStatsHTML;
             
             // Display top teachers
             if (data.top_teachers.length > 0) {

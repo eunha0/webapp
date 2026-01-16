@@ -3721,33 +3721,45 @@
           // Load user info and usage
           async function loadUserInfo() {
             try {
-              // TODO: Replace with actual API call to get user info
-              // For now, using dummy data
-              const userName = '홍길동';
-              const currentPlan = 'free'; // free, starter, basic, pro
-              const usageCount = 1; // Current usage count
+              // Call actual API to get grading quota
+              const response = await axios.get('/api/user/grading-quota');
+              const data = response.data;
               
-              // Plan limits and names
-              const planInfo = {
-                free: { name: '무료 체험', limit: 20 },
-                starter: { name: '스타터', limit: 90 },
-                basic: { name: '베이직', limit: 300 },
-                pro: { name: '프로', limit: 600 }
+              // Plan names mapping
+              const planNames = {
+                '무료': '무료',
+                '스타터': '스타터',
+                '베이직': '베이직',
+                '프로': '프로'
               };
               
-              const plan = planInfo[currentPlan] || planInfo.free;
+              const planName = planNames[data.subscription] || '무료';
+              const percentage = data.percentage;
               
-              // Update UI
-              document.getElementById('usageInfo').textContent = plan.name + ': ' + usageCount + ' / ' + plan.limit;
+              // Color coding based on usage percentage
+              let colorClass = 'text-gray-700';
+              if (percentage >= 90) {
+                colorClass = 'text-red-600 font-bold';
+              } else if (percentage >= 75) {
+                colorClass = 'text-orange-600 font-semibold';
+              } else if (percentage >= 50) {
+                colorClass = 'text-yellow-600';
+              }
               
-              // Update upgrade link
+              // Update UI with color
+              const usageInfoEl = document.getElementById('usageInfo');
+              usageInfoEl.textContent = planName + ': ' + data.current_count + ' / ' + data.max_limit + ' (' + data.remaining + '회 남음)';
+              usageInfoEl.className = 'text-sm font-medium ' + colorClass;
+              
+              // Update upgrade link based on subscription
               const upgradeLink = document.querySelector('a[href*="/pricing"]');
               if (upgradeLink) {
-                upgradeLink.href = '/pricing?plan=' + currentPlan;
+                const planMap = { '무료': 'free', '스타터': 'starter', '베이직': 'basic', '프로': 'pro' };
+                upgradeLink.href = '/pricing?plan=' + (planMap[data.subscription] || 'free');
               }
             } catch (error) {
               console.error('Error loading user info:', error);
-              document.getElementById('usageInfo').textContent = '무료 체험: 0 / 20';
+              document.getElementById('usageInfo').textContent = '무료: 0 / 20';
             }
           }
 
