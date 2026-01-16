@@ -2352,6 +2352,7 @@ app.get('/api/admin/users', async (c) => {
         u.id,
         u.name,
         u.email,
+        u.subscription,
         u.created_at,
         COUNT(DISTINCT a.id) as assignment_count,
         COUNT(DISTINCT s.id) as submission_count
@@ -7367,6 +7368,7 @@ app.get('/admin', (c) => {
                       <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">이름</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">이메일</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">구독 중인 요금제</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">과제</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">제출물</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">가입일</th>
@@ -7377,6 +7379,11 @@ app.get('/admin', (c) => {
                         <tr class="hover:bg-gray-50">
                           <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">\${t.name}</td>
                           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">\${t.email}</td>
+                          <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-600 text-white">
+                              \${t.subscription || '무료'}
+                            </span>
+                          </td>
                           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${t.assignment_count || 0}</td>
                           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${t.submission_count || 0}</td>
                           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
