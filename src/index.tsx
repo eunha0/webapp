@@ -7267,27 +7267,35 @@ app.get('/admin', (c) => {
         <script>
           // Configure axios to include session ID in all requests
           const sessionId = getStorageItem('session_id');
+          
+          console.log('[DEBUG] Admin page - session_id:', sessionId);
+          
           if (sessionId) {
             axios.defaults.headers.common['X-Session-ID'] = sessionId;
+            console.log('[DEBUG] Session found, loading stats...');
           } else {
-            // Redirect to login if no session
-            alert('로그인이 필요합니다.');
-            window.location.href = '/login';
+            // For admin page, try to load anyway (will show error if unauthorized)
+            console.log('[DEBUG] No session found, attempting to load stats anyway...');
           }
 
           let statsData = null;
 
           async function loadStats() {
             try {
+              console.log('[DEBUG] Calling /api/admin/stats...');
               const response = await axios.get('/api/admin/stats');
+              console.log('[DEBUG] Stats response:', response.data);
               statsData = response.data;
               displayStats(statsData);
             } catch (error) {
-              console.error('Error loading stats:', error);
+              console.error('[ERROR] Error loading stats:', error);
+              console.error('[ERROR] Error details:', error.response);
               document.getElementById('statsOverview').innerHTML = \`
                 <div class="col-span-4 text-center py-8 text-red-600">
                   <i class="fas fa-exclamation-triangle text-3xl mb-3"></i>
                   <p>통계를 불러오는데 실패했습니다</p>
+                  <p class="text-sm mt-2">먼저 교사 계정으로 로그인해주세요</p>
+                  <a href="/login" class="mt-4 inline-block bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">로그인하기</a>
                 </div>
               \`;
             }
