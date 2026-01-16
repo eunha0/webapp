@@ -7308,6 +7308,112 @@ app.get('/admin', (c) => {
             const overview = data.overview;
             const recent = data.recent_activity;
             
+            // Build main statistics HTML
+            let mainStatsHTML = 
+              '<div class="stat-card bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">' +
+                '<div class="flex items-center justify-between mb-4">' +
+                  '<div class="bg-white/20 rounded-lg p-3">' +
+                    '<i class="fas fa-chalkboard-teacher text-3xl"></i>' +
+                  '</div>' +
+                  '<div class="text-right">' +
+                    '<div class="text-3xl font-bold">' + overview.total_teachers + '</div>' +
+                    '<div class="text-sm opacity-90">명</div>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="text-lg font-semibold">전체 교사</div>' +
+              '</div>' +
+              
+              '<div class="stat-card bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">' +
+                '<div class="flex items-center justify-between mb-4">' +
+                  '<div class="bg-white/20 rounded-lg p-3">' +
+                    '<i class="fas fa-user-graduate text-3xl"></i>' +
+                  '</div>' +
+                  '<div class="text-right">' +
+                    '<div class="text-3xl font-bold">' + overview.total_students + '</div>' +
+                    '<div class="text-sm opacity-90">명</div>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="text-lg font-semibold">전체 학생</div>' +
+              '</div>' +
+              
+              '<div class="stat-card bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">' +
+                '<div class="flex items-center justify-between mb-4">' +
+                  '<div class="bg-white/20 rounded-lg p-3">' +
+                    '<i class="fas fa-file-alt text-3xl"></i>' +
+                  '</div>' +
+                  '<div class="text-right">' +
+                    '<div class="text-3xl font-bold">' + overview.total_submissions + '</div>' +
+                    '<div class="text-sm opacity-90">건</div>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="text-lg font-semibold">전체 제출물</div>' +
+              '</div>' +
+              
+              '<div class="stat-card bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-lg p-6 text-white">' +
+                '<div class="flex items-center justify-between mb-4">' +
+                  '<div class="bg-white/20 rounded-lg p-3">' +
+                    '<i class="fas fa-check-circle text-3xl"></i>' +
+                  '</div>' +
+                  '<div class="text-right">' +
+                    '<div class="text-3xl font-bold">' + overview.graded_submissions + '</div>' +
+                    '<div class="text-sm opacity-90">건</div>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="text-lg font-semibold">채점 완료</div>' +
+              '</div>' +
+              
+              '<div class="stat-card bg-white rounded-xl shadow-lg p-6 border-2 border-blue-200">' +
+                '<div class="flex items-center justify-between mb-4">' +
+                  '<div class="bg-blue-100 rounded-lg p-3">' +
+                    '<i class="fas fa-clock text-3xl text-blue-600"></i>' +
+                  '</div>' +
+                  '<div class="text-right">' +
+                    '<div class="text-3xl font-bold text-blue-900">' + overview.pending_submissions + '</div>' +
+                    '<div class="text-sm text-gray-600">건</div>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="text-lg font-semibold text-gray-800">채점 대기</div>' +
+              '</div>' +
+              
+              '<div class="stat-card bg-white rounded-xl shadow-lg p-6 border-2 border-green-200">' +
+                '<div class="flex items-center justify-between mb-4">' +
+                  '<div class="bg-green-100 rounded-lg p-3">' +
+                    '<i class="fas fa-chart-line text-3xl text-green-600"></i>' +
+                  '</div>' +
+                  '<div class="text-right">' +
+                    '<div class="text-3xl font-bold text-green-900">' + overview.average_score.toFixed(1) + '</div>' +
+                    '<div class="text-sm text-gray-600">점</div>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="text-lg font-semibold text-gray-800">평균 점수</div>' +
+              '</div>' +
+              
+              '<div class="stat-card bg-white rounded-xl shadow-lg p-6 border-2 border-purple-200">' +
+                '<div class="flex items-center justify-between mb-4">' +
+                  '<div class="bg-purple-100 rounded-lg p-3">' +
+                    '<i class="fas fa-calendar-week text-3xl text-purple-600"></i>' +
+                  '</div>' +
+                  '<div class="text-right">' +
+                    '<div class="text-3xl font-bold text-purple-900">' + recent.submissions_last_7_days + '</div>' +
+                    '<div class="text-sm text-gray-600">건</div>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="text-lg font-semibold text-gray-800">최근 7일 제출</div>' +
+              '</div>' +
+              
+              '<div class="stat-card bg-white rounded-xl shadow-lg p-6 border-2 border-orange-200">' +
+                '<div class="flex items-center justify-between mb-4">' +
+                  '<div class="bg-orange-100 rounded-lg p-3">' +
+                    '<i class="fas fa-tasks text-3xl text-orange-600"></i>' +
+                  '</div>' +
+                  '<div class="text-right">' +
+                    '<div class="text-3xl font-bold text-orange-900">' + overview.total_assignments + '</div>' +
+                    '<div class="text-sm text-gray-600">개</div>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="text-lg font-semibold text-gray-800">전체 과제</div>' +
+              '</div>';
+            
             // Build subscription statistics HTML (NEW)
             let subscriptionStatsHTML = '';
             if (data.subscription_stats && data.subscription_stats.length > 0) {
@@ -7347,6 +7453,9 @@ app.get('/admin', (c) => {
                 '</div>';
               console.log('[DEBUG] subscriptionStatsHTML generated:', subscriptionStatsHTML);
             }
+            
+            // Set the complete HTML
+            document.getElementById('statsOverview').innerHTML = mainStatsHTML + subscriptionStatsHTML;
 
             document.getElementById('statsOverview').innerHTML = \`
               <div class="stat-card bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
