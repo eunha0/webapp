@@ -4874,6 +4874,7 @@ app.get('/login', (c) => {
   const alternateType = isTeacher ? 'student' : 'teacher';
   const alternateText = isTeacher ? '학생이신가요?' : '교사이신가요?';
   const alternateLink = isTeacher ? '학생 로그인' : '교사 로그인';
+  const signupLink = isTeacher ? '/signup' : '/student/signup'; // NEW: Different signup link for student
   
   return c.html(`
     <!DOCTYPE html>
@@ -4930,7 +4931,7 @@ app.get('/login', (c) => {
                     </h2>
                     <p class="mt-2 text-center text-sm text-gray-600">
                         또는
-                        <a href="/signup" class="font-medium text-navy-700 hover:text-navy-800">
+                        <a href="${signupLink}" class="font-medium text-navy-700 hover:text-navy-800">
                             새 계정 만들기
                         </a>
                     </p>
