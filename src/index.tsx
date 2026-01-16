@@ -2845,15 +2845,34 @@ app.get('/guide', (c) => {
                             <div class="flex items-start">
                                 <span class="step-number">2</span>
                                 <div class="flex-1">
-                                    <p class="text-gray-700 font-medium mb-2">과제 정보 입력</p>
-                                    <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
-                                        <li><strong>제목:</strong> 예) "제2차 세계 대전의 원인"</li>
-                                        <li><strong>설명:</strong> 예) "1939년 시작된 제2차 세계대전은... 결론을 논술하시오"</li>
-                                        <li><strong>학년 수준:</strong> 드롭다운에서 선택 (초등/중등/고등)</li>
-                                        <li><strong>마감일:</strong> 날짜 선택 (선택사항)</li>
-                                    </ul>
-                                    <div class="mt-3 flex justify-center">
-                                        <img src="/guide-screenshots/step2-create-assignment.png" alt="과제 정보 입력 화면" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
+                                    <p class="text-gray-700 font-medium mb-3">과제 정보 입력</p>
+                                    
+                                    <!-- Option A: Load from Library -->
+                                    <div class="mb-4 bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                        <p class="text-gray-800 font-semibold mb-2">a. 과제 불러오기 실행</p>
+                                        <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4 text-sm">
+                                            <li>"기존 과제 불러오기"나 "과제 라이브러리에서 불러오기" 중에서 선택</li>
+                                            <li>기존 과제를 불러오려면 기존 과제 목록 중에서 과제 선택 후 "불러오기" 버튼 클릭</li>
+                                            <li>과제 라이브러리에서 불러오려면 "라이브러리 열기" 버튼 클릭 → 과제 라이브러리에서 원하는 과제 선택 후 "불러오기" 버튼 클릭</li>
+                                        </ul>
+                                        <div class="mt-3 flex justify-center flex-col gap-3">
+                                            <img src="/guide-screenshots/library-load-from-file.png" alt="기존 과제 불러오기" class="w-3/4 rounded-lg shadow-lg border border-gray-300 mx-auto">
+                                            <img src="/guide-screenshots/library-modal-view.png" alt="과제 라이브러리에서 불러오기" class="w-3/4 rounded-lg shadow-lg border border-gray-300 mx-auto">
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Option B: Direct Input -->
+                                    <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+                                        <p class="text-gray-800 font-semibold mb-2">b. 과제 정보 직접 입력</p>
+                                        <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4 text-sm">
+                                            <li><strong>제목:</strong> 예) "제2차 세계 대전의 원인"</li>
+                                            <li><strong>설명:</strong> 예) "1939년 시작된 제2차 세계대전은... 결론을 논술하시오"</li>
+                                            <li><strong>학년 수준:</strong> 드롭다운에서 선택 (초등/중등/고등)</li>
+                                            <li><strong>마감일:</strong> 날짜 선택 (선택사항)</li>
+                                        </ul>
+                                        <div class="mt-3 flex justify-center">
+                                            <img src="/guide-screenshots/library-create-from-scratch.png" alt="과제 정보 직접 입력 화면" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -2961,13 +2980,24 @@ app.get('/guide', (c) => {
                                         <li>학생 액세스 코드 (생성된 경우)</li>
                                     </ul>
                                     <div class="mt-3 flex justify-center">
-                                        <img src="/guide-screenshots/step5-assignment-detail.png" alt="과제 상세 정보 확인" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
+                                        <img src="/guide-screenshots/assignment-detail-with-library.png" alt="과제 상세 정보 확인" class="w-3/4 rounded-lg shadow-lg border border-gray-300">
                                     </div>
                                 </div>
                             </div>
 
                             <div class="flex items-start">
                                 <span class="step-number">3</span>
+                                <div class="flex-1">
+                                    <p class="text-gray-700 font-medium mb-2">과제 라이브러리 등록</p>
+                                    <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
+                                        <li>모달 우측 상단 "라이브러리에 등록하기" 버튼 클릭</li>
+                                        <li>"이 과제를 라이브러리에 등록하시겠습니까? 등록된 과제는 모든 사용자가 볼 수 있습니다." 메시지를 확인하고 "확인" 버튼 클릭</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start">
+                                <span class="step-number">4</span>
                                 <div class="flex-1">
                                     <p class="text-gray-700 font-medium mb-2">출력 기능 <span class="feature-badge"><i class="fas fa-print mr-1"></i>인쇄 가능</span></p>
                                     <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
@@ -2980,7 +3010,7 @@ app.get('/guide', (c) => {
                             </div>
 
                             <div class="flex items-start">
-                                <span class="step-number">4</span>
+                                <span class="step-number">5</span>
                                 <div class="flex-1">
                                     <p class="text-gray-700 font-medium">과제 삭제</p>
                                     <p class="text-gray-600 text-sm mt-1">
@@ -3705,7 +3735,7 @@ app.get('/', (c) => {
                             <i class="fas fa-folder-open text-2xl text-green-600"></i>
                         </div>
                         <h3 class="text-xl font-bold mb-2">기존 과제 불러오기</h3>
-                        <p class="text-gray-600">새 과제 만들기에서 기존에 출제했던 과제를 불러올 수 있습니다. 기존 과제를 편집하여 사용하세요.</p>
+                        <p class="text-gray-600">새 과제 만들기에서 기존에 출제했던 과제나 다른 교사들이 공유한 과제, 플랫폼 제공 과제를 불러올 수 있습니다. 편집하여 사용하세요.</p>
                     </div>
                     <div class="feature-card bg-white p-6 rounded-xl shadow-md">
                         <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
