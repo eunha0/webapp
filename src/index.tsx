@@ -1024,6 +1024,38 @@ app.post('/api/assignments', async (c) => {
     const { title, description, grade_level, due_date, rubric_criteria, prompts, subject, tags } = await c.req.json()
     const db = c.env.DB
     
+    // Check subscription limits
+    const userInfo = await db.prepare(
+      'SELECT subscription FROM users WHERE id = ?'
+    ).bind(user.id).first()
+    
+    const currentAssignmentCount = await db.prepare(
+      'SELECT COUNT(*) as count FROM assignments WHERE user_id = ?'
+    ).bind(user.id).first()
+    
+    const subscription = userInfo?.subscription || '무료'
+    const assignmentCount = currentAssignmentCount?.count || 0
+    
+    // Define subscription limits
+    const limits = {
+      '무료': 3,
+      '스타터': 10,
+      '베이직': 30,
+      '프로': Infinity
+    }
+    
+    const limit = limits[subscription] || limits['무료']
+    
+    if (assignmentCount >= limit) {
+      return c.json({ 
+        error: `현재 구독 플랜(${subscription})의 과제 생성 한도(${limit}개)를 초과했습니다. 구독 플랜을 업그레이드해주세요.`,
+        limit_reached: true,
+        current_plan: subscription,
+        current_count: assignmentCount,
+        max_limit: limit
+      }, 403)
+    }
+    
     // Create assignment without access code (will be generated later if needed)
     const promptsJSON = prompts ? JSON.stringify(prompts) : null
     const result = await db.prepare(
@@ -2286,6 +2318,13 @@ app.get('/api/admin/stats', async (c) => {
        LIMIT 10`
     ).all()
     
+    // Subscription statistics (NEW)
+    const subscriptionStats = await db.prepare(
+      `SELECT subscription, COUNT(*) as count
+       FROM users
+       GROUP BY subscription`
+    ).all()
+    
     return c.json({
       overview: {
         total_teachers: teacherCount?.count || 0,
@@ -2300,6 +2339,7 @@ app.get('/api/admin/stats', async (c) => {
         submissions_last_7_days: recentSubmissions?.count || 0,
         graded_last_7_days: recentGrading?.count || 0
       },
+      subscription_stats: subscriptionStats.results || [],
       top_teachers: topTeachers.results || [],
       active_students: activeStudents.results || []
     })
@@ -2385,6 +2425,40 @@ app.get('/api/admin/users', async (c) => {
   } catch (error) {
     console.error('Error fetching users:', error)
     return c.json({ error: 'Failed to fetch users' }, 500)
+  }
+})
+
+/**
+ * PUT /api/admin/users/:id/subscription - Update user subscription plan (Admin only)
+ */
+app.put('/api/admin/users/:id/subscription', async (c) => {
+  try {
+    // Check if user is admin (session_id should be admin session)
+    const sessionId = c.req.header('X-Session-ID')
+    if (!sessionId) {
+      return c.json({ error: '로그인이 필요합니다' }, 401)
+    }
+
+    const userId = parseInt(c.req.param('id'))
+    const { subscription } = await c.req.json()
+    
+    // Validate subscription plan
+    const validPlans = ['무료', '스타터', '베이직', '프로']
+    if (!validPlans.includes(subscription)) {
+      return c.json({ error: '유효하지 않은 구독 플랜입니다' }, 400)
+    }
+
+    const db = c.env.DB
+
+    // Update user subscription
+    await db.prepare(
+      'UPDATE users SET subscription = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind(subscription, userId).run()
+
+    return c.json({ success: true, message: '구독 플랜이 업데이트되었습니다', subscription })
+  } catch (error) {
+    console.error('Error updating subscription:', error)
+    return c.json({ error: '구독 플랜 업데이트에 실패했습니다' }, 500)
   }
 })
 
@@ -7080,9 +7154,24 @@ app.get('/admin', (c) => {
                         
                         <!-- Teachers List -->
                         <div class="mb-8">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-4">
-                                <i class="fas fa-chalkboard-teacher text-green-600 mr-2"></i>교사 목록
-                            </h3>
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold text-gray-800">
+                                    <i class="fas fa-chalkboard-teacher text-green-600 mr-2"></i>교사 목록
+                                </h3>
+                                <div class="flex items-center space-x-2">
+                                    <label class="text-sm text-gray-600">필터:</label>
+                                    <select 
+                                        onchange="filterTeachers(this.value)" 
+                                        class="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="all">전체</option>
+                                        <option value="무료">무료</option>
+                                        <option value="스타터">스타터</option>
+                                        <option value="베이직">베이직</option>
+                                        <option value="프로">프로</option>
+                                    </select>
+                                </div>
+                            </div>
                             <div id="teachersList" class="overflow-x-auto">
                                 <p class="text-gray-500">로딩 중...</p>
                             </div>
@@ -7257,6 +7346,49 @@ app.get('/admin', (c) => {
                 <div class="text-lg font-semibold text-gray-800">전체 과제</div>
               </div>
             \`;
+            
+            // Display subscription statistics (NEW)
+            if (data.subscription_stats && data.subscription_stats.length > 0) {
+              const subStatsHTML = data.subscription_stats.map(stat => {
+                const colors = {
+                  '무료': { bg: 'from-gray-400 to-gray-500', icon: 'fa-gift' },
+                  '스타터': { bg: 'from-blue-400 to-blue-500', icon: 'fa-rocket' },
+                  '베이직': { bg: 'from-indigo-400 to-indigo-500', icon: 'fa-star' },
+                  '프로': { bg: 'from-yellow-400 to-yellow-500', icon: 'fa-crown' }
+                };
+                const color = colors[stat.subscription] || colors['무료'];
+                
+                return \`
+                  <div class="stat-card bg-gradient-to-br \${color.bg} rounded-xl shadow-lg p-6 text-white">
+                    <div class="flex items-center justify-between mb-4">
+                      <div class="bg-white/20 rounded-lg p-3">
+                        <i class="fas \${color.icon} text-3xl"></i>
+                      </div>
+                      <div class="text-right">
+                        <div class="text-3xl font-bold">\${stat.count}</div>
+                        <div class="text-sm opacity-90">명</div>
+                      </div>
+                    </div>
+                    <div class="text-lg font-semibold">\${stat.subscription} 플랜</div>
+                  </div>
+                \`;
+              }).join('');
+              
+              // Add subscription stats section
+              const statsContainer = document.getElementById('statsOverview');
+              const subscriptionSection = document.createElement('div');
+              subscriptionSection.className = 'col-span-full mt-6';
+              subscriptionSection.innerHTML = \`
+                <h3 class="text-lg font-bold text-gray-900 mb-4">
+                  <i class="fas fa-crown text-yellow-500 mr-2"></i>
+                  구독 플랜 통계
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  \${subStatsHTML}
+                </div>
+              \`;
+              statsContainer.appendChild(subscriptionSection);
+            }
 
             // Display top teachers
             if (data.top_teachers.length > 0) {
@@ -7355,6 +7487,33 @@ app.get('/admin', (c) => {
             }
           }
 
+          // Update user subscription plan
+          async function updateSubscription(userId, newPlan) {
+            try {
+              const response = await axios.put('/api/admin/users/' + userId + '/subscription', {
+                subscription: newPlan
+              });
+              
+              if (response.data.success) {
+                // Show success message
+                const select = document.querySelector('select[data-user-id="' + userId + '"]');
+                const originalBg = select.className;
+                select.className = originalBg.replace('bg-blue-600', 'bg-green-600');
+                setTimeout(() => {
+                  select.className = originalBg;
+                }, 1000);
+                
+                // Reload stats to update subscription statistics
+                loadStats();
+              }
+            } catch (error) {
+              console.error('Error updating subscription:', error);
+              alert('구독 플랜 업데이트에 실패했습니다');
+              // Reload to reset the select
+              loadUsers();
+            }
+          }
+
           async function loadUsers() {
             try {
               const response = await axios.get('/api/admin/users');
@@ -7380,9 +7539,16 @@ app.get('/admin', (c) => {
                           <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">\${t.name}</td>
                           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">\${t.email}</td>
                           <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-600 text-white">
-                              \${t.subscription || '무료'}
-                            </span>
+                            <select 
+                              class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-600 text-white border-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              onchange="updateSubscription(\${t.id}, this.value)"
+                              data-user-id="\${t.id}"
+                            >
+                              <option value="무료" \${t.subscription === '무료' ? 'selected' : ''}>무료</option>
+                              <option value="스타터" \${t.subscription === '스타터' ? 'selected' : ''}>스타터</option>
+                              <option value="베이직" \${t.subscription === '베이직' ? 'selected' : ''}>베이직</option>
+                              <option value="프로" \${t.subscription === '프로' ? 'selected' : ''}>프로</option>
+                            </select>
                           </td>
                           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${t.assignment_count || 0}</td>
                           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${t.submission_count || 0}</td>
@@ -7434,6 +7600,55 @@ app.get('/admin', (c) => {
               document.getElementById('teachersList').innerHTML = '<p class="text-red-600">사용자 정보를 불러오는데 실패했습니다</p>';
               document.getElementById('studentsList').innerHTML = '<p class="text-red-600">사용자 정보를 불러오는데 실패했습니다</p>';
             }
+          }
+
+          // Update subscription plan
+          async function updateSubscription(userId, newPlan) {
+            try {
+              const response = await axios.put(\`/api/admin/users/\${userId}/subscription\`, {
+                subscription: newPlan
+              });
+
+              if (response.data.success) {
+                // Show success message
+                const message = document.createElement('div');
+                message.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+                message.innerHTML = \`
+                  <i class="fas fa-check-circle mr-2"></i>
+                  구독 플랜이 '\${newPlan}'(으)로 변경되었습니다
+                \`;
+                document.body.appendChild(message);
+
+                setTimeout(() => {
+                  message.remove();
+                }, 3000);
+
+                // Reload stats to update subscription statistics
+                loadStats();
+              }
+            } catch (error) {
+              console.error('Error updating subscription:', error);
+              alert('구독 플랜 변경에 실패했습니다');
+              // Reload users to revert the dropdown
+              loadUsers();
+            }
+          }
+
+          // Filter teachers by subscription
+          function filterTeachers(subscription) {
+            const rows = document.querySelectorAll('#teachersList tbody tr');
+            rows.forEach(row => {
+              if (subscription === 'all') {
+                row.style.display = '';
+              } else {
+                const select = row.querySelector('select');
+                if (select && select.value === subscription) {
+                  row.style.display = '';
+                } else {
+                  row.style.display = 'none';
+                }
+              }
+            });
           }
 
           function switchTab(tabName) {
