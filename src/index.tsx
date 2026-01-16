@@ -2329,6 +2329,9 @@ app.get('/api/admin/stats', async (c) => {
        GROUP BY subscription`
     ).all()
     
+    console.log('[BACKEND DEBUG] subscriptionStats:', subscriptionStats);
+    console.log('[BACKEND DEBUG] subscriptionStats.results:', subscriptionStats.results);
+    
     return c.json({
       overview: {
         total_teachers: teacherCount?.count || 0,
@@ -7285,6 +7288,7 @@ app.get('/admin', (c) => {
               console.log('[DEBUG] Calling /api/admin/stats...');
               const response = await axios.get('/api/admin/stats');
               console.log('[DEBUG] Stats response:', response.data);
+              console.log('[DEBUG] Stats response JSON:', JSON.stringify(response.data, null, 2));
               statsData = response.data;
               displayStats(statsData);
             } catch (error) {
@@ -7303,7 +7307,10 @@ app.get('/admin', (c) => {
 
           function displayStats(data) {
             console.log('[DEBUG] displayStats called with data:', data);
+            console.log('[DEBUG] data keys:', Object.keys(data));
             console.log('[DEBUG] subscription_stats:', data.subscription_stats);
+            console.log('[DEBUG] subscription_stats type:', typeof data.subscription_stats);
+            console.log('[DEBUG] subscription_stats is array?', Array.isArray(data.subscription_stats));
             
             const overview = data.overview;
             const recent = data.recent_activity;
