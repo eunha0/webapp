@@ -929,7 +929,7 @@ app.get('/api/upload/:id', async (c) => {
     })
   } catch (error) {
     console.error('Get file error:', error)
-    return c.json({ error: '파일 정보를 가져오는데 실패했습니다' }, 500)
+    return c.json({ error: '파일 정보를 가져오는 데 실패했습니다' }, 500)
   }
 })
 
@@ -1102,7 +1102,7 @@ app.get('/api/assignment/code/:accessCode', async (c) => {
     return c.json(assignment)
   } catch (error) {
     console.error('Error fetching assignment by access code:', error)
-    return c.json({ error: '과제를 불러오는데 실패했습니다.' }, 500)
+    return c.json({ error: '과제를 불러오는 데 실패했습니다.' }, 500)
   }
 })
 
@@ -1674,7 +1674,7 @@ app.post('/api/student/submit', async (c) => {
       
       if (!accessCode || !essayText) {
         return c.json({ 
-          error: '액세스 코드와 답안을 모두 입력해주세요',
+          error: '액세스 코드와 답안을 모두 입력해 주세요',
           debug: `accessCode: ${!!accessCode}, essayText: ${!!essayText}`
         }, 400)
       }
@@ -1687,7 +1687,7 @@ app.post('/api/student/submit', async (c) => {
       }
     } catch (err) {
       return c.json({ 
-        error: '요청 데이터를 파싱하는데 실패했습니다',
+        error: '요청 데이터를 파싱하는 데 실패했습니다',
         debug: err instanceof Error ? err.message : String(err)
       }, 400)
     }
@@ -1716,7 +1716,7 @@ app.post('/api/student/submit', async (c) => {
     } catch (err) {
       console.error('[SUBMIT] Assignment query error:', err)
       return c.json({ 
-        error: '과제를 조회하는데 실패했습니다',
+        error: '과제를 조회하는 데 실패했습니다',
         debug: err instanceof Error ? err.message : String(err)
       }, 500)
     }
@@ -1961,11 +1961,11 @@ app.post('/api/submission/:id/grade', async (c) => {
         criterion_scores: rubrics.results.map((r: any) => ({
           criterion_name: r.criterion_name,
           score: defaultScore,
-          strengths: 'AI 채점 시스템이 일시적으로 사용할 수 없습니다. 교사의 수동 채점을 기다려주세요.',
+          strengths: 'AI 채점 시스템이 일시적으로 사용할 수 없습니다. 교사의 수동 채점을 기다려 주세요.',
           areas_for_improvement: '자동 채점 실패로 인해 세부 피드백을 제공할 수 없습니다.'
         })),
         revision_suggestions: 'AI 채점 시스템 오류로 인해 수정 제안을 생성할 수 없습니다.',
-        next_steps_advice: '교사의 피드백을 기다려주세요.',
+        next_steps_advice: '교사의 피드백을 기다려 주세요.',
         summary_evaluation: 'AI 채점 실패 - 교사 검토 필요'
       }
       
@@ -1974,14 +1974,14 @@ app.post('/api/submission/:id/grade', async (c) => {
           criterion_name: r.criterion_name,
           score: defaultScore,
           positive_feedback: 'AI 채점 시스템이 일시적으로 사용할 수 없습니다.',
-          improvement_areas: '교사의 수동 채점을 기다려주세요.',
+          improvement_areas: '교사의 수동 채점을 기다려 주세요.',
           specific_suggestions: '자동 피드백을 생성할 수 없습니다.'
         })),
         overall_summary: {
           total_score: defaultScore * criteriaCount,
           strengths: 'AI 채점 시스템 오류',
           weaknesses: '자동 채점 실패',
-          overall_comment: 'AI 채점 시스템이 일시적으로 사용할 수 없어 기본 점수를 부여했습니다. 교사의 수동 채점을 기다려주세요.',
+          overall_comment: 'AI 채점 시스템이 일시적으로 사용할 수 없어 기본 점수를 부여했습니다. 교사의 수동 채점을 기다려 주세요.',
           improvement_priority: '교사 검토 필요'
         }
       }
@@ -2659,7 +2659,7 @@ app.get('/api/student/my-submissions', async (c) => {
     } catch (err) {
       console.error('[MY_SUBMISSIONS] Query error:', err)
       return c.json({ 
-        error: '제출물을 불러오는데 실패했습니다',
+        error: '제출물을 불러오는 데 실패했습니다',
         debug: err instanceof Error ? err.message : String(err)
       }, 500)
     }
@@ -2716,7 +2716,7 @@ app.get('/api/student/submission/:id/feedback', async (c) => {
     })
   } catch (error) {
     console.error('Error fetching feedback:', error)
-    return c.json({ error: '피드백을 불러오는데 실패했습니다' }, 500)
+    return c.json({ error: '피드백을 불러오는 데 실패했습니다' }, 500)
   }
 })
 
@@ -2743,7 +2743,7 @@ app.get('/api/student/progress', async (c) => {
     return c.json(progress.results || [])
   } catch (error) {
     console.error('Error fetching progress:', error)
-    return c.json({ error: '성장 기록을 불러오는데 실패했습니다' }, 500)
+    return c.json({ error: '성장 기록을 불러오는 데 실패했습니다' }, 500)
   }
 })
 
@@ -4594,7 +4594,7 @@ app.get('/resources/:category', async (c) => {
               document.getElementById('postsList').innerHTML = \`
                 <div class="text-center py-8 text-red-600">
                   <i class="fas fa-exclamation-triangle text-3xl mb-3"></i>
-                  <p>자료를 불러오는데 실패했습니다.</p>
+                  <p>자료를 불러오는 데 실패했습니다.</p>
                 </div>
               \`;
             }
@@ -4751,7 +4751,7 @@ app.get('/resource/:id', async (c) => {
               document.getElementById('postDetail').innerHTML = \`
                 <div class="text-center py-8 text-red-600">
                   <i class="fas fa-exclamation-triangle text-3xl mb-3"></i>
-                  <p>자료를 불러오는데 실패했습니다.</p>
+                  <p>자료를 불러오는 데 실패했습니다.</p>
                 </div>
               \`;
             }
@@ -5021,7 +5021,7 @@ app.get('/student/signup', (c) => {
               });
               
               if (response.data.success) {
-                alert('회원가입이 완료되었습니다! 로그인해주세요.');
+                alert('회원가입이 완료되었습니다! 로그인해 주세요.');
                 window.location.href = '/student/login';
               }
             } catch (error) {
@@ -6533,17 +6533,17 @@ app.get('/checkout', (c) => {
             
             // Basic validation
             if (cardNum1.length !== 4 || cardNum2.length !== 4 || cardNum3.length !== 4 || cardNum4.length !== 4) {
-              alert('카드 번호를 올바르게 입력해주세요.');
+              alert('카드 번호를 올바르게 입력해 주세요.');
               return;
             }
             
             if (cardCvv.length !== 3) {
-              alert('보안코드를 올바르게 입력해주세요.');
+              alert('보안코드를 올바르게 입력해 주세요.');
               return;
             }
             
             if (cardBirthOrBusiness.length !== 6 && cardBirthOrBusiness.length !== 10) {
-              alert('생년월일(6자리) 또는 사업자등록번호(10자리)를 입력해주세요.');
+              alert('생년월일(6자리) 또는 사업자등록번호(10자리)를 입력해 주세요.');
               return;
             }
             
@@ -7353,8 +7353,8 @@ app.get('/admin', (c) => {
               document.getElementById('statsOverview').innerHTML = \`
                 <div class="col-span-4 text-center py-8 text-red-600">
                   <i class="fas fa-exclamation-triangle text-3xl mb-3"></i>
-                  <p>통계를 불러오는데 실패했습니다</p>
-                  <p class="text-sm mt-2">먼저 교사 계정으로 로그인해주세요</p>
+                  <p>통계를 불러오는 데 실패했습니다</p>
+                  <p class="text-sm mt-2">먼저 교사 계정으로 로그인해 주세요</p>
                   <a href="/login" class="mt-4 inline-block bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">로그인하기</a>
                 </div>
               \`;
@@ -7718,7 +7718,7 @@ app.get('/admin', (c) => {
             } catch (error) {
               console.error('Error loading activity:', error);
               document.getElementById('recentActivity').innerHTML = \`
-                <p class="text-red-600">활동 내역을 불러오는데 실패했습니다</p>
+                <p class="text-red-600">활동 내역을 불러오는 데 실패했습니다</p>
               \`;
             }
           }
@@ -7864,8 +7864,8 @@ app.get('/admin', (c) => {
               }
             } catch (error) {
               console.error('Error loading users:', error);
-              document.getElementById('teachersList').innerHTML = '<p class="text-red-600">사용자 정보를 불러오는데 실패했습니다</p>';
-              document.getElementById('studentsList').innerHTML = '<p class="text-red-600">사용자 정보를 불러오는데 실패했습니다</p>';
+              document.getElementById('teachersList').innerHTML = '<p class="text-red-600">사용자 정보를 불러오는 데 실패했습니다</p>';
+              document.getElementById('studentsList').innerHTML = '<p class="text-red-600">사용자 정보를 불러오는 데 실패했습니다</p>';
             }
           }
 
@@ -8330,7 +8330,7 @@ app.get('/admin/cms', (c) => {
             
             // Validate content
             if (!content || content.trim() === '<p><br></p>' || content.trim() === '') {
-              alert('내용을 입력해주세요.');
+              alert('내용을 입력해 주세요.');
               return;
             }
             
@@ -8593,7 +8593,7 @@ app.get('/student/dashboard', (c) => {
               const accessCodeInput = document.getElementById('accessCode');
               if (!accessCodeInput) {
                 console.error('[FRONTEND] accessCode input element not found!');
-                alert('액세스 코드 입력 필드를 찾을 수 없습니다. 페이지를 새로고침 해주세요.');
+                alert('액세스 코드 입력 필드를 찾을 수 없습니다. 페이지를 새로고침해 주세요.');
                 return;
               }
               
@@ -8604,7 +8604,7 @@ app.get('/student/dashboard', (c) => {
               console.log('[FRONTEND] Session ID:', sessionId);
               
               if (!accessCode || accessCode.length !== 6) {
-                alert('6자리 액세스 코드를 입력해주세요');
+                alert('6자리 액세스 코드를 입력해 주세요');
                 return;
               }
               
@@ -8645,12 +8645,12 @@ app.get('/student/dashboard', (c) => {
             console.log('[FRONTEND] Essay text length:', essayText.length);
             
             if (!essayText) {
-              alert('답안을 작성해주세요');
+              alert('답안을 작성해 주세요');
               return;
             }
             
             if (!currentAccessCode) {
-              alert('과제 액세스 코드를 먼저 입력해주세요');
+              alert('과제 액세스 코드를 먼저 입력해 주세요');
               return;
             }
             
@@ -8659,7 +8659,7 @@ app.get('/student/dashboard', (c) => {
             console.log('[FRONTEND] Access Code:', currentAccessCode);
             
             if (!sessionId) {
-              alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+              alert('세션이 만료되었습니다. 다시 로그인해 주세요.');
               window.location.href = '/student/login';
               return;
             }
@@ -8682,7 +8682,7 @@ app.get('/student/dashboard', (c) => {
                 
                 alert(isResubmission 
                   ? '답안이 재제출되었습니다! (버전 ' + version + ')'
-                  : '답안이 제출되었습니다! 선생님의 채점을 기다려주세요.');
+                  : '답안이 제출되었습니다! 선생님의 채점을 기다려 주세요.');
                 
                 document.getElementById('essayText').value = '';
                 document.getElementById('assignmentDetails').classList.add('hidden');
@@ -8753,7 +8753,7 @@ app.get('/student/dashboard', (c) => {
               submissionsList.innerHTML = html;
             } catch (error) {
               console.error('[FRONTEND] Load submissions error:', error);
-              submissionsList.innerHTML = '<p class="text-red-500 text-center py-8">제출물을 불러오는데 실패했습니다</p>';
+              submissionsList.innerHTML = '<p class="text-red-500 text-center py-8">제출물을 불러오는 데 실패했습니다</p>';
             }
           };
           
@@ -9024,7 +9024,7 @@ app.get('/student/feedback/:id', (c) => {
               document.getElementById('feedbackContent').innerHTML = \`
                 <div class="text-center py-8 text-red-600">
                   <i class="fas fa-exclamation-triangle text-3xl mb-3"></i>
-                  <p>피드백을 불러오는데 실패했습니다</p>
+                  <p>피드백을 불러오는 데 실패했습니다</p>
                 </div>
               \`;
             }
