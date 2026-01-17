@@ -2411,6 +2411,26 @@ app.get('/api/admin/recent-activity', async (c) => {
 })
 
 /**
+ * GET /api/admin/users/subscriptions - Get all users subscription info (WORKAROUND)
+ */
+app.get('/api/admin/users/subscriptions', async (c) => {
+  try {
+    const db = c.env.DB
+    
+    const result = await db.prepare(
+      `SELECT id, subscription FROM users ORDER BY id`
+    ).all()
+    
+    console.log('[BACKEND] users/subscriptions:', result.results)
+    
+    return c.json(result.results || [])
+  } catch (error) {
+    console.error('Error fetching subscriptions:', error)
+    return c.json({ error: 'Failed to fetch subscriptions' }, 500)
+  }
+})
+
+/**
  * GET /api/admin/users - Get all users with details
  */
 app.get('/api/admin/users', async (c) => {
@@ -7732,8 +7752,39 @@ app.get('/admin', (c) => {
 
           async function loadUsers() {
             try {
-              const response = await axios.get('/api/admin/users');
-              const { teachers, students } = response.data;
+              // Fetch users data
+              const usersResponse = await axios.get('/api/admin/users');
+              let { teachers, students } = usersResponse.data;
+
+              // WORKAROUND: Fetch subscriptions separately and merge
+              try {
+                const subscriptionsResponse = await axios.get('/api/admin/users/subscriptions');
+                const subscriptions = subscriptionsResponse.data;
+                
+                console.log('[DEBUG] Subscriptions fetched:', subscriptions);
+                
+                // Merge subscription data into teachers
+                if (Array.isArray(subscriptions) && subscriptions.length > 0) {
+                  const subscriptionMap = {};
+                  subscriptions.forEach(sub => {
+                    subscriptionMap[sub.id] = sub.subscription || '무료';
+                  });
+                  
+                  teachers = teachers.map(t => ({
+                    ...t,
+                    subscription: subscriptionMap[t.id] || t.subscription || '무료'
+                  }));
+                  
+                  console.log('[DEBUG] Teachers after merge:', teachers);
+                }
+              } catch (subError) {
+                console.error('[ERROR] Failed to fetch subscriptions:', subError);
+                // Default to '무료' if subscription fetch fails
+                teachers = teachers.map(t => ({
+                  ...t,
+                  subscription: t.subscription || '무료'
+                }));
+              }
 
               // Display teachers
               if (teachers.length > 0) {
