@@ -7310,10 +7310,22 @@ app.get('/admin', (c) => {
           async function loadStats() {
             try {
               console.log('[DEBUG] Calling /api/admin/stats...');
-              const response = await axios.get('/api/admin/stats');
-              console.log('[DEBUG] Stats response:', response.data);
-              console.log('[DEBUG] Stats response JSON:', JSON.stringify(response.data, null, 2));
-              statsData = response.data;
+              const statsResponse = await axios.get('/api/admin/stats');
+              console.log('[DEBUG] Stats response:', statsResponse.data);
+              console.log('[DEBUG] Stats response JSON:', JSON.stringify(statsResponse.data, null, 2));
+              
+              // WORKAROUND: Fetch subscription stats separately
+              console.log('[DEBUG] Calling /api/admin/subscription-stats...');
+              const subscriptionResponse = await axios.get('/api/admin/subscription-stats');
+              console.log('[DEBUG] Subscription stats response:', subscriptionResponse.data);
+              
+              // Merge responses
+              statsData = {
+                ...statsResponse.data,
+                subscription_stats: subscriptionResponse.data
+              };
+              
+              console.log('[DEBUG] Merged data:', statsData);
               displayStats(statsData);
             } catch (error) {
               console.error('[ERROR] Error loading stats:', error);
