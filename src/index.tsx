@@ -2264,6 +2264,24 @@ app.put('/api/submission/:id/feedback', async (c) => {
 // It was moved to the grading routes module for better organization
 
 /**
+ * GET /api/admin/subscription-stats - Get subscription statistics (TEST)
+ */
+app.get('/api/admin/subscription-stats', async (c) => {
+  try {
+    const db = c.env.DB
+    const result = await db.prepare(
+      `SELECT subscription, COUNT(*) as count
+       FROM users
+       GROUP BY subscription`
+    ).all()
+    
+    return c.json(result.results || [])
+  } catch (error) {
+    return c.json([], 500)
+  }
+})
+
+/**
  * GET /api/admin/stats - Get system-wide statistics (Admin only)
  */
 app.get('/api/admin/stats', async (c) => {
@@ -2322,17 +2340,15 @@ app.get('/api/admin/stats', async (c) => {
        LIMIT 10`
     ).all()
     
-    // Subscription statistics (NEW)
-    const subscriptionStats = await db.prepare(
+    // Subscription statistics
+    const subscriptionStatsResult = await db.prepare(
       `SELECT subscription, COUNT(*) as count
        FROM users
        GROUP BY subscription`
     ).all()
     
-    console.log('[BACKEND DEBUG] subscriptionStats:', subscriptionStats);
-    console.log('[BACKEND DEBUG] subscriptionStats.results:', subscriptionStats.results);
-    
-    return c.json({
+    // Build response object
+    const responseObj = {
       overview: {
         total_teachers: teacherCount?.count || 0,
         total_students: studentCount?.count || 0,
@@ -2346,13 +2362,21 @@ app.get('/api/admin/stats', async (c) => {
         submissions_last_7_days: recentSubmissions?.count || 0,
         graded_last_7_days: recentGrading?.count || 0
       },
-      subscription_stats: subscriptionStats.results || [],
       top_teachers: topTeachers.results || [],
-      active_students: activeStudents.results || []
-    })
+      active_students: activeStudents.results || [],
+      subscription_stats: subscriptionStatsResult.results || []
+    }
+    
+    return c.json(responseObj)
   } catch (error) {
     console.error('Error fetching admin stats:', error)
-    return c.json({ error: 'Failed to fetch statistics' }, 500)
+    console.error('Error stack:', error.stack)
+    console.error('Error message:', error.message)
+    return c.json({ 
+      error: 'Failed to fetch statistics',
+      error_message: error.message,
+      error_details: String(error)
+    }, 500)
   }
 })
 
