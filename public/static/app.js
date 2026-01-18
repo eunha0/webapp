@@ -403,27 +403,23 @@ function getRubricCriteria() {
       ];
     } else if (rubricType === 'kr_elementary') {
       return [
-        { criterion_name: '핵심 개념의 이해와 분석', criterion_description: '제2차 세계대전의 주요 원인을 정확하게 파악하고 깊이 있게 분석했습니다.', criterion_order: 1 },
-        { criterion_name: '증거와 역사적 사례 활용', criterion_description: '논거를 뒷받침하기 위해 구체적이고 적절한 역사적 사례를 사용했습니다.', criterion_order: 2 },
-        { criterion_name: '출처 인용의 정확성', criterion_description: '지정된 자료에서 정보를 정확하게 최소 두 번 인용했습니다.', criterion_order: 3 },
-        { criterion_name: '문법 정확성, 구성 및 흐름', criterion_description: '최소한의 문법 오류, 논리적 흐름, 다양한 문장 구조를 보여줍니다.', criterion_order: 4 }
+        { criterion_name: '내용의 풍부성', criterion_description: '자신의 생각이나 느낌, 경험을 구체적이고 솔직하게 표현했습니다.', criterion_order: 1, max_score: 40 },
+        { criterion_name: '글의 짜임', criterion_description: '글의 시작(처음), 중간(가운데), 끝(맺음)이 자연스럽게 연결됩니다.', criterion_order: 2, max_score: 30 },
+        { criterion_name: '표현과 맞춤법', criterion_description: '문장의 자연스러움과 맞춤법, 띄어쓰기 등 기초적인 표기법이 올바릅니다.', criterion_order: 3, max_score: 30 }
       ];
     } else if (rubricType === 'kr_middle') {
-      // 6 criteria for detailed rubric
       return [
-        { criterion_name: '논제의 명확성', criterion_description: '논제가 명확하고 구체적으로 제시되었습니다.', criterion_order: 1 },
-        { criterion_name: '논거의 타당성', criterion_description: '논거가 논리적이고 설득력 있게 제시되었습니다.', criterion_order: 2 },
-        { criterion_name: '증거 활용', criterion_description: '적절한 증거와 사례를 효과적으로 활용했습니다.', criterion_order: 3 },
-        { criterion_name: '구조와 조직', criterion_description: '글의 구조가 체계적이고 논리적으로 조직되었습니다.', criterion_order: 4 },
-        { criterion_name: '언어 사용', criterion_description: '문법, 어휘, 문장 구조가 정확하고 적절합니다.', criterion_order: 5 },
-        { criterion_name: '창의성과 통찰', criterion_description: '독창적인 관점과 깊이 있는 통찰을 보여줍니다.', criterion_order: 6 }
+        { criterion_name: '주제의 명료성', criterion_description: '글쓴이의 주장이나 주제가 분명하게 드러납니다.', criterion_order: 1, max_score: 20 },
+        { criterion_name: '논리적 구성', criterion_description: '서론(도입)-본론(전개)-결론(정리)의 형식을 갖추고 문단이 잘 구분되었습니다.', criterion_order: 2, max_score: 30 },
+        { criterion_name: '근거의 적절성', criterion_description: '주장을 뒷받침하기 위해 적절한 이유나 예시를 들었습니다.', criterion_order: 3, max_score: 30 },
+        { criterion_name: '표현의 정확성', criterion_description: '표준어 사용, 맞춤법, 문장의 호응 등 기본적인 국어 사용 능력이 우수합니다.', criterion_order: 4, max_score: 20 }
       ];
     } else if (rubricType === 'kr_high') {
-      // 3 criteria for simple rubric
       return [
-        { criterion_name: '내용의 이해', criterion_description: '주제에 대한 이해가 정확하고 충분합니다.', criterion_order: 1 },
-        { criterion_name: '논리적 전개', criterion_description: '논리적으로 일관되게 전개되었습니다.', criterion_order: 2 },
-        { criterion_name: '표현의 적절성', criterion_description: '문법과 어휘가 적절하게 사용되었습니다.', criterion_order: 3 }
+        { criterion_name: '통찰력 및 비판적 사고', criterion_description: '주제를 단순히 나열하지 않고, 자신만의 관점으로 심도 있게 분석하거나 비판적으로 고찰했습니다.', criterion_order: 1, max_score: 30 },
+        { criterion_name: '논증의 체계성', criterion_description: '논지가 유기적으로 연결되며, 예상되는 반론을 고려하거나 논리적 완결성을 갖추었습니다.', criterion_order: 2, max_score: 30 },
+        { criterion_name: '근거의 타당성 및 다양성', criterion_description: '객관적 자료, 전문가 견해 등 신뢰할 수 있는 근거를 활용하여 설득력을 높였습니다.', criterion_order: 3, max_score: 25 },
+        { criterion_name: '문체 및 어법의 세련됨', criterion_description: '학술적 글쓰기에 적합한 어조와 세련된 문장 구사력을 보여줍니다.', criterion_order: 4, max_score: 15 }
       ];
     } else if (rubricType === 'nyregents') {
       // NY Regents Argumentative Writing Rubric - 4 criteria
