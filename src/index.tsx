@@ -4164,7 +4164,7 @@ app.get('/', (c) => {
                 <div id="loadingIndicator" class="hidden text-center py-20">
                     <div class="loading-spinner mx-auto mb-6"></div>
                     <p class="text-2xl font-semibold text-gray-700">논술을 분석하는 중...</p>
-                    <p class="text-gray-500 mt-2">일반적으로 5-10초 소요됩니다</p>
+                    <p class="text-gray-500 mt-2">일반적으로 30-50초 소요됩니다</p>
                 </div>
 
                 <!-- Results Display -->
