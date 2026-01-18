@@ -4299,7 +4299,7 @@ app.get('/', (c) => {
           // Run on page load
           document.addEventListener('DOMContentLoaded', checkLoginStatus);
         </script>
-        <script src="/static/app.js"></script>
+        <script src="/static/app.js?v=20260118"></script>
     </body>
     </html>
   `)
