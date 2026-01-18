@@ -574,8 +574,8 @@ function displayResults(result, essayId, rubricCriteria) {
           채점 완료!
         </h2>
         <div class="inline-block bg-gradient-to-r from-navy-100 to-blue-100 rounded-2xl px-10 py-6">
-          <span class="text-6xl font-bold bg-gradient-to-r from-navy-700 to-navy-900 bg-clip-text text-transparent">${result.total_score}</span>
-          <span class="text-3xl text-gray-600">/${totalMaxScore}</span>
+          <span class="text-6xl font-bold bg-gradient-to-r from-navy-700 to-navy-900 bg-clip-text text-transparent print:text-navy-900 print:bg-none">${result.total_score}</span>
+          <span class="text-3xl text-gray-600 print:text-gray-900">/${totalMaxScore}</span>
         </div>
       </div>
       
