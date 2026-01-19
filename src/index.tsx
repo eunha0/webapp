@@ -323,6 +323,181 @@ app.get('/api/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
+// Google OAuth 2.0 Callback
+app.get('/api/auth/google/callback', async (c) => {
+  try {
+    const { code, state, error } = c.req.query()
+    
+    // Check for OAuth errors
+    if (error) {
+      return c.html(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>로그인 오류</title></head>
+        <body>
+          <script>
+            alert('Google 로그인 오류: ${error}');
+            window.location.href = '/signup';
+          </script>
+        </body>
+        </html>
+      `)
+    }
+    
+    if (!code) {
+      return c.html(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>로그인 오류</title></head>
+        <body>
+          <script>
+            alert('인증 코드가 없습니다.');
+            window.location.href = '/signup';
+          </script>
+        </body>
+        </html>
+      `)
+    }
+    
+    // Exchange code for access token
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        code: code,
+        client_id: c.env.GOOGLE_CLIENT_ID,
+        client_secret: c.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: `${new URL(c.req.url).origin}/api/auth/google/callback`,
+        grant_type: 'authorization_code',
+      }),
+    })
+    
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.text()
+      console.error('Token exchange failed:', errorData)
+      return c.html(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>로그인 오류</title></head>
+        <body>
+          <script>
+            alert('토큰 교환 실패');
+            window.location.href = '/signup';
+          </script>
+        </body>
+        </html>
+      `)
+    }
+    
+    const tokenData = await tokenResponse.json()
+    
+    // Get user info from Google
+    const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: {
+        Authorization: `Bearer ${tokenData.access_token}`,
+      },
+    })
+    
+    if (!userInfoResponse.ok) {
+      return c.html(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>로그인 오류</title></head>
+        <body>
+          <script>
+            alert('사용자 정보 가져오기 실패');
+            window.location.href = '/signup';
+          </script>
+        </body>
+        </html>
+      `)
+    }
+    
+    const googleUser = await userInfoResponse.json()
+    
+    // Check if user exists
+    const existingUser = await c.env.DB.prepare(`
+      SELECT id, name, email, subscription FROM users WHERE email = ?
+    `).bind(googleUser.email).first()
+    
+    if (existingUser) {
+      // User exists, log them in
+      const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(7)}`
+      
+      await c.env.DB.prepare(`
+        INSERT INTO sessions (session_id, user_id, created_at)
+        VALUES (?, ?, datetime('now'))
+      `).bind(sessionId, existingUser.id).run()
+      
+      return c.html(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>로그인 성공</title></head>
+        <body>
+          <script>
+            localStorage.setItem('sessionId', '${sessionId}');
+            localStorage.setItem('userName', '${existingUser.name}');
+            localStorage.setItem('userEmail', '${existingUser.email}');
+            localStorage.setItem('isLoggedIn', 'true');
+            alert('Google 로그인 성공!');
+            window.location.href = '/teacher';
+          </script>
+        </body>
+        </html>
+      `)
+    } else {
+      // Create new user
+      const hashedPassword = await hashPassword('google-oauth-' + googleUser.id)
+      
+      const insertResult = await c.env.DB.prepare(`
+        INSERT INTO users (name, email, password_hash, subscription, created_at)
+        VALUES (?, ?, ?, '무료', datetime('now'))
+      `).bind(googleUser.name, googleUser.email, hashedPassword).run()
+      
+      const userId = insertResult.meta.last_row_id
+      const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(7)}`
+      
+      await c.env.DB.prepare(`
+        INSERT INTO sessions (session_id, user_id, created_at)
+        VALUES (?, ?, datetime('now'))
+      `).bind(sessionId, userId).run()
+      
+      return c.html(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>회원가입 성공</title></head>
+        <body>
+          <script>
+            localStorage.setItem('sessionId', '${sessionId}');
+            localStorage.setItem('userName', '${googleUser.name}');
+            localStorage.setItem('userEmail', '${googleUser.email}');
+            localStorage.setItem('isLoggedIn', 'true');
+            alert('Google 회원가입 및 로그인 성공!');
+            window.location.href = '/teacher';
+          </script>
+        </body>
+        </html>
+      `)
+    }
+  } catch (error) {
+    console.error('Google OAuth error:', error)
+    return c.html(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>로그인 오류</title></head>
+      <body>
+        <script>
+          alert('Google 로그인 처리 중 오류가 발생했습니다.');
+          window.location.href = '/signup';
+        </script>
+      </body>
+      </html>
+    `)
+  }
+})
+
 // Legacy API Routes (to be removed - keeping for compatibility)
 
 /**
@@ -5174,11 +5349,11 @@ app.get('/login', (c) => {
                     </div>
 
                     <div class="mt-6 grid grid-cols-2 gap-3">
-                        <button class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                        <button onclick="loginWithGoogle()" type="button" class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
                             <i class="fab fa-google text-red-500 mr-2"></i>
                             Google
                         </button>
-                        <button class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                        <button type="button" class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 opacity-50 cursor-not-allowed">
                             <i class="fas fa-comment text-yellow-400 mr-2"></i>
                             Kakao
                         </button>
@@ -5220,6 +5395,27 @@ app.get('/login', (c) => {
           const urlParams = new URLSearchParams(window.location.search);
           const loginType = urlParams.get('type') || 'teacher';
           const isStudentLogin = loginType === 'student';
+          
+          function loginWithGoogle() {
+            // Google OAuth 2.0 인증 URL (교사 로그인용)
+            const clientId = '424693149052-utmma72l4l2a8crnib06pmcpcs1k2178.apps.googleusercontent.com';
+            const redirectUri = window.location.origin + '/api/auth/google/callback';
+            const scope = 'profile email';
+            const state = Math.random().toString(36).substring(7);
+            
+            sessionStorage.setItem('google_oauth_state', state);
+            
+            const googleAuthUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' +
+              'client_id=' + encodeURIComponent(clientId) +
+              '&redirect_uri=' + encodeURIComponent(redirectUri) +
+              '&response_type=code' +
+              '&scope=' + encodeURIComponent(scope) +
+              '&state=' + encodeURIComponent(state) +
+              '&access_type=offline' +
+              '&prompt=select_account';
+            
+            window.location.href = googleAuthUrl;
+          }
           
           async function handleLogin(event) {
             event.preventDefault();
@@ -5412,15 +5608,25 @@ app.get('/signup', (c) => {
         <script>
           // Google Sign Up
           function signUpWithGoogle() {
-            // Google OAuth 2.0 인증 URL (실제 구현 시 설정 필요)
-            alert('Google 가입 기능은 현재 개발 중입니다. Google OAuth 2.0 설정이 필요합니다.');
+            // Google OAuth 2.0 인증 URL
+            const clientId = '424693149052-utmma72l4l2a8crnib06pmcpcs1k2178.apps.googleusercontent.com';
+            const redirectUri = window.location.origin + '/api/auth/google/callback';
+            const scope = 'profile email';
+            const state = Math.random().toString(36).substring(7); // CSRF protection
             
-            // 실제 구현 예시:
-            // const clientId = 'YOUR_GOOGLE_CLIENT_ID';
-            // const redirectUri = window.location.origin + '/api/auth/google/callback';
-            // const scope = 'profile email';
-            // const googleAuthUrl = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + clientId + '&redirect_uri=' + redirectUri + '&response_type=code&scope=' + scope;
-            // window.location.href = googleAuthUrl;
+            // Store state for verification
+            sessionStorage.setItem('google_oauth_state', state);
+            
+            const googleAuthUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' +
+              'client_id=' + encodeURIComponent(clientId) +
+              '&redirect_uri=' + encodeURIComponent(redirectUri) +
+              '&response_type=code' +
+              '&scope=' + encodeURIComponent(scope) +
+              '&state=' + encodeURIComponent(state) +
+              '&access_type=offline' +
+              '&prompt=select_account';
+            
+            window.location.href = googleAuthUrl;
           }
           
           async function handleSignup(event) {

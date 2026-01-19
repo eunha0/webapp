@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "webapp",
+  "name": "ai-nonsool-kr",
   "compatibility_date": "2025-10-31",
   "pages_build_output_dir": "./dist",
   "compatibility_flags": [
@@ -10,13 +10,7 @@
     {
       "binding": "DB",
       "database_name": "webapp-production",
-      "database_id": "local-db-id"
-    }
-  ],
-  "r2_buckets": [
-    {
-      "binding": "R2_BUCKET",
-      "bucket_name": "webapp-files"
+      "database_id": "c6402d54-9e80-4d0b-983d-dfa8576d958a"
     }
   ]
 }
