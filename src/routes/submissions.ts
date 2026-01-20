@@ -123,6 +123,15 @@ submissions.post('/:id/grade', async (c) => {
       WHERE id = ?
     `).bind(...params).run()
     
+    // Increment teacher's monthly grading count
+    await db.prepare(`
+      UPDATE users 
+      SET monthly_graded_count = COALESCE(monthly_graded_count, 0) + 1
+      WHERE id = ?
+    `).bind(user.id).run()
+    
+    console.log('[Grading] Successfully graded submission:', submissionId, 'for user:', user.id)
+    
     return c.json({
       success: true,
       grading_result: gradingResult

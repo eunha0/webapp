@@ -1239,6 +1239,42 @@ app.delete('/api/upload/:id', async (c) => {
 // - requireStudentAuth(c) - Require student authentication middleware
 
 /**
+ * GET /api/user/me - Get current user info
+ */
+app.get('/api/user/me', async (c) => {
+  try {
+    const user = await requireAuth(c)
+    if (isErrorResponse(user)) return user
+    
+    const db = c.env.DB
+    
+    // Get user with subscription and monthly grading count
+    const userInfo = await db.prepare(`
+      SELECT id, name, email, subscription, monthly_graded_count, is_admin, created_at
+      FROM users
+      WHERE id = ?
+    `).bind(user.id).first()
+    
+    if (!userInfo) {
+      return c.json({ error: 'User not found' }, 404)
+    }
+    
+    return c.json({
+      id: userInfo.id,
+      name: userInfo.name,
+      email: userInfo.email,
+      subscription: userInfo.subscription || '무료',
+      monthly_graded_count: userInfo.monthly_graded_count || 0,
+      is_admin: userInfo.is_admin === 1,
+      created_at: userInfo.created_at
+    })
+  } catch (error) {
+    console.error('Error fetching user info:', error)
+    return c.json({ error: 'Failed to fetch user info' }, 500)
+  }
+})
+
+/**
  * GET /api/assignments - Get user's assignments
  */
 app.get('/api/assignments', async (c) => {
@@ -6383,8 +6419,8 @@ app.get('/pricing', (c) => {
           let currentBilling = 'monthly';
           let currentPlan = 'free'; // Default plan
           
-          // Get current plan from URL parameter
-          window.addEventListener('DOMContentLoaded', () => {
+          // Get current plan from server
+          window.addEventListener('DOMContentLoaded', async () => {
             // Check login status and show/hide navigation links
             const isTeacherLoggedIn = getStorageItem('isLoggedIn') === 'true';
             const isStudentLoggedIn = getStorageItem('isStudentLoggedIn') === 'true';
@@ -6397,6 +6433,27 @@ app.get('/pricing', (c) => {
               // Show "나의 페이지" and hide "로그인" dropdown
               if (myPageLink) myPageLink.style.display = 'block';
               if (loginDropdown) loginDropdown.style.display = 'none';
+              
+              // Fetch current subscription from server
+              try {
+                const sessionId = getStorageItem('session_id');
+                if (sessionId) {
+                  const response = await fetch('/api/user/me', {
+                    headers: { 'X-Session-ID': sessionId }
+                  });
+                  
+                  if (response.ok) {
+                    const userData = await response.json();
+                    if (userData.subscription) {
+                      const planMap = { '무료': 'free', '스타터': 'starter', '베이직': 'basic', '프로': 'pro' };
+                      currentPlan = planMap[userData.subscription] || 'free';
+                      updatePlanDisplay();
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error('Failed to fetch user subscription:', error);
+              }
             } else {
               // Hide "나의 페이지" and show "로그인" dropdown
               if (myPageLink) myPageLink.style.display = 'none';
@@ -6412,23 +6469,17 @@ app.get('/pricing', (c) => {
           });
           
           function updatePlanDisplay() {
-            // Hide plans based on current plan
-            if (currentPlan === 'starter') {
-              // Hide free plan for starter users
-              const freePlanCard = document.querySelector('[data-plan="free"]');
-              if (freePlanCard) freePlanCard.style.display = 'none';
-            }
-            
-            // Update button texts
+            // Update button texts based on current plan
             document.querySelectorAll('[data-plan-button]').forEach(button => {
               const planType = button.getAttribute('data-plan-button');
               if (planType === currentPlan) {
-                button.textContent = '사용 중';
+                button.textContent = '이용 중';
                 button.disabled = true;
                 button.classList.remove('bg-navy-900', 'hover:bg-navy-800', 'bg-gradient-to-r', 'from-navy-700', 'to-navy-900', 'hover:shadow-xl');
                 button.classList.add('bg-gray-400', 'cursor-not-allowed');
               } else {
-                button.textContent = '선택하기';
+                button.textContent = '업그레이드';
+                button.disabled = false;
               }
             });
           }
