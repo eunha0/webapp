@@ -467,9 +467,10 @@ app.get('/api/auth/google/callback', async (c) => {
       // User exists, log them in
       const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(7)}`
       
+      // Session expires in 30 days
       await c.env.DB.prepare(`
-        INSERT INTO sessions (session_id, user_id, created_at)
-        VALUES (?, ?, datetime('now'))
+        INSERT INTO sessions (id, user_id, expires_at, created_at)
+        VALUES (?, ?, datetime('now', '+30 days'), datetime('now'))
       `).bind(sessionId, existingUser.id).run()
       
       return c.html(`
@@ -500,9 +501,10 @@ app.get('/api/auth/google/callback', async (c) => {
       const userId = insertResult.meta.last_row_id
       const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(7)}`
       
+      // Session expires in 30 days
       await c.env.DB.prepare(`
-        INSERT INTO sessions (session_id, user_id, created_at)
-        VALUES (?, ?, datetime('now'))
+        INSERT INTO sessions (id, user_id, expires_at, created_at)
+        VALUES (?, ?, datetime('now', '+30 days'), datetime('now'))
       `).bind(sessionId, userId).run()
       
       return c.html(`
