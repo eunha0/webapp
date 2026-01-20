@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
-import { requireAuth } from '../middleware/auth'
+import { requireAdminAuth, isErrorResponse } from '../middleware/auth'
 
 const admin = new Hono<{ Bindings: Bindings }>()
 
@@ -9,8 +9,8 @@ const admin = new Hono<{ Bindings: Bindings }>()
  */
 admin.get('/stats', async (c) => {
   try {
-    const user = await requireAuth(c)
-    if (!user.id) return user
+    const user = await requireAdminAuth(c)
+    if (isErrorResponse(user)) return user
     
     const db = c.env.DB
     
@@ -94,8 +94,8 @@ admin.get('/stats', async (c) => {
  */
 admin.get('/recent-activity', async (c) => {
   try {
-    const user = await requireAuth(c)
-    if (!user.id) return user
+    const user = await requireAdminAuth(c)
+    if (isErrorResponse(user)) return user
     
     const db = c.env.DB
     
@@ -125,8 +125,8 @@ admin.get('/recent-activity', async (c) => {
  */
 admin.get('/users', async (c) => {
   try {
-    const user = await requireAuth(c)
-    if (!user.id) return user
+    const user = await requireAdminAuth(c)
+    if (isErrorResponse(user)) return user
     
     const db = c.env.DB
     
@@ -178,8 +178,8 @@ admin.get('/users', async (c) => {
  */
 admin.post('/resource', async (c) => {
   try {
-    const user = await requireAuth(c)
-    if (!user.id) return user
+    const user = await requireAdminAuth(c)
+    if (isErrorResponse(user)) return user
     
     const { title, description, type, url } = await c.req.json()
     const db = c.env.DB
@@ -200,8 +200,8 @@ admin.post('/resource', async (c) => {
  */
 admin.put('/resource/:id', async (c) => {
   try {
-    const user = await requireAuth(c)
-    if (!user.id) return user
+    const user = await requireAdminAuth(c)
+    if (isErrorResponse(user)) return user
     
     const resourceId = parseInt(c.req.param('id'))
     const { title, description, type, url } = await c.req.json()
@@ -223,8 +223,8 @@ admin.put('/resource/:id', async (c) => {
  */
 admin.delete('/resource/:id', async (c) => {
   try {
-    const user = await requireAuth(c)
-    if (!user.id) return user
+    const user = await requireAdminAuth(c)
+    if (isErrorResponse(user)) return user
     
     const resourceId = parseInt(c.req.param('id'))
     const db = c.env.DB

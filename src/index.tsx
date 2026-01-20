@@ -13,7 +13,7 @@ import admin from './routes/admin'
 // import students from './routes/students' // REMOVED: Using inline routes instead
 
 // Import authentication helpers from middleware
-import { getUserFromSession, requireAuth, requireStudentAuth, getStudentFromSession } from './middleware/auth'
+import { getUserFromSession, requireAuth, requireStudentAuth, getStudentFromSession, requireAdminAuth, isErrorResponse } from './middleware/auth'
 
 // Import utility functions
 import { hashPassword } from './utils/helpers'
@@ -460,10 +460,19 @@ app.get('/api/auth/google/callback', async (c) => {
     
     // Check if user exists
     const existingUser = await c.env.DB.prepare(`
-      SELECT id, name, email, subscription FROM users WHERE email = ?
+      SELECT id, name, email, subscription, is_admin FROM users WHERE email = ?
     `).bind(googleUser.email).first()
     
     if (existingUser) {
+      // Check if admin status needs to be updated
+      const shouldBeAdmin = googleUser.email === 'dudtp999@gmail.com'
+      if (shouldBeAdmin && existingUser.is_admin !== 1) {
+        await c.env.DB.prepare(`
+          UPDATE users SET is_admin = 1 WHERE id = ?
+        `).bind(existingUser.id).run()
+        console.log('[OAuth] Updated user to admin:', existingUser.email)
+      }
+      
       // User exists, log them in
       const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(7)}`
       
@@ -472,6 +481,12 @@ app.get('/api/auth/google/callback', async (c) => {
         INSERT INTO sessions (id, user_id, expires_at, created_at)
         VALUES (?, ?, datetime('now', '+30 days'), datetime('now'))
       `).bind(sessionId, existingUser.id).run()
+      
+      console.log('[OAuth] Existing user logged in:', { 
+        email: existingUser.email,
+        is_admin: shouldBeAdmin,
+        user_id: existingUser.id
+      })
       
       return c.html(`
         <!DOCTYPE html>
@@ -493,10 +508,13 @@ app.get('/api/auth/google/callback', async (c) => {
       // Create new user
       const hashedPassword = await hashPassword('google-oauth-' + googleUser.id)
       
+      // Check if this is the admin account
+      const isAdmin = googleUser.email === 'dudtp999@gmail.com' ? 1 : 0
+      
       const insertResult = await c.env.DB.prepare(`
-        INSERT INTO users (name, email, password_hash, subscription, created_at)
-        VALUES (?, ?, ?, '무료', datetime('now'))
-      `).bind(googleUser.name, googleUser.email, hashedPassword).run()
+        INSERT INTO users (name, email, password_hash, subscription, is_admin, created_at)
+        VALUES (?, ?, ?, '무료', ?, datetime('now'))
+      `).bind(googleUser.name, googleUser.email, hashedPassword, isAdmin).run()
       
       const userId = insertResult.meta.last_row_id
       const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(7)}`
@@ -506,6 +524,12 @@ app.get('/api/auth/google/callback', async (c) => {
         INSERT INTO sessions (id, user_id, expires_at, created_at)
         VALUES (?, ?, datetime('now', '+30 days'), datetime('now'))
       `).bind(sessionId, userId).run()
+      
+      console.log('[OAuth] New user created:', { 
+        email: googleUser.email, 
+        is_admin: isAdmin,
+        user_id: userId 
+      })
       
       return c.html(`
         <!DOCTYPE html>
@@ -2758,11 +2782,9 @@ app.get('/api/user/grading-quota', async (c) => {
  */
 app.put('/api/admin/users/:id/subscription', async (c) => {
   try {
-    // Check if user is admin (session_id should be admin session)
-    const sessionId = c.req.header('X-Session-ID')
-    if (!sessionId) {
-      return c.json({ error: '로그인이 필요합니다' }, 401)
-    }
+    // Check admin authentication
+    const user = await requireAdminAuth(c)
+    if (isErrorResponse(user)) return user
 
     const userId = parseInt(c.req.param('id'))
     const { subscription } = await c.req.json()
