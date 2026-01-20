@@ -328,8 +328,16 @@ app.get('/api/auth/google/callback', async (c) => {
   try {
     const { code, state, error } = c.req.query()
     
+    console.log('[OAuth] Callback received:', { hasCode: !!code, hasState: !!state, error })
+    console.log('[OAuth] Environment check:', { 
+      hasClientId: !!c.env.GOOGLE_CLIENT_ID,
+      hasClientSecret: !!c.env.GOOGLE_CLIENT_SECRET,
+      hasDB: !!c.env.DB
+    })
+    
     // Check for OAuth errors
     if (error) {
+      console.error('[OAuth] Google error:', error)
       return c.html(`
         <!DOCTYPE html>
         <html>
@@ -345,6 +353,7 @@ app.get('/api/auth/google/callback', async (c) => {
     }
     
     if (!code) {
+      console.error('[OAuth] No authorization code received')
       return c.html(`
         <!DOCTYPE html>
         <html>
@@ -352,6 +361,23 @@ app.get('/api/auth/google/callback', async (c) => {
         <body>
           <script>
             alert('인증 코드가 없습니다.');
+            window.location.href = '/signup';
+          </script>
+        </body>
+        </html>
+      `)
+    }
+    
+    // Check environment variables
+    if (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_CLIENT_SECRET) {
+      console.error('[OAuth] Missing environment variables')
+      return c.html(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>로그인 오류</title></head>
+        <body>
+          <script>
+            alert('서버 설정 오류: Google OAuth 환경변수가 없습니다.');
             window.location.href = '/signup';
           </script>
         </body>
@@ -376,20 +402,26 @@ app.get('/api/auth/google/callback', async (c) => {
     
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.text()
-      console.error('Token exchange failed:', errorData)
+      console.error('[OAuth] Token exchange failed:', {
+        status: tokenResponse.status,
+        statusText: tokenResponse.statusText,
+        error: errorData
+      })
       return c.html(`
         <!DOCTYPE html>
         <html>
         <head><title>로그인 오류</title></head>
         <body>
           <script>
-            alert('토큰 교환 실패');
+            alert('토큰 교환 실패: ${tokenResponse.status} - ${errorData.substring(0, 100)}');
             window.location.href = '/signup';
           </script>
         </body>
         </html>
       `)
     }
+    
+    console.log('[OAuth] Token exchange successful')
     
     const tokenData = await tokenResponse.json()
     
@@ -401,13 +433,18 @@ app.get('/api/auth/google/callback', async (c) => {
     })
     
     if (!userInfoResponse.ok) {
+      const errorText = await userInfoResponse.text()
+      console.error('[OAuth] User info fetch failed:', {
+        status: userInfoResponse.status,
+        error: errorText
+      })
       return c.html(`
         <!DOCTYPE html>
         <html>
         <head><title>로그인 오류</title></head>
         <body>
           <script>
-            alert('사용자 정보 가져오기 실패');
+            alert('사용자 정보 가져오기 실패: ${userInfoResponse.status}');
             window.location.href = '/signup';
           </script>
         </body>
@@ -416,6 +453,7 @@ app.get('/api/auth/google/callback', async (c) => {
     }
     
     const googleUser = await userInfoResponse.json()
+    console.log('[OAuth] User info retrieved:', { email: googleUser.email, name: googleUser.name })
     
     // Check if user exists
     const existingUser = await c.env.DB.prepare(`
@@ -482,14 +520,18 @@ app.get('/api/auth/google/callback', async (c) => {
       `)
     }
   } catch (error) {
-    console.error('Google OAuth error:', error)
+    console.error('[OAuth] Unexpected error:', error)
+    console.error('[OAuth] Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    })
     return c.html(`
       <!DOCTYPE html>
       <html>
       <head><title>로그인 오류</title></head>
       <body>
         <script>
-          alert('Google 로그인 처리 중 오류가 발생했습니다.');
+          alert('Google 로그인 처리 중 오류가 발생했습니다: ${error instanceof Error ? error.message : String(error)}');
           window.location.href = '/signup';
         </script>
       </body>
