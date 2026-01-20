@@ -15,6 +15,9 @@ import admin from './routes/admin'
 // Import authentication helpers from middleware
 import { getUserFromSession, requireAuth, requireStudentAuth, getStudentFromSession } from './middleware/auth'
 
+// Import utility functions
+import { hashPassword } from './utils/helpers'
+
 const app = new Hono<{ Bindings: Bindings }>()
 
 // CRITICAL: Global storage utility functions (defined ONCE for all pages)
