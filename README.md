@@ -1009,3 +1009,4 @@ For questions or contributions, please create an issue.
 
 **Built with ❤️ using Hono, Cloudflare Workers, and AI**  
 **Designed to match the elegance of EssayGrader.ai**
+# Trigger deployment - environment variables configured
