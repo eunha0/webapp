@@ -479,9 +479,9 @@ app.get('/api/auth/google/callback', async (c) => {
         <head><title>로그인 성공</title></head>
         <body>
           <script>
-            localStorage.setItem('sessionId', '${sessionId}');
-            localStorage.setItem('userName', '${existingUser.name}');
-            localStorage.setItem('userEmail', '${existingUser.email}');
+            localStorage.setItem('session_id', '${sessionId}');
+            localStorage.setItem('user_name', '${existingUser.name}');
+            localStorage.setItem('user_email', '${existingUser.email}');
             localStorage.setItem('isLoggedIn', 'true');
             alert('Google 로그인 성공!');
             window.location.href = '/my-page';
@@ -513,9 +513,9 @@ app.get('/api/auth/google/callback', async (c) => {
         <head><title>회원가입 성공</title></head>
         <body>
           <script>
-            localStorage.setItem('sessionId', '${sessionId}');
-            localStorage.setItem('userName', '${googleUser.name}');
-            localStorage.setItem('userEmail', '${googleUser.email}');
+            localStorage.setItem('session_id', '${sessionId}');
+            localStorage.setItem('user_name', '${googleUser.name}');
+            localStorage.setItem('user_email', '${googleUser.email}');
             localStorage.setItem('isLoggedIn', 'true');
             alert('Google 회원가입 및 로그인 성공!');
             window.location.href = '/my-page';
