@@ -484,7 +484,7 @@ app.get('/api/auth/google/callback', async (c) => {
             localStorage.setItem('userEmail', '${existingUser.email}');
             localStorage.setItem('isLoggedIn', 'true');
             alert('Google 로그인 성공!');
-            window.location.href = '/teacher';
+            window.location.href = '/my-page';
           </script>
         </body>
         </html>
@@ -518,7 +518,7 @@ app.get('/api/auth/google/callback', async (c) => {
             localStorage.setItem('userEmail', '${googleUser.email}');
             localStorage.setItem('isLoggedIn', 'true');
             alert('Google 회원가입 및 로그인 성공!');
-            window.location.href = '/teacher';
+            window.location.href = '/my-page';
           </script>
         </body>
         </html>
