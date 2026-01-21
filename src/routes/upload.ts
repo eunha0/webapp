@@ -195,13 +195,22 @@ upload.post('/image', async (c) => {
         }
       }
       
-      // If no OCR worked, mark as completed without text
+      // If no OCR worked, mark as completed without text and return error
       if (!extractedText) {
         await db.prepare(
           `UPDATE uploaded_files 
            SET processing_status = ?, processed_at = CURRENT_TIMESTAMP
            WHERE id = ?`
         ).bind('completed', uploadedFileId).run()
+        
+        console.error('[OCR] All OCR methods failed - no text extracted')
+        return c.json({ 
+          error: '텍스트 추출에 실패했습니다. Google Vision API와 OCR.space 모두 사용할 수 없습니다. 이미지가 명확한지, 텍스트가 포함되어 있는지 확인해 주세요.',
+          file_id: uploadedFileId,
+          file_name: file.name,
+          storage_key: storageKey,
+          storage_url: `/api/files/${storageKey}`
+        }, 500)
       }
     } catch (processingError) {
       console.error('OCR processing error:', processingError)
@@ -212,6 +221,11 @@ upload.post('/image', async (c) => {
       ).bind('failed', String(processingError), uploadedFileId).run()
       
       await logProcessingStep(db, uploadedFileId, 'ocr', 'failed', String(processingError), null)
+      
+      return c.json({ 
+        error: `OCR 처리 중 오류가 발생했습니다: ${String(processingError)}`,
+        file_id: uploadedFileId
+      }, 500)
     }
     
     return c.json({
@@ -376,7 +390,7 @@ upload.post('/pdf', async (c) => {
       }
     }
     
-    // Final status update if no text was extracted
+    // Final status update if no text was extracted - return error
     if (!extractedText) {
       console.warn(`No text extracted from ${file.name} after all attempts`)
       await db.prepare(
@@ -384,6 +398,14 @@ upload.post('/pdf', async (c) => {
          SET processing_status = ?, error_message = ?, processed_at = CURRENT_TIMESTAMP
          WHERE id = ?`
       ).bind('failed', 'Failed to extract text from PDF', uploadedFileId).run()
+      
+      return c.json({ 
+        error: '텍스트 추출에 실패했습니다. PDF가 이미지 기반이거나 텍스트가 포함되어 있지 않습니다.',
+        file_id: uploadedFileId,
+        file_name: file.name,
+        storage_key: storageKey,
+        storage_url: `/api/files/${storageKey}`
+      }, 500)
     }
     
     return c.json({

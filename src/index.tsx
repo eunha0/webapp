@@ -2794,23 +2794,15 @@ app.get('/api/user/grading-quota', async (c) => {
     
     const db = c.env.DB
     
-    // Get user subscription
+    // Get user subscription and monthly graded count
     const userInfo = await db.prepare(
-      'SELECT subscription FROM users WHERE id = ?'
-    ).bind(user.id).first()
-    
-    // Count graded submissions
-    const gradedCount = await db.prepare(
-      `SELECT COUNT(*) as count 
-       FROM student_submissions s
-       JOIN assignments a ON s.assignment_id = a.id
-       WHERE a.user_id = ? AND s.graded = 1`
+      'SELECT subscription, monthly_graded_count FROM users WHERE id = ?'
     ).bind(user.id).first()
     
     const subscription = userInfo?.subscription || '무료'
-    const currentCount = gradedCount?.count || 0
+    const currentCount = userInfo?.monthly_graded_count || 0
     
-    // Define limits
+    // Define monthly limits
     const gradingLimits = {
       '무료': 20,
       '스타터': 90,
