@@ -61,19 +61,19 @@ upload.post('/image', async (c) => {
     // Read file as ArrayBuffer
     const fileBuffer = await file.arrayBuffer()
     
-    // Upload to R2 storage
+    // Upload to R2 storage (or fallback to base64)
     const r2Bucket = c.env.R2_BUCKET
     const r2Result = await uploadToR2(r2Bucket, storageKey, fileBuffer, file.type)
     
     if (!r2Result.success) {
-      return c.json({ error: r2Result.error || 'R2 업로드 실패' }, 500)
+      return c.json({ error: r2Result.error || 'Upload failed' }, 500)
     }
     
-    // Store file metadata in database
+    // Store file metadata in database (including base64 data if R2 not available)
     const result = await db.prepare(
       `INSERT INTO uploaded_files 
-       (user_id, student_user_id, submission_id, file_name, file_type, mime_type, file_size, storage_key, storage_url, processing_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (user_id, student_user_id, submission_id, file_name, file_type, mime_type, file_size, storage_key, storage_url, processing_status, file_data)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       user?.id || null,
       student?.id || null,
@@ -84,7 +84,8 @@ upload.post('/image', async (c) => {
       file.size,
       storageKey,
       r2Result.url || null,
-      'processing'
+      'processing',
+      r2Result.base64Data || null  // Store base64 data if R2 not available
     ).run()
     
     const uploadedFileId = result.meta.last_row_id as number
@@ -264,14 +265,14 @@ upload.post('/pdf', async (c) => {
     const r2Result = await uploadToR2(r2Bucket, storageKey, fileBuffer, file.type)
     
     if (!r2Result.success) {
-      return c.json({ error: r2Result.error || 'R2 업로드 실패' }, 500)
+      return c.json({ error: r2Result.error || 'Upload failed' }, 500)
     }
     
-    // Store metadata
+    // Store metadata (including base64 data if R2 not available)
     const result = await db.prepare(
       `INSERT INTO uploaded_files 
-       (user_id, student_user_id, submission_id, file_name, file_type, mime_type, file_size, storage_key, storage_url, processing_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (user_id, student_user_id, submission_id, file_name, file_type, mime_type, file_size, storage_key, storage_url, processing_status, file_data)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       user?.id || null,
       student?.id || null,
@@ -282,7 +283,8 @@ upload.post('/pdf', async (c) => {
       file.size,
       storageKey,
       r2Result.url || null,
-      'processing'
+      'processing',
+      r2Result.base64Data || null  // Store base64 data if R2 not available
     ).run()
     
     const uploadedFileId = result.meta.last_row_id as number

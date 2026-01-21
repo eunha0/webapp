@@ -2,7 +2,7 @@
 
 export type Bindings = {
   DB: D1Database;
-  R2_BUCKET: R2Bucket;
+  R2_BUCKET?: R2Bucket;  // Optional: fallback to base64 if not available
   GOOGLE_APPLICATION_CREDENTIALS: string;
   OPENAI_API_KEY?: string;
   OPENAI_BASE_URL?: string;

@@ -367,51 +367,68 @@ export async function logProcessingStep(
 }
 
 /**
- * Upload file to R2 storage
+ * Upload file to R2 storage (or fallback to base64 in DB if R2 not available)
  */
 export async function uploadToR2(
-  r2Bucket: R2Bucket,
+  r2Bucket: R2Bucket | undefined,
   storageKey: string,
   fileData: ArrayBuffer,
   contentType: string
-): Promise<{ success: boolean; url?: string; error?: string }> {
+): Promise<{ success: boolean; url?: string; error?: string; base64Data?: string }> {
   try {
-    // Upload file to R2
-    await r2Bucket.put(storageKey, fileData, {
-      httpMetadata: {
-        contentType: contentType,
-      },
-    });
+    // If R2 is available, use it
+    if (r2Bucket) {
+      await r2Bucket.put(storageKey, fileData, {
+        httpMetadata: {
+          contentType: contentType,
+        },
+      });
 
-    // R2 files are accessible via custom domain or R2.dev subdomain
-    // For now, we'll just return the storage key
-    // In production, you would configure a custom domain
-    return {
-      success: true,
-      url: storageKey, // Or construct full URL if custom domain is configured
-    };
+      // R2 files are accessible via custom domain or R2.dev subdomain
+      return {
+        success: true,
+        url: storageKey, // Or construct full URL if custom domain is configured
+      };
+    } else {
+      // Fallback: Store as base64 in database
+      console.log('[Upload] R2 not available, using base64 fallback for:', storageKey);
+      
+      // Convert ArrayBuffer to base64
+      const uint8Array = new Uint8Array(fileData);
+      const binaryString = Array.from(uint8Array, byte => String.fromCharCode(byte)).join('');
+      const base64Data = btoa(binaryString);
+      
+      return {
+        success: true,
+        url: `data:${contentType};base64,${base64Data}`,
+        base64Data: base64Data
+      };
+    }
   } catch (error) {
     return {
       success: false,
-      error: `R2 upload failed: ${String(error)}`,
+      error: `Upload failed: ${String(error)}`,
     };
   }
 }
 
 /**
- * Delete file from R2 storage
+ * Delete file from R2 storage (or from DB if R2 not available)
  */
 export async function deleteFromR2(
-  r2Bucket: R2Bucket,
+  r2Bucket: R2Bucket | undefined,
   storageKey: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await r2Bucket.delete(storageKey);
+    if (r2Bucket) {
+      await r2Bucket.delete(storageKey);
+    }
+    // If R2 not available, the file is in DB as base64, no need to delete from storage
     return { success: true };
   } catch (error) {
     return {
       success: false,
-      error: `R2 delete failed: ${String(error)}`,
+      error: `Delete failed: ${String(error)}`,
     };
   }
 }

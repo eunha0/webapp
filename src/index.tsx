@@ -94,38 +94,61 @@ app.use('/rubric-files/*', serveStatic({ root: './' }))
 app.use('/exam-questions/*', serveStatic({ root: './' }))
 app.use('/guide-screenshots/*', serveStatic({ root: './' }))
 
-// API route to serve uploaded files from R2 storage
+// API route to serve uploaded files from R2 storage or database
 app.get('/api/files/*', async (c) => {
   try {
     const fullPath = c.req.path
     // Extract file path after /api/files/
-    // Example: /api/files/user_3/1766590006882_wh9qm______.png -> user_3/1766590006882_wh9qm______.png
     const storageKey = fullPath.replace('/api/files/', '')
     
-    console.log('[R2 Serve] Requested path:', fullPath)
-    console.log('[R2 Serve] Storage key:', storageKey)
+    console.log('[File Serve] Requested path:', fullPath)
+    console.log('[File Serve] Storage key:', storageKey)
     
-    const r2Bucket = c.env.R2_BUCKET
-    const object = await r2Bucket.get(storageKey)
+    // First, try to get file from database (base64 fallback)
+    const db = c.env.DB
+    const fileRecord = await db.prepare(
+      'SELECT file_data, mime_type, storage_url FROM uploaded_files WHERE storage_key = ?'
+    ).bind(storageKey).first()
     
-    if (!object) {
-      console.log('[R2 Serve] File not found in R2:', storageKey)
-      // List all keys to debug
-      const list = await r2Bucket.list({ limit: 10 })
-      console.log('[R2 Serve] Sample keys in R2:', list.objects.map(o => o.key))
-      return c.text('File not found', 404)
+    if (fileRecord && fileRecord.file_data) {
+      // File is stored as base64 in database
+      console.log('[File Serve] Serving from database (base64)')
+      
+      // Convert base64 to binary
+      const binaryString = atob(fileRecord.file_data as string)
+      const bytes = new Uint8Array(binaryString.length)
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
+      }
+      
+      const headers = new Headers()
+      headers.set('Content-Type', fileRecord.mime_type as string || 'application/octet-stream')
+      headers.set('Cache-Control', 'public, max-age=31536000')
+      
+      return new Response(bytes.buffer, { headers })
     }
     
-    console.log('[R2 Serve] File found, size:', object.size)
+    // If file_data is not in DB, try R2 storage
+    const r2Bucket = c.env.R2_BUCKET
+    if (r2Bucket) {
+      const object = await r2Bucket.get(storageKey)
+      
+      if (object) {
+        console.log('[File Serve] Serving from R2, size:', object.size)
+        
+        const headers = new Headers()
+        object.writeHttpMetadata(headers)
+        headers.set('etag', object.httpEtag)
+        headers.set('Cache-Control', 'public, max-age=31536000')
+        
+        return new Response(object.body, { headers })
+      }
+    }
     
-    const headers = new Headers()
-    object.writeHttpMetadata(headers)
-    headers.set('etag', object.httpEtag)
-    headers.set('Cache-Control', 'public, max-age=31536000') // Cache for 1 year
-    
-    return new Response(object.body, { headers })
+    console.log('[File Serve] File not found:', storageKey)
+    return c.text('File not found', 404)
   } catch (error) {
-    console.error('[R2 Serve] Error:', error)
+    console.error('[File Serve] Error:', error)
     return c.text(`Internal Server Error: ${error}`, 500)
   }
 })
