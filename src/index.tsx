@@ -6431,6 +6431,34 @@ app.get('/pricing', (c) => {
         </div>
 
         <script>
+          // CRITICAL: Storage utility functions to handle Safari localStorage blocking
+          function getStorageItem(key) {
+            try {
+              return localStorage.getItem(key);
+            } catch (e) {
+              console.warn('localStorage not available, using memory storage');
+              return window['_memStorage_' + key];
+            }
+          }
+
+          function setStorageItem(key, value) {
+            try {
+              localStorage.setItem(key, value);
+            } catch (e) {
+              console.warn('localStorage not available, using memory storage');
+              window['_memStorage_' + key] = value;
+            }
+          }
+
+          function removeStorageItem(key) {
+            try {
+              localStorage.removeItem(key);
+            } catch (e) {
+              console.warn('localStorage not available, using memory storage');
+              delete window['_memStorage_' + key];
+            }
+          }
+
           let currentBilling = 'monthly';
           let currentPlan = 'free'; // Default plan
           

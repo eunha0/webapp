@@ -347,11 +347,51 @@ upload.post('/pdf', async (c) => {
       await logProcessingStep(db, uploadedFileId, 'pdf_extraction', 'failed', String(pdfError), null)
     }
     
-    // If PDF.js failed, try OCR fallback
+    // If PDF.js failed, try OCR fallback (Google Vision API first, then OCR.space)
     if (pdfExtractionFailed && !extractedText) {
-      console.log('PDF.js failed, attempting OCR.space fallback...')
+      console.log('PDF.js failed, attempting OCR fallback...')
       
-      if (c.env.OCR_SPACE_API_KEY) {
+      // Try Google Vision API first for better accuracy
+      const credentialsJson = c.env.GOOGLE_APPLICATION_CREDENTIALS
+      if (credentialsJson) {
+        try {
+          console.log('Attempting Google Vision API for PDF...')
+          const visionResult = await processImagePDFOCR(
+            { name: file.name, buffer: fileBuffer, type: file.type, size: file.size },
+            credentialsJson
+          )
+          
+          if (visionResult.success && visionResult.extractedText && visionResult.extractedText.trim()) {
+            extractedText = visionResult.extractedText
+            
+            await db.prepare(
+              `UPDATE uploaded_files 
+               SET extracted_text = ?, processing_status = ?, processed_at = CURRENT_TIMESTAMP
+               WHERE id = ?`
+            ).bind(visionResult.extractedText, 'completed', uploadedFileId).run()
+            
+            await logProcessingStep(
+              db,
+              uploadedFileId,
+              'vision_api_pdf',
+              'completed',
+              `Google Vision API PDF 처리 완료 (${Date.now() - startTime}ms)`,
+              visionResult.processingTimeMs
+            )
+            
+            console.log(`Google Vision API extraction succeeded: ${visionResult.extractedText.length} characters`)
+          } else {
+            console.warn('Google Vision API failed for PDF:', visionResult.error)
+            await logProcessingStep(db, uploadedFileId, 'vision_api_pdf', 'failed', visionResult.error || 'No text extracted', visionResult.processingTimeMs)
+          }
+        } catch (visionError) {
+          console.error('Google Vision API exception for PDF:', visionError)
+          await logProcessingStep(db, uploadedFileId, 'vision_api_pdf', 'failed', String(visionError), null)
+        }
+      }
+      
+      // If Google Vision failed, try OCR.space as final fallback
+      if (!extractedText && c.env.OCR_SPACE_API_KEY) {
         try {
           const ocrResult = await processOCRSpace(
             { name: file.name, buffer: fileBuffer, type: file.type, size: file.size },
@@ -385,8 +425,10 @@ upload.post('/pdf', async (c) => {
           console.error('OCR.space exception:', ocrError)
           await logProcessingStep(db, uploadedFileId, 'ocr_space_fallback', 'failed', String(ocrError), null)
         }
-      } else {
-        console.warn('OCR_SPACE_API_KEY not configured, cannot use OCR fallback')
+      }
+      
+      if (!extractedText) {
+        console.warn('All OCR methods failed for PDF, no API key configured or all methods failed')
       }
     }
     
