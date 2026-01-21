@@ -6229,7 +6229,10 @@ app.get('/pricing', (c) => {
                     </a>
                     <div class="flex items-center space-x-4">
                         <a href="/" class="text-gray-700 hover:text-navy-700 font-medium">홈</a>
-                        <a href="/login" class="text-gray-700 hover:text-navy-700 font-medium">로그인</a>
+                        <a href="/my-page" id="myPageLink" class="text-gray-700 hover:text-navy-700 font-bold" style="display: none;">나의 페이지</a>
+                        <div class="dropdown" id="loginDropdown">
+                            <a href="/login" class="text-gray-700 hover:text-navy-700 font-medium">로그인</a>
+                        </div>
                     </div>
                 </div>
             </div>

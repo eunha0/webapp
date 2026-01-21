@@ -342,9 +342,11 @@ upload.post('/pdf', async (c) => {
         await logProcessingStep(db, uploadedFileId, 'pdf_extraction', 'failed', pdfResult.error || 'No text extracted', pdfResult.processingTimeMs)
       }
     } catch (pdfError) {
-      console.error('PDF.js error:', pdfError)
+      // Catch ANY PDF.js errors (including Korean font errors like "문단변환: 2 is not of type")
+      const errorMsg = pdfError instanceof Error ? pdfError.message : String(pdfError)
+      console.error('PDF.js exception caught:', errorMsg)
       pdfExtractionFailed = true
-      await logProcessingStep(db, uploadedFileId, 'pdf_extraction', 'failed', String(pdfError), null)
+      await logProcessingStep(db, uploadedFileId, 'pdf_extraction', 'failed', `PDF.js exception: ${errorMsg}`, null)
     }
     
     // If PDF.js failed, try OCR fallback (Google Vision API first, then OCR.space)
