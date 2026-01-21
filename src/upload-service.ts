@@ -306,7 +306,7 @@ export function validateFile(
     const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(1);
     return {
       valid: false,
-      error: `File size exceeds ${maxSizeMB}MB limit`,
+      error: `파일 크기가 ${maxSizeMB}MB 제한을 초과합니다. 더 작은 파일을 업로드해 주세요.`,
     };
   }
 
@@ -314,7 +314,7 @@ export function validateFile(
   if (!allowedTypes.includes(file.type)) {
     return {
       valid: false,
-      error: `File type ${file.type} is not allowed`,
+      error: `파일 형식 ${file.type}은(는) 지원되지 않습니다. JPG, PNG 또는 PDF 파일을 업로드해 주세요.`,
     };
   }
 

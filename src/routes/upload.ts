@@ -46,7 +46,7 @@ upload.post('/image', async (c) => {
     }
     
     // Get allowed types and max size from environment
-    const maxSize = parseInt(c.env.MAX_FILE_SIZE || '10485760') // 10MB default
+    const maxSize = parseInt(c.env.MAX_FILE_SIZE || '1048576') // 1MB default (base64 encoding increases size)
     const allowedTypes = (c.env.ALLOWED_IMAGE_TYPES || 'image/jpeg,image/png,image/jpg,image/webp').split(',')
     
     // Validate file
@@ -266,7 +266,7 @@ upload.post('/pdf', async (c) => {
     }
     
     // Validate PDF file
-    const maxSize = parseInt(c.env.MAX_FILE_SIZE || '10485760') // 10MB
+    const maxSize = parseInt(c.env.MAX_FILE_SIZE || '1048576') // 1MB (base64 encoding increases size)
     const validation = validateFile(file, ['application/pdf'], maxSize)
     if (!validation.valid) {
       return c.json({ error: validation.error }, 400)

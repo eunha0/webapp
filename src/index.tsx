@@ -7030,7 +7030,7 @@ app.get('/my-page', (c) => {
                             </div>
                         </div>
                         
-                        <a href="/pricing?plan=free" class="bg-lime-200 text-black px-4 py-2 rounded-lg font-semibold hover:bg-lime-300 transition">
+                        <a id="upgradeButton" href="/pricing" class="bg-lime-200 text-black px-4 py-2 rounded-lg font-semibold hover:bg-lime-300 transition">
                             <i class="fas fa-arrow-up mr-2"></i>업그레이드
                         </a>
                     </div>
@@ -7466,6 +7466,33 @@ app.get('/my-page', (c) => {
         <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
         ${STORAGE_UTILS_SCRIPT}
         <script src="/static/my-page-full.js"></script>
+        <script>
+          // Set upgrade button link based on user's current subscription
+          (async function() {
+            try {
+              const sessionId = getStorageItem('session_id');
+              if (!sessionId) return;
+              
+              const response = await fetch('/api/user/me', {
+                headers: { 'X-Session-ID': sessionId }
+              });
+              
+              if (response.ok) {
+                const userData = await response.json();
+                const subscription = userData.subscription || '무료';
+                const planMap = { '무료': 'free', '스타터': 'starter', '베이직': 'basic', '프로': 'pro' };
+                const currentPlan = planMap[subscription] || 'free';
+                
+                const upgradeButton = document.getElementById('upgradeButton');
+                if (upgradeButton) {
+                  upgradeButton.href = \`/pricing?plan=\${currentPlan}\`;
+                }
+              }
+            } catch (error) {
+              console.error('Failed to fetch user subscription for upgrade button:', error);
+            }
+          })();
+        </script>
     </body>
     </html>
   `)
