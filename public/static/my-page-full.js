@@ -2109,7 +2109,7 @@
                   '</div>' +
                   '<h3 class="text-2xl font-bold text-gray-900 mb-2">채점 중</h3>' +
                   '<p class="text-gray-600">AI가 답안을 분석하고 있습니다...</p>' +
-                  '<p class="text-sm text-gray-500 mt-4">잠시만 기다려 주세요 (약 10-30초 소요)</p>' +
+                  '<p class="text-sm text-gray-500 mt-4">잠시만 기다려 주세요 (약 30-50초 소요)</p>' +
                 '</div>' +
               '</div>' +
             '</div>';
@@ -3765,25 +3765,231 @@
           }
 
           // Initial load
-          // Logout function
-          function toggleTeacherProfileMenu() {
-            const menu = document.getElementById('teacherProfileMenu');
-            menu.classList.toggle('hidden');
+          // Account Modal Functions
+          function showAccountModal() {
+            document.getElementById('accountModal').classList.remove('hidden');
+            showAccountTab('profile'); // Show profile tab by default
+          }
+
+          function closeAccountModal() {
+            document.getElementById('accountModal').classList.add('hidden');
+          }
+
+          function showAccountTab(tabName) {
+            const tabButtons = document.querySelectorAll('.account-tab-btn');
+            tabButtons.forEach(btn => {
+              btn.classList.remove('bg-gray-200', 'font-bold');
+            });
+
+            const contentDiv = document.getElementById('accountTabContent');
+            const titleDiv = document.getElementById('accountModalTitle');
+
+            if (tabName === 'profile') {
+              document.getElementById('accountTabProfile').classList.add('bg-gray-200', 'font-bold');
+              titleDiv.textContent = '내 계정';
+              
+              // Load user info
+              loadProfileInfo();
+              
+              contentDiv.innerHTML = `
+                <div class="space-y-6">
+                  <div class="text-center mb-6">
+                    <div class="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <i class="fas fa-camera text-gray-400 text-2xl"></i>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">이름</label>
+                    <input type="text" id="profileName" class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50" readonly>
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">이메일</label>
+                    <input type="email" id="profileEmail" class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50" readonly>
+                  </div>
+
+                  <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">비밀번호</h3>
+                    <div class="flex items-center justify-between">
+                      <div class="flex-1">
+                        <p class="text-sm text-gray-600">**************</p>
+                      </div>
+                      <button onclick="showChangePasswordModal()" class="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition font-semibold">
+                        수정하기
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">이메일 알림</h3>
+                    <div class="space-y-4">
+                      <label class="flex items-center justify-between">
+                        <div class="flex-1 mr-4">
+                          <p class="font-medium text-gray-900">공지사항과 큐레이션 이메일</p>
+                          <p class="text-sm text-gray-500">새로운 기능에 대한 공지사항과 관심 분야의 영상 요약 뉴스레터를 받아 수 있습니다.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer ml-4 flex-shrink-0">
+                          <input type="checkbox" id="emailNotifications" class="sr-only peer" checked>
+                          <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-bold text-gray-900 mb-2">채정 삭제</h3>
+                    <p class="text-sm text-gray-600 mb-4">채점을 삭제하면 모든 기록이 사라지고 복구할 수 없습니다. <a href="#" class="text-blue-600 hover:underline">탈퇴하기</a></p>
+                  </div>
+                </div>
+              `;
+              
+              // Reload user info after DOM is updated
+              setTimeout(() => loadProfileInfo(), 100);
+            } else if (tabName === 'subscription') {
+              document.getElementById('accountTabSubscription').classList.add('bg-gray-200', 'font-bold');
+              titleDiv.textContent = '내 요금제';
+              
+              // Redirect to pricing page
+              window.location.href = '/pricing';
+            } else if (tabName === 'billing') {
+              document.getElementById('accountTabBilling').classList.add('bg-gray-200', 'font-bold');
+              titleDiv.textContent = '구독 결제 관리';
+              
+              contentDiv.innerHTML = `
+                <div class="space-y-6">
+                  <div class="grid grid-cols-2 gap-6">
+                    <div class="bg-white border border-gray-200 rounded-lg p-6">
+                      <h3 class="text-sm font-semibold text-gray-700 mb-2">결제 예정 금액</h3>
+                      <p class="text-3xl font-bold text-gray-900">-</p>
+                    </div>
+                    <div class="bg-white border border-gray-200 rounded-lg p-6">
+                      <h3 class="text-sm font-semibold text-gray-700 mb-2">구독 만료일</h3>
+                      <p class="text-3xl font-bold text-gray-900">-</p>
+                    </div>
+                  </div>
+
+                  <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">구독중인 요금제</h3>
+                    <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                      <p class="text-sm font-medium text-gray-700">결제 종인 요금제가 없습니다</p>
+                    </div>
+                  </div>
+
+                  <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">결제 정보</h3>
+                    <div class="flex items-center justify-between bg-gray-50 rounded-lg p-4 mb-4">
+                      <div class="flex items-center">
+                        <i class="fas fa-credit-card text-gray-400 text-xl mr-3"></i>
+                        <span class="text-sm font-medium text-gray-700">카카오페이</span>
+                      </div>
+                      <button class="text-sm text-gray-600 hover:text-gray-900">변경</button>
+                    </div>
+                  </div>
+
+                  <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">결제 내역</h3>
+                    <div class="overflow-hidden border border-gray-200 rounded-lg">
+                      <table class="w-full">
+                        <thead class="bg-gray-50">
+                          <tr>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">날짜</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">결제 내역</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">결제 금액</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">결제 수단</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">상태</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">영수증</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td class="px-4 py-3 text-sm text-gray-900">2025.05.07</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">월간 결제</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">₩7,900</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">카카오페이</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">결제 완료</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">
+                              <a href="#" class="text-blue-600 hover:underline">영수증 보기</a>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }
+          }
+
+          async function loadProfileInfo() {
+            try {
+              const sessionId = localStorage.getItem('session_id');
+              if (!sessionId) return;
+
+              const response = await axios.get('/api/user/me', {
+                headers: { 'X-Session-ID': sessionId }
+              });
+
+              if (response.data) {
+                const nameInput = document.getElementById('profileName');
+                const emailInput = document.getElementById('profileEmail');
+                
+                if (nameInput) nameInput.value = response.data.name || localStorage.getItem('user_name') || '';
+                if (emailInput) emailInput.value = response.data.email || localStorage.getItem('user_email') || '';
+              }
+            } catch (error) {
+              console.error('Error loading profile info:', error);
+            }
+          }
+
+          function showChangePasswordModal() {
+            document.getElementById('changePasswordModal').classList.remove('hidden');
+          }
+
+          function closeChangePasswordModal() {
+            document.getElementById('changePasswordModal').classList.add('hidden');
+            document.getElementById('changePasswordForm').reset();
+          }
+
+          async function handleChangePassword(event) {
+            event.preventDefault();
+
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+
+            if (newPassword !== confirmNewPassword) {
+              alert('새 비밀번호가 일치하지 않습니다.');
+              return;
+            }
+
+            if (newPassword.length < 6) {
+              alert('새 비밀번호는 최소 6자 이상이어야 합니다.');
+              return;
+            }
+
+            try {
+              const sessionId = localStorage.getItem('session_id');
+              const response = await axios.post('/api/user/change-password', {
+                current_password: currentPassword,
+                new_password: newPassword
+              }, {
+                headers: { 'X-Session-ID': sessionId }
+              });
+
+              if (response.data.success) {
+                alert('비밀번호가 성공적으로 변경되었습니다.');
+                closeChangePasswordModal();
+              } else {
+                alert(response.data.error || '비밀번호 변경에 실패했습니다.');
+              }
+            } catch (error) {
+              console.error('Error changing password:', error);
+              alert(error.response?.data?.error || '비밀번호 변경 중 오류가 발생했습니다.');
+            }
           }
           
-          // Close profile menu when clicking outside
-          document.addEventListener('click', function(event) {
-            const profileButton = document.getElementById('teacherProfileButton');
-            const profileMenu = document.getElementById('teacherProfileMenu');
-            
-            if (profileButton && profileMenu && 
-                !profileButton.contains(event.target) && 
-                !profileMenu.contains(event.target)) {
-              profileMenu.classList.add('hidden');
-            }
-          });
-          
-          function logout() {
+          // Logout function
             if (!confirm('로그아웃하시겠습니까?')) {
               return;
             }

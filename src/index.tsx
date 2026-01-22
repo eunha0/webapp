@@ -16,7 +16,8 @@ import admin from './routes/admin'
 import { getUserFromSession, requireAuth, requireStudentAuth, getStudentFromSession, requireAdminAuth, isErrorResponse } from './middleware/auth'
 
 // Import utility functions
-import { hashPassword } from './utils/helpers'
+import { hashPassword, verifyPassword } from './utils/helpers'
+
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -1296,6 +1297,60 @@ app.get('/api/user/me', async (c) => {
     return c.json({ error: 'Failed to fetch user info' }, 500)
   }
 })
+
+/**
+ * POST /api/user/change-password - Change user password
+ */
+app.post('/api/user/change-password', async (c) => {
+  try {
+    const user = await requireAuth(c)
+    if (isErrorResponse(user)) return user
+    
+    const { current_password, new_password } = await c.req.json()
+    
+    if (!current_password || !new_password) {
+      return c.json({ error: '현재 비밀번호와 새 비밀번호를 입력해주세요.' }, 400)
+    }
+    
+    if (new_password.length < 6) {
+      return c.json({ error: '새 비밀번호는 최소 6자 이상이어야 합니다.' }, 400)
+    }
+    
+    const db = c.env.DB
+    
+    // Get current user's password hash
+    const userRecord = await db.prepare(`
+      SELECT password_hash FROM users WHERE id = ?
+    `).bind(user.id).first()
+    
+    if (!userRecord) {
+      return c.json({ error: 'User not found' }, 404)
+    }
+    
+    // Verify current password
+    const isValidPassword = await verifyPassword(current_password, userRecord.password_hash as string)
+    if (!isValidPassword) {
+      return c.json({ error: '현재 비밀번호가 올바르지 않습니다.' }, 401)
+    }
+    
+    // Hash new password
+    const newPasswordHash = await hashPassword(new_password)
+    
+    // Update password
+    await db.prepare(`
+      UPDATE users SET password_hash = ? WHERE id = ?
+    `).bind(newPasswordHash, user.id).run()
+    
+    return c.json({ 
+      success: true, 
+      message: '비밀번호가 성공적으로 변경되었습니다.' 
+    })
+  } catch (error) {
+    console.error('Error changing password:', error)
+    return c.json({ error: '비밀번호 변경 중 오류가 발생했습니다.' }, 500)
+  }
+})
+
 
 /**
  * GET /api/assignments - Get user's assignments
@@ -7033,31 +7088,11 @@ app.get('/my-page', (c) => {
                         <div class="flex items-center space-x-3">
                             <div id="usageInfo" class="text-sm font-medium text-gray-700">무료 체험: 0 / 20</div>
                             
-                            <!-- Profile Dropdown -->
+                            <!-- Profile Button -->
                             <div class="relative">
-                                <button id="teacherProfileButton" onclick="toggleTeacherProfileMenu()" class="w-10 h-10 bg-navy-700 rounded-full flex items-center justify-center text-white hover:bg-navy-600 transition cursor-pointer">
+                                <button id="teacherProfileButton" onclick="showAccountModal()" class="w-10 h-10 bg-navy-700 rounded-full flex items-center justify-center text-white hover:bg-navy-600 transition cursor-pointer">
                                     <i class="fas fa-user"></i>
                                 </button>
-                                <div id="teacherProfileMenu" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
-                                    <div class="py-1">
-                                        <a href="/account" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center">
-                                            <i class="fas fa-user-circle mr-3 text-gray-400"></i>
-                                            내 계정
-                                        </a>
-                                        <a href="/pricing" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center">
-                                            <i class="fas fa-crown mr-3 text-yellow-500"></i>
-                                            내 요금제
-                                        </a>
-                                        <a href="/billing" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center border-b border-gray-100">
-                                            <i class="fas fa-credit-card mr-3 text-gray-400"></i>
-                                            구독 결제 관리
-                                        </a>
-                                        <button onclick="logout()" class="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center font-medium">
-                                            <i class="fas fa-sign-out-alt mr-3"></i>
-                                            로그아웃
-                                        </button>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                         
@@ -7103,6 +7138,198 @@ app.get('/my-page', (c) => {
             <div id="historyContent" class="hidden">
                 <div id="historyList">
                     <p class="text-gray-500 text-center py-8">채점 이력을 불러오는 중...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Account Settings Modal -->
+        <div id="accountModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden mx-4 flex">
+                <!-- Sidebar -->
+                <div class="w-48 bg-gray-50 border-r border-gray-200 py-6">
+                    <button onclick="showAccountTab('profile')" id="accountTabProfile" class="account-tab-btn w-full text-left px-6 py-3 hover:bg-gray-100 transition font-medium text-gray-700">
+                        내 계정
+                    </button>
+                    <button onclick="showAccountTab('subscription')" id="accountTabSubscription" class="account-tab-btn w-full text-left px-6 py-3 hover:bg-gray-100 transition font-medium text-gray-700">
+                        내 요금제
+                    </button>
+                    <button onclick="showAccountTab('billing')" id="accountTabBilling" class="account-tab-btn w-full text-left px-6 py-3 hover:bg-gray-100 transition font-medium text-gray-700 border-b border-gray-200 pb-3 mb-3">
+                        구독 결제 관리
+                    </button>
+                    <button onclick="logout()" class="w-full text-left px-6 py-3 hover:bg-red-50 transition font-medium text-red-600">
+                        로그아웃
+                    </button>
+                </div>
+
+                <!-- Main Content -->
+                <div class="flex-1 overflow-y-auto">
+                    <div class="p-8">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 id="accountModalTitle" class="text-2xl font-bold text-gray-900">내 계정</h2>
+                            <button onclick="closeAccountModal()" class="text-gray-500 hover:text-gray-700">
+                                <i class="fas fa-times text-2xl"></i>
+                            </button>
+                        </div>
+
+                        <!-- Profile Tab Content -->
+                        <div id="accountTabContent" class="space-y-6">
+                            <!-- Profile Information -->
+                            <div class="space-y-6">
+                                <div class="text-center mb-6">
+                                    <div class="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <i class="fas fa-camera text-gray-400 text-2xl"></i>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">이름</label>
+                                    <input type="text" id="profileName" class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50" value="김교사" readonly>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">이메일</label>
+                                    <input type="email" id="profileEmail" class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50" value="gskim@test.com" readonly>
+                                </div>
+
+                                <div class="border-t border-gray-200 pt-6">
+                                    <h3 class="text-lg font-bold text-gray-900 mb-4">비밀번호</h3>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex-1">
+                                            <p class="text-sm text-gray-600">**************</p>
+                                        </div>
+                                        <button onclick="showChangePasswordModal()" class="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition font-semibold">
+                                            수정하기
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="border-t border-gray-200 pt-6">
+                                    <h3 class="text-lg font-bold text-gray-900 mb-4">이메일 알림</h3>
+                                    <div class="space-y-4">
+                                        <label class="flex items-center justify-between">
+                                            <div>
+                                                <p class="font-medium text-gray-900">공지사항과 큐레이션 이메일</p>
+                                                <p class="text-sm text-gray-500">새로운 기능에 대한 공지사항과 관심 분야의 영상 요약 뉴스레터를 받아 수 있습니다.</p>
+                                            </div>
+                                            <label class="relative inline-flex items-center cursor-pointer ml-4">
+                                                <input type="checkbox" id="emailNotifications" class="sr-only peer" checked>
+                                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                            </label>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="border-t border-gray-200 pt-6">
+                                    <h3 class="text-lg font-bold text-gray-900 mb-2">채정 삭제</h3>
+                                    <p class="text-sm text-gray-600 mb-4">채점을 삭제하면 모든 기록이 사라지고 복구할 수 없습니다. <a href="#" class="text-blue-600 hover:underline">탈퇴하기</a></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Change Password Modal -->
+        <div id="changePasswordModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+            <div class="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full mx-4">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900">비밀번호 변경</h2>
+                    <button onclick="closeChangePasswordModal()" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times text-2xl"></i>
+                    </button>
+                </div>
+
+                <form id="changePasswordForm" onsubmit="handleChangePassword(event)">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">현재 비밀번호</label>
+                            <input type="password" id="currentPassword" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-700" required>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">새 비밀번호</label>
+                            <input type="password" id="newPassword" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-700" required>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">새 비밀번호 확인</label>
+                            <input type="password" id="confirmNewPassword" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-700" required>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex gap-3">
+                        <button type="button" onclick="closeChangePasswordModal()" class="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-semibold">
+                            취소
+                        </button>
+                        <button type="submit" class="flex-1 px-4 py-3 bg-navy-900 text-white rounded-lg hover:bg-navy-800 transition font-semibold">
+                            변경하기
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Billing Management Modal Content (shown in Account Modal) -->
+        <div id="billingContent" class="hidden">
+            <div class="space-y-6">
+                <div class="grid grid-cols-2 gap-6">
+                    <div class="bg-white border border-gray-200 rounded-lg p-6">
+                        <h3 class="text-sm font-semibold text-gray-700 mb-2">결제 예정 금액</h3>
+                        <p class="text-3xl font-bold text-gray-900">-</p>
+                    </div>
+                    <div class="bg-white border border-gray-200 rounded-lg p-6">
+                        <h3 class="text-sm font-semibold text-gray-700 mb-2">구독 만료일</h3>
+                        <p class="text-3xl font-bold text-gray-900">-</p>
+                    </div>
+                </div>
+
+                <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">구독중인 요금제</h3>
+                    <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                        <p class="text-sm font-medium text-gray-700">결제 종인 요금제가 없습니다</p>
+                    </div>
+                </div>
+
+                <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">결제 정보</h3>
+                    <div class="flex items-center justify-between bg-gray-50 rounded-lg p-4 mb-4">
+                        <div class="flex items-center">
+                            <i class="fas fa-credit-card text-gray-400 text-xl mr-3"></i>
+                            <span class="text-sm font-medium text-gray-700">카카오페이</span>
+                        </div>
+                        <button class="text-sm text-gray-600 hover:text-gray-900">변경</button>
+                    </div>
+                </div>
+
+                <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">결제 내역</h3>
+                    <div class="overflow-hidden border border-gray-200 rounded-lg">
+                        <table class="w-full">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">날짜</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">결제 내역</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">결제 금액</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">결제 수단</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">상태</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">영수증</th>
+                                </tr>
+                            </thead>
+                            <tbody id="billingHistoryList">
+                                <tr>
+                                    <td class="px-4 py-3 text-sm text-gray-900">2025.05.07</td>
+                                    <td class="px-4 py-3 text-sm text-gray-900">월간 결제</td>
+                                    <td class="px-4 py-3 text-sm text-gray-900">₩7,900</td>
+                                    <td class="px-4 py-3 text-sm text-gray-900">카카오페이</td>
+                                    <td class="px-4 py-3 text-sm text-gray-900">결제 완료</td>
+                                    <td class="px-4 py-3 text-sm text-gray-900">
+                                        <a href="#" class="text-blue-600 hover:underline">영수증 보기</a>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
