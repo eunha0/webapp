@@ -3187,6 +3187,7 @@
               const criterionScores = (gradingResult.criterion_scores || []).map(criterion => ({
                 criterion_name: criterion.criterion_name || criterion.criterion || '평가 기준',
                 score: criterion.score || 0,
+                max_score: criterion.max_score || 4,
                 strengths: criterion.strengths || '강점 정보 없음',
                 areas_for_improvement: criterion.areas_for_improvement || '개선점 정보 없음'
               }));
