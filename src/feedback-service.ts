@@ -25,6 +25,7 @@ interface FeedbackRequest {
   rubric_criteria: Array<{
     criterion_name: string
     criterion_description: string
+    max_score?: number
   }>
   criterion_scores: Array<{
     criterion_name: string
@@ -65,9 +66,9 @@ export async function generateDetailedFeedback(request: FeedbackRequest): Promis
     }
   })
   
-  // Calculate total score
+  // Calculate total score using actual max_score from rubric criteria
   const total_score = criterion_scores.reduce((sum, s) => sum + s.score, 0)
-  const max_score = criterion_scores.length * 4
+  const max_score = rubric_criteria.reduce((sum, r) => sum + (r.max_score || 4), 0)
   const percentage = (total_score / max_score) * 100
   
   // Generate overall summary

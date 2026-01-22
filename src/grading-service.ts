@@ -118,15 +118,16 @@ async function simulateGrading(request: GradingRequest): Promise<GradingResult> 
     return {
       criterion_name: criterion.criterion_name,
       score: score,
+      max_score: criterion.max_score || 4,  // Include max_score from rubric
       strengths: generateStrengths(criterion.criterion_name, score, request.essay_text),
       areas_for_improvement: generateImprovements(criterion.criterion_name, score, request.essay_text)
     };
   });
   
-  // Calculate total score
+  // Calculate total score using actual max_score from rubric criteria
   const totalPoints = criterion_scores.reduce((sum, c) => sum + c.score, 0);
-  const maxPoints = criterion_scores.length * 4;
-  const total_score = Math.round((totalPoints / maxPoints) * 10 * 10) / 10;
+  const maxPoints = request.rubric_criteria.reduce((sum, r) => sum + (r.max_score || 4), 0);
+  const total_score = Math.round((totalPoints / maxPoints) * 100 * 10) / 10;
   
   return {
     total_score,
