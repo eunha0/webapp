@@ -253,8 +253,8 @@ export async function gradeEssayHybrid(
   try {
     // Check if AI API keys are configured
     if (!env.OPENAI_API_KEY || (!env.ANTHROPIC_API_KEY && !env.CLAUDE_API_KEY)) {
-      console.log('AI API keys not configured, falling back to simulation mode');
-      return simulateGrading(request);
+      console.error('AI API keys not configured - grading cannot proceed');
+      throw new Error('OpenAI나 Claude의 API KEY 연결에 장애가 생겨 채점이 실행되지 않았습니다.');
     }
 
     const { openai, anthropic } = initializeClients(env);
@@ -398,10 +398,14 @@ export async function gradeEssayHybrid(
 
   } catch (error) {
     console.error('[Hybrid AI] Error during grading:', error);
-    console.log('[Hybrid AI] Falling back to simulation mode');
     
-    // Fallback to simulation if API calls fail
-    return simulateGrading(request);
+    // Check if it's an API connection error
+    if (error instanceof Error) {
+      // Re-throw with user-friendly message
+      throw new Error('OpenAI나 Claude의 API KEY 연결에 장애가 생겨 채점이 실행되지 않았습니다.');
+    }
+    
+    throw error;
   }
 }
 

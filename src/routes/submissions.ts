@@ -138,7 +138,19 @@ submissions.post('/:id/grade', async (c) => {
     })
   } catch (error) {
     console.error('Error grading submission:', error)
-    return c.json({ error: 'Failed to grade submission', details: String(error) }, 500)
+    
+    // Check if error message is about API keys
+    if (error instanceof Error && error.message.includes('API KEY 연결에 장애')) {
+      return c.json({ 
+        error: error.message,
+        details: 'AI 서비스 연결 오류'
+      }, 503) // Service Unavailable
+    }
+    
+    return c.json({ 
+      error: 'Failed to grade submission', 
+      details: String(error) 
+    }, 500)
   }
 })
 

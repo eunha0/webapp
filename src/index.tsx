@@ -7285,9 +7285,9 @@ app.get('/my-page', (c) => {
                 </div>
 
                 <div class="border-t border-gray-200 pt-6">
-                    <h3 class="text-lg font-bold text-gray-900 mb-4">구독중인 요금제</h3>
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">구독 중인 요금제</h3>
                     <div class="bg-gray-50 rounded-lg p-4 mb-4">
-                        <p class="text-sm font-medium text-gray-700">결제 종인 요금제가 없습니다</p>
+                        <p class="text-sm font-medium text-gray-700">결제 중인 요금제가 없습니다.</p>
                     </div>
                 </div>
 

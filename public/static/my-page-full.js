@@ -3861,29 +3861,25 @@ function showAccountTab(tabName) {
         <div class="grid grid-cols-2 gap-6">
           <div class="bg-white border border-gray-200 rounded-lg p-6">
             <h3 class="text-sm font-semibold text-gray-700 mb-2">결제 예정 금액</h3>
-            <p class="text-3xl font-bold text-gray-900">-</p>
+            <p id="billingUpcomingAmount" class="text-3xl font-bold text-gray-900">-</p>
           </div>
           <div class="bg-white border border-gray-200 rounded-lg p-6">
             <h3 class="text-sm font-semibold text-gray-700 mb-2">구독 만료일</h3>
-            <p class="text-3xl font-bold text-gray-900">-</p>
+            <p id="billingExpiryDate" class="text-3xl font-bold text-gray-900">-</p>
           </div>
         </div>
 
         <div class="border-t border-gray-200 pt-6">
-          <h3 class="text-lg font-bold text-gray-900 mb-4">구독중인 요금제</h3>
-          <div class="bg-gray-50 rounded-lg p-4 mb-4">
-            <p class="text-sm font-medium text-gray-700">결제 종인 요금제가 없습니다</p>
+          <h3 class="text-lg font-bold text-gray-900 mb-4">구독 중인 요금제</h3>
+          <div id="billingCurrentPlan" class="bg-gray-50 rounded-lg p-4 mb-4">
+            <p class="text-sm font-medium text-gray-700">결제 중인 요금제가 없습니다.</p>
           </div>
         </div>
 
         <div class="border-t border-gray-200 pt-6">
           <h3 class="text-lg font-bold text-gray-900 mb-4">결제 정보</h3>
-          <div class="flex items-center justify-between bg-gray-50 rounded-lg p-4 mb-4">
-            <div class="flex items-center">
-              <i class="fas fa-credit-card text-gray-400 text-xl mr-3"></i>
-              <span class="text-sm font-medium text-gray-700">카카오페이</span>
-            </div>
-            <button class="text-sm text-gray-600 hover:text-gray-900">변경</button>
+          <div id="billingPaymentMethod" class="text-sm text-gray-500">
+            <p>등록된 결제 수단이 없습니다.</p>
           </div>
         </div>
 
@@ -3901,15 +3897,10 @@ function showAccountTab(tabName) {
                   <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">영수증</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody id="billingHistoryList">
                 <tr>
-                  <td class="px-4 py-3 text-sm text-gray-900">2025.05.07</td>
-                  <td class="px-4 py-3 text-sm text-gray-900">월간 결제</td>
-                  <td class="px-4 py-3 text-sm text-gray-900">₩7,900</td>
-                  <td class="px-4 py-3 text-sm text-gray-900">카카오페이</td>
-                  <td class="px-4 py-3 text-sm text-gray-900">결제 완료</td>
-                  <td class="px-4 py-3 text-sm text-gray-900">
-                    <a href="#" class="text-blue-600 hover:underline">영수증 보기</a>
+                  <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">
+                    결제 내역이 없습니다.
                   </td>
                 </tr>
               </tbody>
