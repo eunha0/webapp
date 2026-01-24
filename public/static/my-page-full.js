@@ -2530,7 +2530,7 @@ async function exportToPDF() {
     // Title
     doc.setFontSize(24);
     doc.setTextColor(30, 58, 138); // Navy color
-    doc.text('AI 논술 채점 결과', margin, yPos);
+    doc.text('논술 채점 결과', margin, yPos);
     yPos += 15;
     
     // Header info
@@ -2780,7 +2780,7 @@ function printFeedback() {
     </head>
     <body>
       <div class="header">
-        <h1>📝 AI 논술 채점 결과</h1>
+        <h1>📝 논술 채점 결과</h1>
         <p><strong>과제:</strong> ${submission.assignment_title}</p>
         <p><strong>학생:</strong> ${submission.student_name}</p>
         <p><strong>제출일:</strong> ${new Date(submission.submitted_at).toLocaleString('ko-KR')}</p>
@@ -3517,7 +3517,7 @@ function generatePrintHTML(submission, feedback) {
     </head>
     <body>
       <div class="header">
-        <h1>📝 AI 논술 채점 결과</h1>
+        <h1>📝 논술 채점 결과</h1>
         <p><strong>과제:</strong> ${submission.assignment_title}</p>
         <p><strong>학생:</strong> ${submission.student_name}</p>
         <p><strong>제출일:</strong> ${new Date(submission.submitted_at).toLocaleString('ko-KR')}</p>
@@ -3611,7 +3611,7 @@ async function generateCombinedPDF(submissions) {
       combinedContent += `
         <div class="submission-section" style="${i > 0 ? 'page-break-before: always;' : ''}">
           <div class="header">
-            <h1>📝 AI 논술 채점 결과 (${i + 1}/${submissions.length})</h1>
+            <h1>📝 논술 채점 결과 (${i + 1}/${submissions.length})</h1>
             <p><strong>과제:</strong> ${submission.assignment_title}</p>
             <p><strong>학생:</strong> ${submission.student_name}</p>
             <p><strong>제출일:</strong> ${new Date(submission.submitted_at).toLocaleString('ko-KR')}</p>
@@ -3850,11 +3850,21 @@ function showAccountTab(tabName) {
     document.getElementById('accountTabSubscription').classList.add('bg-gray-200', 'font-bold');
     titleDiv.textContent = '내 요금제';
     
-    // Redirect to pricing page
-    window.location.href = '/pricing';
+    // Show pricing page in modal instead of redirecting
+    contentDiv.innerHTML = `
+      <div class="relative">
+        <button onclick="closeAccountModal()" class="absolute top-0 right-0 text-gray-500 hover:text-gray-700 z-10">
+          <i class="fas fa-times text-2xl"></i>
+        </button>
+        <iframe src="/pricing" class="w-full" style="height: 70vh; border: none;" onload="this.style.opacity='1'" style="opacity: 0; transition: opacity 0.3s;"></iframe>
+      </div>
+    `;
   } else if (tabName === 'billing') {
     document.getElementById('accountTabBilling').classList.add('bg-gray-200', 'font-bold');
     titleDiv.textContent = '구독 결제 관리';
+    
+    // Load billing info dynamically
+    loadBillingInfo();
     
     contentDiv.innerHTML = `
       <div class="space-y-6">
@@ -3872,7 +3882,7 @@ function showAccountTab(tabName) {
         <div class="border-t border-gray-200 pt-6">
           <h3 class="text-lg font-bold text-gray-900 mb-4">구독 중인 요금제</h3>
           <div id="billingCurrentPlan" class="bg-gray-50 rounded-lg p-4 mb-4">
-            <p class="text-sm font-medium text-gray-700">결제 중인 요금제가 없습니다.</p>
+            <p class="text-sm font-medium text-gray-700">로딩 중...</p>
           </div>
         </div>
 
@@ -3930,6 +3940,45 @@ async function loadProfileInfo() {
     }
   } catch (error) {
     console.error('Error loading profile info:', error);
+  }
+}
+
+async function loadBillingInfo() {
+  try {
+    const sessionId = localStorage.getItem('session_id');
+    if (!sessionId) return;
+
+    const response = await axios.get('/api/user/me', {
+      headers: { 'X-Session-ID': sessionId }
+    });
+
+    if (response.data) {
+      const subscription = response.data.subscription || '무료';
+      const planElement = document.getElementById('billingCurrentPlan');
+      
+      if (planElement) {
+        // Show subscription info or "no paid plan" message
+        if (subscription === '무료') {
+          planElement.innerHTML = '<p class="text-sm font-medium text-gray-700">결제 중인 요금제가 없습니다.</p>';
+        } else {
+          planElement.innerHTML = `
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-lg font-bold text-gray-900">${subscription}</p>
+                <p class="text-sm text-gray-600">현재 구독 중인 요금제입니다.</p>
+              </div>
+              <a href="/pricing" class="text-sm text-blue-600 hover:underline">변경하기</a>
+            </div>
+          `;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error loading billing info:', error);
+    const planElement = document.getElementById('billingCurrentPlan');
+    if (planElement) {
+      planElement.innerHTML = '<p class="text-sm font-medium text-gray-700">결제 중인 요금제가 없습니다.</p>';
+    }
   }
 }
 

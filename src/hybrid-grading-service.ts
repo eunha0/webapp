@@ -254,7 +254,7 @@ export async function gradeEssayHybrid(
     // Check if AI API keys are configured
     if (!env.OPENAI_API_KEY || (!env.ANTHROPIC_API_KEY && !env.CLAUDE_API_KEY)) {
       console.error('AI API keys not configured - grading cannot proceed');
-      throw new Error('OpenAI나 Claude의 API KEY 연결에 장애가 생겨 채점이 실행되지 않았습니다.');
+      throw new Error('AI 연결에 장애가 발생하여 채점이 실행되지 않았습니다. 잠시 후에 다시 채점을 시도해 주시기 바랍니다.');
     }
 
     const { openai, anthropic } = initializeClients(env);
@@ -402,7 +402,7 @@ export async function gradeEssayHybrid(
     // Check if it's an API connection error
     if (error instanceof Error) {
       // Re-throw with user-friendly message
-      throw new Error('OpenAI나 Claude의 API KEY 연결에 장애가 생겨 채점이 실행되지 않았습니다.');
+      throw new Error('AI 연결에 장애가 발생하여 채점이 실행되지 않았습니다. 잠시 후에 다시 채점을 시도해 주시기 바랍니다.');
     }
     
     throw error;
