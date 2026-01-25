@@ -4037,25 +4037,10 @@ async function loadUsageData() {
     const nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const nextResetStr = nextReset.toLocaleDateString('ko-KR');
 
-    // Group submissions by student name to detect re-grading
-    const gradingMap = new Map();
-    thisMonthHistory.forEach(item => {
-      const key = `${item.assignment_id}_${item.student_name}`;
-      if (!gradingMap.has(key)) {
-        gradingMap.set(key, []);
-      }
-      gradingMap.get(key).push(item);
-    });
-
-    // Build grading list with "초회 채점" and "재채점" labels
+    // Build grading list
     const gradingListHTML = thisMonthHistory.map((item, index) => {
-      const key = `${item.assignment_id}_${item.student_name}`;
-      const itemList = gradingMap.get(key);
-      const itemIndex = itemList.findIndex(x => x.submission_id === item.submission_id);
-      const gradingType = itemIndex === itemList.length - 1 ? '초회 채점' : '재채점';
-
       return `
-        <tr class="hover:bg-gray-50">
+        <tr class="hover:bg-gray-50 cursor-pointer" onclick="reviewSubmissionFromHistory(${item.submission_id})">
           <td class="px-6 py-4">
             <div class="flex items-center">
               <div class="w-8 h-8 bg-navy-100 rounded-full flex items-center justify-center mr-3">
@@ -4066,6 +4051,10 @@ async function loadUsageData() {
                 <div class="text-xs text-gray-500">${item.grade_level}</div>
               </div>
             </div>
+          </td>
+          <td class="px-6 py-4">
+            <div class="text-sm font-medium text-gray-900">${item.assignment_title}</div>
+            <div class="text-xs text-gray-500">${item.grade_level}</div>
           </td>
           <td class="px-6 py-4">
             <div class="text-sm text-gray-900">
@@ -4084,9 +4073,10 @@ async function loadUsageData() {
             </div>
           </td>
           <td class="px-6 py-4">
-            <span class="px-3 py-1 text-xs font-semibold rounded-full ${gradingType === '초회 채점' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}">
-              ${gradingType}
-            </span>
+            <div class="flex items-center">
+              <div class="text-lg font-bold text-navy-700 mr-1">${item.overall_score || 0}</div>
+              <div class="text-sm text-gray-500">/ ${item.max_score || 100}</div>
+            </div>
           </td>
         </tr>
       `;
@@ -4138,7 +4128,13 @@ async function loadUsageData() {
 
         <!-- This Month Grading History -->
         <div class="border-t border-gray-200 pt-6">
-          <h3 class="text-lg font-bold text-gray-900 mb-4">이번 달 채점 이력</h3>
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-gray-900">이번 달 채점 이력</h3>
+            <p class="text-sm text-gray-600">
+              <i class="fas fa-info-circle text-blue-500 mr-1"></i>
+              재채점 시 기존 채점 기록이 업데이트됩니다
+            </p>
+          </div>
           ${thisMonthHistory.length === 0 ? `
             <div class="text-center py-12 bg-gray-50 rounded-lg">
               <i class="fas fa-history text-4xl text-gray-300 mb-3"></i>
@@ -4153,13 +4149,16 @@ async function loadUsageData() {
                       성명
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      과제명
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       제출일
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       채점일
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      채점 구분
+                      점수
                     </th>
                   </tr>
                 </thead>
