@@ -7150,8 +7150,8 @@ app.get('/my-page', (c) => {
                     <button onclick="showAccountTab('profile')" id="accountTabProfile" class="account-tab-btn w-full text-left px-6 py-3 hover:bg-gray-100 transition font-medium text-gray-700">
                         내 계정
                     </button>
-                    <button onclick="showAccountTab('subscription')" id="accountTabSubscription" class="account-tab-btn w-full text-left px-6 py-3 hover:bg-gray-100 transition font-medium text-gray-700">
-                        내 요금제
+                    <button onclick="showAccountTab('usage')" id="accountTabUsage" class="account-tab-btn w-full text-left px-6 py-3 hover:bg-gray-100 transition font-medium text-gray-700">
+                        내 사용량
                     </button>
                     <button onclick="showAccountTab('billing')" id="accountTabBilling" class="account-tab-btn w-full text-left px-6 py-3 hover:bg-gray-100 transition font-medium text-gray-700 border-b border-gray-200 pb-3 mb-3">
                         구독 결제 관리

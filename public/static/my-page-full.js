@@ -2090,7 +2090,18 @@ async function executeGrading(submissionId, feedbackLevel, strictness) {
     }
   } catch (error) {
     console.error('Error grading submission:', error);
-    alert('채점에 실패했습니다: ' + (error.response?.data?.error || error.message));
+    
+    // Extract error message from response
+    let errorMessage = '채점에 실패했습니다';
+    if (error.response?.data?.error) {
+      errorMessage = error.response.data.error;
+    } else if (error.response?.data?.details) {
+      errorMessage = error.response.data.details;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    alert(errorMessage);
     
     if (button) {
       button.disabled = false;
@@ -3846,19 +3857,12 @@ function showAccountTab(tabName) {
     
     // Reload user info after DOM is updated
     setTimeout(() => loadProfileInfo(), 100);
-  } else if (tabName === 'subscription') {
-    document.getElementById('accountTabSubscription').classList.add('bg-gray-200', 'font-bold');
-    titleDiv.textContent = '내 요금제';
+  } else if (tabName === 'usage') {
+    document.getElementById('accountTabUsage').classList.add('bg-gray-200', 'font-bold');
+    titleDiv.textContent = '내 사용량';
     
-    // Show pricing page in modal instead of redirecting
-    contentDiv.innerHTML = `
-      <div class="relative">
-        <button onclick="closeAccountModal()" class="absolute top-0 right-0 text-gray-500 hover:text-gray-700 z-10">
-          <i class="fas fa-times text-2xl"></i>
-        </button>
-        <iframe src="/pricing" class="w-full" style="height: 70vh; border: none;" onload="this.style.opacity='1'" style="opacity: 0; transition: opacity 0.3s;"></iframe>
-      </div>
-    `;
+    // Load usage data
+    loadUsageData();
   } else if (tabName === 'billing') {
     document.getElementById('accountTabBilling').classList.add('bg-gray-200', 'font-bold');
     titleDiv.textContent = '구독 결제 관리';
@@ -3979,6 +3983,203 @@ async function loadBillingInfo() {
     if (planElement) {
       planElement.innerHTML = '<p class="text-sm font-medium text-gray-700">결제 중인 요금제가 없습니다.</p>';
     }
+  }
+}
+
+async function loadUsageData() {
+  const contentDiv = document.getElementById('accountTabContent');
+  
+  try {
+    const sessionId = localStorage.getItem('session_id');
+    if (!sessionId) return;
+
+    // Get user info and grading quota
+    const [userResponse, historyResponse] = await Promise.all([
+      axios.get('/api/user/grading-quota', { headers: { 'X-Session-ID': sessionId } }),
+      axios.get('/api/grading-history', { headers: { 'X-Session-ID': sessionId } })
+    ]);
+
+    const userData = userResponse.data;
+    const allHistory = historyResponse.data || [];
+
+    // Filter this month's grading history
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const thisMonthHistory = allHistory.filter(item => {
+      const gradedDate = new Date(item.graded_at);
+      return gradedDate >= thisMonthStart;
+    });
+
+    // Sort by graded_at DESC
+    thisMonthHistory.sort((a, b) => new Date(b.graded_at) - new Date(a.graded_at));
+
+    // Plan logo mapping
+    const planLogos = {
+      '무료': '/static/plan-free.png',
+      '스타터': '/static/plan-starter.png',
+      '베이직': '/static/plan-basic.png',
+      '프로': '/static/plan-pro.png'
+    };
+
+    const planNames = {
+      '무료': '무료 체험',
+      '스타터': '스타터 플랜',
+      '베이직': '베이직 플랜',
+      '프로': '프로 플랜'
+    };
+
+    const subscription = userData.subscription || '무료';
+    const currentCount = userData.current_count || 0;
+    const maxLimit = userData.max_limit || 20;
+    const remaining = userData.remaining || 0;
+
+    // Calculate next reset date (next month 1st)
+    const nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const nextResetStr = nextReset.toLocaleDateString('ko-KR');
+
+    // Group submissions by student name to detect re-grading
+    const gradingMap = new Map();
+    thisMonthHistory.forEach(item => {
+      const key = `${item.assignment_id}_${item.student_name}`;
+      if (!gradingMap.has(key)) {
+        gradingMap.set(key, []);
+      }
+      gradingMap.get(key).push(item);
+    });
+
+    // Build grading list with "초회 채점" and "재채점" labels
+    const gradingListHTML = thisMonthHistory.map((item, index) => {
+      const key = `${item.assignment_id}_${item.student_name}`;
+      const itemList = gradingMap.get(key);
+      const itemIndex = itemList.findIndex(x => x.submission_id === item.submission_id);
+      const gradingType = itemIndex === itemList.length - 1 ? '초회 채점' : '재채점';
+
+      return `
+        <tr class="hover:bg-gray-50">
+          <td class="px-6 py-4">
+            <div class="flex items-center">
+              <div class="w-8 h-8 bg-navy-100 rounded-full flex items-center justify-center mr-3">
+                <i class="fas fa-user text-navy-700 text-xs"></i>
+              </div>
+              <div>
+                <div class="text-sm font-medium text-gray-900">${item.student_name}</div>
+                <div class="text-xs text-gray-500">${item.grade_level}</div>
+              </div>
+            </div>
+          </td>
+          <td class="px-6 py-4">
+            <div class="text-sm text-gray-900">
+              ${toKST(item.submitted_at).toLocaleDateString('ko-KR')}
+            </div>
+            <div class="text-xs text-gray-500">
+              ${toKST(item.submitted_at).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'})}
+            </div>
+          </td>
+          <td class="px-6 py-4">
+            <div class="text-sm text-gray-900">
+              ${toKST(item.graded_at).toLocaleDateString('ko-KR')}
+            </div>
+            <div class="text-xs text-gray-500">
+              ${toKST(item.graded_at).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'})}
+            </div>
+          </td>
+          <td class="px-6 py-4">
+            <span class="px-3 py-1 text-xs font-semibold rounded-full ${gradingType === '초회 채점' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}">
+              ${gradingType}
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    contentDiv.innerHTML = `
+      <div class="space-y-6">
+        <!-- Plan Badge -->
+        <div class="flex items-center space-x-4 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200">
+          <div class="flex-shrink-0">
+            <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-md">
+              <i class="fas fa-star text-yellow-500 text-2xl"></i>
+            </div>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-xl font-bold text-gray-900">${planNames[subscription] || '무료 체험'}</h3>
+            <p class="text-sm text-gray-600 mt-1">현재 구독 중인 요금제입니다</p>
+          </div>
+        </div>
+
+        <!-- Usage Stats -->
+        <div class="grid grid-cols-2 gap-6">
+          <div class="bg-white border border-gray-200 rounded-lg p-6">
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">다음 충전일</h3>
+            <p class="text-2xl font-bold text-gray-900">${nextResetStr}</p>
+            <p class="text-xs text-gray-500 mt-1">매월 1일 자동 충전</p>
+          </div>
+          <div class="bg-white border border-gray-200 rounded-lg p-6">
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">다음 요금제</h3>
+            <p class="text-2xl font-bold text-gray-900">${planNames[subscription] || '무료 체험'}</p>
+            <p class="text-xs text-gray-500 mt-1">현재와 동일</p>
+          </div>
+        </div>
+
+        <!-- Usage Count -->
+        <div class="bg-gradient-to-br from-navy-50 to-blue-50 border border-navy-200 rounded-lg p-6">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-lg font-bold text-gray-900">이번 달 채점 횟수</h3>
+            <span class="text-3xl font-bold text-navy-700">${currentCount}<span class="text-xl text-gray-500">/${maxLimit}</span></span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-3">
+            <div class="bg-gradient-to-r from-navy-600 to-blue-600 h-3 rounded-full transition-all" style="width: ${(currentCount / maxLimit * 100).toFixed(1)}%"></div>
+          </div>
+          <p class="text-sm text-gray-600 mt-2">
+            <i class="fas fa-check-circle text-green-500 mr-1"></i>
+            남은 횟수: ${remaining}회
+          </p>
+        </div>
+
+        <!-- This Month Grading History -->
+        <div class="border-t border-gray-200 pt-6">
+          <h3 class="text-lg font-bold text-gray-900 mb-4">이번 달 채점 이력</h3>
+          ${thisMonthHistory.length === 0 ? `
+            <div class="text-center py-12 bg-gray-50 rounded-lg">
+              <i class="fas fa-history text-4xl text-gray-300 mb-3"></i>
+              <p class="text-gray-500">이번 달 채점 이력이 없습니다.</p>
+            </div>
+          ` : `
+            <div class="overflow-x-auto border border-gray-200 rounded-lg">
+              <table class="w-full">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      성명
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      제출일
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      채점일
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      채점 구분
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                  ${gradingListHTML}
+                </tbody>
+              </table>
+            </div>
+          `}
+        </div>
+      </div>
+    `;
+  } catch (error) {
+    console.error('Error loading usage data:', error);
+    contentDiv.innerHTML = `
+      <div class="text-center py-12">
+        <i class="fas fa-exclamation-circle text-red-500 text-4xl mb-4"></i>
+        <p class="text-gray-600">사용량 정보를 불러오는 중 오류가 발생했습니다.</p>
+      </div>
+    `;
   }
 }
 
