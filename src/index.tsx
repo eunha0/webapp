@@ -7118,13 +7118,17 @@ app.get('/my-page', (c) => {
             </div>
 
             <!-- Tabs -->
-            <div class="flex gap-2 mb-6 border-b border-gray-200">
+            <div class="flex items-center gap-2 mb-6 border-b border-gray-200">
                 <button id="assignmentsTab" onclick="switchTab('assignments')" class="tab-button px-6 py-3 font-semibold rounded-t-lg transition active">
                     <i class="fas fa-clipboard-list mr-2"></i>내 과제
                 </button>
                 <button id="historyTab" onclick="switchTab('history')" class="tab-button px-6 py-3 font-semibold rounded-t-lg transition text-gray-700 hover:bg-gray-100">
                     <i class="fas fa-history mr-2"></i>채점 이력
                 </button>
+                <div class="flex items-center gap-1 text-sm text-gray-600 ml-2">
+                    <i class="fas fa-info-circle" style="color: #ef4444;"></i>
+                    <span>재채점 시 기존 채점 기록이 업데이트됩니다!</span>
+                </div>
             </div>
 
             <!-- Assignments Tab Content -->

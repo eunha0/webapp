@@ -4140,12 +4140,8 @@ async function loadUsageData() {
 
         <!-- This Month Grading History -->
         <div class="border-t border-gray-200 pt-6">
-          <div class="flex items-center justify-between mb-4">
+          <div class="mb-4">
             <h3 class="text-lg font-bold text-gray-900">이번 달 채점 이력</h3>
-            <p class="text-sm text-gray-600">
-              <i class="fas fa-info-circle text-blue-500 mr-1"></i>
-              재채점 시 기존 채점 기록이 업데이트됩니다
-            </p>
           </div>
           ${thisMonthHistory.length === 0 ? `
             <div class="text-center py-12 bg-gray-50 rounded-lg">
