@@ -3994,13 +3994,24 @@ async function loadUsageData() {
     if (!sessionId) return;
 
     // Get user info and grading execution history
-    const [userResponse, historyResponse] = await Promise.all([
-      axios.get('/api/user/grading-quota', { headers: { 'X-Session-ID': sessionId } }),
-      axios.get('/api/grading-execution-history', { headers: { 'X-Session-ID': sessionId } })
-    ]);
-
+    const userResponse = await axios.get('/api/user/grading-quota', { headers: { 'X-Session-ID': sessionId } });
     const userData = userResponse.data;
-    const allHistory = historyResponse.data || [];
+    
+    let allHistory = [];
+    try {
+      // Try to get grading execution history (includes re-gradings)
+      const historyResponse = await axios.get('/api/grading-execution-history', { headers: { 'X-Session-ID': sessionId } });
+      allHistory = historyResponse.data || [];
+    } catch (historyError) {
+      console.warn('Could not load grading execution history, falling back to grading history:', historyError);
+      // Fallback to regular grading history if grading_history table doesn't exist
+      try {
+        const fallbackResponse = await axios.get('/api/grading-history', { headers: { 'X-Session-ID': sessionId } });
+        allHistory = fallbackResponse.data || [];
+      } catch (fallbackError) {
+        console.error('Could not load any grading history:', fallbackError);
+      }
+    }
 
     // Filter this month's grading history
     const now = new Date();

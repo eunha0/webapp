@@ -123,35 +123,41 @@ submissions.post('/:id/grade', async (c) => {
       WHERE id = ?
     `).bind(...params).run()
     
-    // Get max_score from rubrics for grading history
-    const rubricScores = await db.prepare(
-      'SELECT max_score FROM assignment_rubrics WHERE assignment_id = ?'
-    ).bind(submission.assignment_id).all()
-    
-    const maxScore = rubricScores.results && rubricScores.results.length > 0
-      ? rubricScores.results.reduce((sum: number, rubric: any) => sum + (rubric.max_score || 4), 0)
-      : 100
-    
-    // Insert into grading_history to track all grading executions (including re-gradings)
-    await db.prepare(`
-      INSERT INTO grading_history (
-        submission_id, 
-        assignment_id, 
-        student_name, 
-        grade_level, 
-        overall_score, 
-        max_score,
-        graded_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      submissionId,
-      submission.assignment_id,
-      submission.student_name,
-      submission.grade_level,
-      overall_score,
-      maxScore,
-      user.id
-    ).run()
+    // Try to insert into grading_history (optional - for tracking re-gradings)
+    try {
+      // Get max_score from rubrics for grading history
+      const rubricScores = await db.prepare(
+        'SELECT max_score FROM assignment_rubrics WHERE assignment_id = ?'
+      ).bind(submission.assignment_id).all()
+      
+      const maxScore = rubricScores.results && rubricScores.results.length > 0
+        ? rubricScores.results.reduce((sum: number, rubric: any) => sum + (rubric.max_score || 4), 0)
+        : 100
+      
+      // Insert into grading_history to track all grading executions (including re-gradings)
+      await db.prepare(`
+        INSERT INTO grading_history (
+          submission_id, 
+          assignment_id, 
+          student_name, 
+          grade_level, 
+          overall_score, 
+          max_score,
+          graded_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        submissionId,
+        submission.assignment_id,
+        submission.student_name,
+        submission.grade_level,
+        overall_score,
+        maxScore,
+        user.id
+      ).run()
+    } catch (historyError) {
+      // If grading_history table doesn't exist, just log and continue
+      console.warn('[Grading] Could not insert into grading_history (table may not exist):', historyError)
+    }
     
     // Increment teacher's monthly grading count
     await db.prepare(`
@@ -169,8 +175,8 @@ submissions.post('/:id/grade', async (c) => {
   } catch (error) {
     console.error('Error grading submission:', error)
     
-    // Check if error message is about API keys
-    if (error instanceof Error && error.message.includes('API KEY 연결에 장애')) {
+    // Check if error message is about AI connectivity
+    if (error instanceof Error && error.message.includes('AI 연결에 장애')) {
       return c.json({ 
         error: error.message,
         details: 'AI 서비스 연결 오류'
@@ -179,7 +185,7 @@ submissions.post('/:id/grade', async (c) => {
     
     return c.json({ 
       error: 'Failed to grade submission', 
-      details: String(error) 
+      details: error instanceof Error ? error.message : String(error)
     }, 500)
   }
 })
