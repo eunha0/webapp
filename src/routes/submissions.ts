@@ -123,13 +123,13 @@ submissions.post('/:id/grade', async (c) => {
       WHERE id = ?
     `).bind(...params).run()
     
-    // Get max_score from rubrics
-    const rubrics = await db.prepare(
+    // Get max_score from rubrics for grading history
+    const rubricScores = await db.prepare(
       'SELECT max_score FROM assignment_rubrics WHERE assignment_id = ?'
     ).bind(submission.assignment_id).all()
     
-    const maxScore = rubrics.results && rubrics.results.length > 0
-      ? rubrics.results.reduce((sum: number, rubric: any) => sum + (rubric.max_score || 4), 0)
+    const maxScore = rubricScores.results && rubricScores.results.length > 0
+      ? rubricScores.results.reduce((sum: number, rubric: any) => sum + (rubric.max_score || 4), 0)
       : 100
     
     // Insert into grading_history to track all grading executions (including re-gradings)
