@@ -3993,10 +3993,10 @@ async function loadUsageData() {
     const sessionId = localStorage.getItem('session_id');
     if (!sessionId) return;
 
-    // Get user info and grading quota
+    // Get user info and grading execution history
     const [userResponse, historyResponse] = await Promise.all([
       axios.get('/api/user/grading-quota', { headers: { 'X-Session-ID': sessionId } }),
-      axios.get('/api/grading-history', { headers: { 'X-Session-ID': sessionId } })
+      axios.get('/api/grading-execution-history', { headers: { 'X-Session-ID': sessionId } })
     ]);
 
     const userData = userResponse.data;
@@ -4040,7 +4040,7 @@ async function loadUsageData() {
     // Build grading list
     const gradingListHTML = thisMonthHistory.map((item, index) => {
       return `
-        <tr class="hover:bg-gray-50 cursor-pointer" onclick="reviewSubmissionFromHistory(${item.submission_id})">
+        <tr class="hover:bg-gray-50">
           <td class="px-6 py-4">
             <div class="flex items-center">
               <div class="w-8 h-8 bg-navy-100 rounded-full flex items-center justify-center mr-3">
@@ -4073,9 +4073,10 @@ async function loadUsageData() {
             </div>
           </td>
           <td class="px-6 py-4">
-            <div class="flex items-center">
-              <div class="text-lg font-bold text-navy-700 mr-1">${item.overall_score || 0}</div>
-              <div class="text-sm text-gray-500">/ ${item.max_score || 100}</div>
+            <div class="flex items-center justify-center">
+              <span class="text-2xl font-bold text-navy-700">${item.overall_score || 0}</span>
+              <span class="text-lg text-gray-400 mx-1">/</span>
+              <span class="text-lg text-gray-600">${item.max_score || 100}</span>
             </div>
           </td>
         </tr>

@@ -175,4 +175,42 @@ grading.get('/grading-history', async (c) => {
   }
 })
 
+/**
+ * GET /api/grading-execution-history - Get all grading executions (including re-gradings)
+ */
+grading.get('/grading-execution-history', async (c) => {
+  try {
+    const result = await requireAuth(c)
+    if (result instanceof Response) return result
+    const user = result
+    
+    const db = c.env.DB
+    
+    // Get all grading executions from grading_history table
+    const queryResult = await db.prepare(
+      `SELECT 
+        gh.id as history_id,
+        gh.submission_id,
+        gh.assignment_id,
+        gh.student_name,
+        gh.grade_level,
+        gh.overall_score,
+        gh.max_score,
+        gh.graded_at,
+        a.title as assignment_title,
+        s.submitted_at
+       FROM grading_history gh
+       JOIN assignments a ON gh.assignment_id = a.id
+       LEFT JOIN student_submissions s ON gh.submission_id = s.id
+       WHERE gh.graded_by = ?
+       ORDER BY gh.graded_at DESC`
+    ).bind(user.id).all()
+    
+    return c.json(queryResult.results || [])
+  } catch (error) {
+    console.error('Error fetching grading execution history:', error)
+    return c.json({ error: 'Failed to fetch grading execution history', details: String(error) }, 500)
+  }
+})
+
 export default grading
