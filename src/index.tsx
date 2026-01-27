@@ -5709,6 +5709,222 @@ app.get('/login', (c) => {
   `)
 })
 
+// Reset Password Page
+app.get('/reset-password', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>비밀번호 재설정 | AI 논술 평가</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script>
+          tailwind.config = {
+            theme: {
+              extend: {
+                colors: {
+                  navy: {
+                    50: '#f0f4ff',
+                    700: '#4338ca',
+                    800: '#3730a3',
+                    900: '#1e3a8a',
+                  }
+                }
+              }
+            }
+          }
+        </script>
+    </head>
+    <body class="bg-gray-50 min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-md w-full space-y-8">
+            <div class="text-center">
+                <h2 class="mt-6 text-3xl font-extrabold text-gray-900">
+                    비밀번호 재설정
+                </h2>
+                <p class="mt-2 text-sm text-gray-600">
+                    새로운 비밀번호를 입력해주세요
+                </p>
+            </div>
+
+            <div id="contentArea" class="bg-white rounded-xl shadow-lg p-8">
+                <!-- Token validation loading -->
+                <div id="loadingState" class="text-center py-8">
+                    <i class="fas fa-spinner fa-spin text-4xl text-navy-900 mb-4"></i>
+                    <p class="text-gray-600">토큰을 확인하는 중...</p>
+                </div>
+
+                <!-- Token expired/invalid -->
+                <div id="expiredState" class="hidden text-center py-8">
+                    <i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-4"></i>
+                    <h3 class="text-xl font-bold text-gray-900 mb-2">링크가 만료되었습니다</h3>
+                    <p class="text-gray-600 mb-6">
+                        비밀번호 재설정 링크가 만료되었거나 유효하지 않습니다.<br>
+                        다시 요청해주세요.
+                    </p>
+                    <a href="/login" class="inline-block bg-navy-900 text-white px-6 py-3 rounded-lg font-semibold hover:bg-navy-800 transition">
+                        로그인 페이지로 이동
+                    </a>
+                </div>
+
+                <!-- Reset password form -->
+                <form id="resetForm" class="hidden space-y-6" onsubmit="handleResetPassword(event)">
+                    <div>
+                        <label for="newPassword" class="block text-sm font-medium text-gray-700 mb-1">
+                            새 비밀번호
+                        </label>
+                        <input 
+                            id="newPassword" 
+                            name="newPassword" 
+                            type="password" 
+                            required 
+                            class="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
+                            placeholder="비밀번호 (대문자, 소문자, 숫자, 특수문자 포함 10자 이상)">
+                        <p class="mt-1 text-xs text-gray-500">예: MyPass123!</p>
+                    </div>
+
+                    <div>
+                        <label for="confirmPassword" class="block text-sm font-medium text-gray-700 mb-1">
+                            비밀번호 확인
+                        </label>
+                        <input 
+                            id="confirmPassword" 
+                            name="confirmPassword" 
+                            type="password" 
+                            required 
+                            class="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
+                            placeholder="비밀번호 확인">
+                    </div>
+
+                    <div>
+                        <button 
+                            type="submit" 
+                            class="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-navy-900 hover:bg-navy-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navy-700">
+                            비밀번호 재설정
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Success state -->
+                <div id="successState" class="hidden text-center py-8">
+                    <i class="fas fa-check-circle text-4xl text-green-500 mb-4"></i>
+                    <h3 class="text-xl font-bold text-gray-900 mb-2">재설정 완료!</h3>
+                    <p class="text-gray-600 mb-6">
+                        비밀번호가 성공적으로 변경되었습니다.<br>
+                        새 비밀번호로 로그인해주세요.
+                    </p>
+                    <a href="/login" class="inline-block bg-navy-900 text-white px-6 py-3 rounded-lg font-semibold hover:bg-navy-800 transition">
+                        로그인하기
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script>
+          // Get token from URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const token = urlParams.get('token');
+
+          // Validate token on page load
+          async function validateToken() {
+            if (!token) {
+              showExpiredState();
+              return;
+            }
+
+            try {
+              // Validate token by checking if it exists and is not expired
+              const response = await axios.post('/api/auth/validate-reset-token', { token });
+              
+              if (response.data.valid) {
+                showResetForm();
+              } else {
+                showExpiredState();
+              }
+            } catch (error) {
+              console.error('Token validation error:', error);
+              showExpiredState();
+            }
+          }
+
+          function showResetForm() {
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('expiredState').classList.add('hidden');
+            document.getElementById('resetForm').classList.remove('hidden');
+            document.getElementById('successState').classList.add('hidden');
+          }
+
+          function showExpiredState() {
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('expiredState').classList.remove('hidden');
+            document.getElementById('resetForm').classList.add('hidden');
+            document.getElementById('successState').classList.add('hidden');
+          }
+
+          function showSuccessState() {
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('expiredState').classList.add('hidden');
+            document.getElementById('resetForm').classList.add('hidden');
+            document.getElementById('successState').classList.remove('hidden');
+          }
+
+          async function handleResetPassword(event) {
+            event.preventDefault();
+            
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            // Validate passwords match
+            if (newPassword !== confirmPassword) {
+              alert('비밀번호가 일치하지 않습니다.');
+              return;
+            }
+
+            // Validate password length
+            if (newPassword.length < 10) {
+              alert('비밀번호는 최소 10자 이상이어야 합니다.');
+              return;
+            }
+
+            // Validate password complexity
+            const hasUpperCase = /[A-Z]/.test(newPassword);
+            const hasLowerCase = /[a-z]/.test(newPassword);
+            const hasNumber = /[0-9]/.test(newPassword);
+            const hasSpecial = /[@$!%*?&#^()_+=\-[\]{}|\\:;"'<>,./~\`]/.test(newPassword);
+
+            if (!hasUpperCase || !hasLowerCase || !hasNumber || !hasSpecial) {
+              alert('비밀번호는 대문자, 소문자, 숫자, 특수문자를 각각 최소 1개씩 포함해야 합니다.');
+              return;
+            }
+
+            try {
+              const response = await axios.post('/api/auth/reset-password', {
+                token,
+                new_password: newPassword
+              });
+
+              if (response.data.success) {
+                showSuccessState();
+              }
+            } catch (error) {
+              if (error.response?.status === 400) {
+                showExpiredState();
+              } else {
+                alert('비밀번호 재설정 실패: ' + (error.response?.data?.error || error.message));
+              }
+            }
+          }
+
+          // Validate token on page load
+          validateToken();
+        </script>
+    </body>
+    </html>
+  `)
+})
+
 // Signup Page
 app.get('/signup', (c) => {
   return c.html(`

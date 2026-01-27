@@ -1,0 +1,16 @@
+# Local development environment variables for Cloudflare Workers
+# These are used by wrangler during local development
+# DO NOT commit this file to git
+
+# Daum Smartwork SMTP Configuration
+SMTP_HOST=smtp.daum.net
+SMTP_PORT=465
+SMTP_USER=admin@ai-nonsool.kr
+SMTP_PASS=YOUR_SMTP_PASSWORD_HERE
+
+# Note: Replace YOUR_SMTP_PASSWORD_HERE with your actual Daum email password
+# For production, set these as secrets using:
+# npx wrangler pages secret put SMTP_HOST --project-name ai-nonsool-kr
+# npx wrangler pages secret put SMTP_PORT --project-name ai-nonsool-kr
+# npx wrangler pages secret put SMTP_USER --project-name ai-nonsool-kr
+# npx wrangler pages secret put SMTP_PASS --project-name ai-nonsool-kr

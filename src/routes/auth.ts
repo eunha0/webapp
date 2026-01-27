@@ -3,6 +3,7 @@ import { setCookie, deleteCookie } from 'hono/cookie'
 import type { Bindings } from '../types'
 import { asyncHandler } from '../middleware/error'
 import { hashPassword, verifyPassword } from '../utils/helpers'
+import { sendEmail } from '../utils/email'
 import { 
   userSignupSchema, 
   userLoginSchema,
@@ -451,27 +452,57 @@ auth.post('/forgot-password', asyncHandler(async (c) => {
     </html>
   `
   
-  // Send email (using Cloudflare Email Routing or external service)
-  // For now, we'll log it and return success
-  // TODO: Implement actual email sending (SendGrid, Mailgun, etc.)
-  console.log('Password reset email would be sent to:', email)
-  console.log('Reset URL:', resetUrl)
-  console.log('Email HTML:', emailHtml)
-  
-  // In production, you would send the email here:
-  // await sendEmail({
-  //   to: email,
-  //   from: 'admin@ai-nonsool.kr',
-  //   subject: 'Ai-Nonsool 비밀번호 재설정',
-  //   html: emailHtml
-  // })
+  // Send email using Daum Smartwork SMTP
+  try {
+    const emailSent = await sendEmail({
+      to: email,
+      subject: 'Ai-Nonsool 비밀번호 재설정',
+      html: emailHtml
+    }, c.env)
+    
+    if (!emailSent) {
+      console.error('Failed to send email, but returning success to prevent user enumeration')
+    } else {
+      console.log('Password reset email sent successfully to:', email)
+    }
+  } catch (error) {
+    console.error('Email sending error:', error)
+    // Continue anyway to prevent user enumeration
+  }
   
   return c.json({ 
     success: true, 
-    message: '비밀번호 재설정 링크가 이메일로 전송되었습니다.',
-    // For development/testing only:
-    dev_reset_url: resetUrl
+    message: '비밀번호 재설정 링크가 이메일로 전송되었습니다.'
   })
+}))
+
+/**
+ * POST /api/auth/validate-reset-token - Validate password reset token
+ */
+auth.post('/validate-reset-token', asyncHandler(async (c) => {
+  const { token } = await c.req.json()
+  const db = c.env.DB
+  
+  if (!token) {
+    return c.json({ valid: false, error: '토큰이 필요합니다.' }, 400)
+  }
+  
+  // Find valid reset token
+  const resetRequest = await db.prepare(
+    `SELECT user_id, expires_at FROM password_reset_tokens 
+     WHERE token = ? AND used_at IS NULL`
+  ).bind(token).first()
+  
+  if (!resetRequest) {
+    return c.json({ valid: false, error: '유효하지 않은 토큰입니다.' })
+  }
+  
+  // Check if token is expired
+  if (new Date() > new Date(resetRequest.expires_at as string)) {
+    return c.json({ valid: false, error: '토큰이 만료되었습니다.' })
+  }
+  
+  return c.json({ valid: true })
 }))
 
 /**
