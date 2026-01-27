@@ -2,11 +2,14 @@
 # These are used by wrangler during local development
 # DO NOT commit this file to git
 
-# Note: Email sending is handled by Cloudflare Email Routing
-# No SMTP configuration needed - emails are sent through Cloudflare's native API
-# 
-# Requirements:
-# 1. Enable Email Routing in Cloudflare Dashboard
-# 2. Configure domain (ai-nonsool.kr)
-# 3. Enable "Send emails using Workers (beta)"
-# 4. Create custom address (admin@ai-nonsool.kr)
+# Resend API Key for email sending
+# Get your API key from: https://resend.com/api-keys
+# For production, add this to Cloudflare Pages secrets:
+# npx wrangler pages secret put RESEND_API_KEY --project-name ai-nonsool-kr
+RESEND_API_KEY=re_your_api_key_here
+
+# Example API keys (replace with your own)
+# OPENAI_API_KEY=sk-...
+# ANTHROPIC_API_KEY=sk-ant-...
+# CLAUDE_API_KEY=sk-ant-...
+# OCR_SPACE_API_KEY=K8...

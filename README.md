@@ -997,6 +997,49 @@ webapp/
 | Pricing Plans | ✅ Free + Paid | N/A (Open Source) |
 | SOC 2 Compliance | ✅ Certified | N/A (Local deployment) |
 
+## Email Configuration
+
+### Resend API Setup
+
+The application uses [Resend](https://resend.com) for sending emails (password reset, notifications, etc.).
+
+**Setup Steps**:
+
+1. **Sign up for Resend**:
+   - Visit https://resend.com
+   - Create a free account (100 emails/day included)
+
+2. **Get API Key**:
+   - Go to https://resend.com/api-keys
+   - Create a new API key
+   - Copy the key (starts with `re_`)
+
+3. **Configure for Production**:
+   ```bash
+   # Add to Cloudflare Pages secrets
+   npx wrangler pages secret put RESEND_API_KEY --project-name ai-nonsool-kr
+   # Paste your API key when prompted
+   ```
+
+4. **Configure for Local Development**:
+   ```bash
+   # Add to .dev.vars file (not committed to git)
+   echo "RESEND_API_KEY=re_your_api_key_here" >> .dev.vars
+   ```
+
+5. **Verify Email Domain (Optional)**:
+   - For production emails from your domain (e.g., `admin@ai-nonsool.kr`)
+   - Add domain in Resend dashboard
+   - Configure DNS records (SPF, DKIM, DMARC)
+   - For testing, use `onboarding@resend.dev` (default)
+
+**Email Features**:
+- ✅ Password reset emails
+- ✅ Account notifications
+- ✅ HTML email templates
+- ✅ Reliable delivery
+- ✅ Works with Cloudflare Workers
+
 ## License
 
 MIT License
@@ -1009,4 +1052,3 @@ For questions or contributions, please create an issue.
 
 **Built with ❤️ using Hono, Cloudflare Workers, and AI**  
 **Designed to match the elegance of EssayGrader.ai**
-# Trigger deployment - environment variables configured

@@ -1,14 +1,20 @@
 /**
- * Email sending utility using Cloudflare Email Routing
+ * Email sending utility using Resend API
  * 
- * Cloudflare Email Routing allows sending emails directly from Workers
- * without needing external SMTP servers.
+ * Resend is a modern email service that works perfectly with Cloudflare Workers
+ * and provides excellent deliverability.
  * 
  * Requirements:
- * 1. Email Routing must be enabled in Cloudflare Dashboard
- * 2. Domain must be configured (ai-nonsool.kr)
- * 3. "Send emails using Workers" must be enabled
- * 4. Custom address must be created (admin@ai-nonsool.kr)
+ * 1. RESEND_API_KEY environment variable must be set
+ * 2. Domain verification in Resend dashboard (or use onboarding@resend.dev for testing)
+ * 
+ * Setup:
+ * 1. Sign up at https://resend.com
+ * 2. Get your API key from https://resend.com/api-keys
+ * 3. Add RESEND_API_KEY to Cloudflare Pages secrets:
+ *    npx wrangler pages secret put RESEND_API_KEY --project-name ai-nonsool-kr
+ * 4. Add to .dev.vars for local development:
+ *    RESEND_API_KEY=re_xxxxx
  */
 
 export interface EmailOptions {
@@ -19,46 +25,45 @@ export interface EmailOptions {
 }
 
 /**
- * Send email using Cloudflare Email Routing API
+ * Send email using Resend API
  * 
- * Uses MailChannels API which is integrated with Cloudflare Workers
- * No environment variables required
+ * @param options Email options
+ * @param env Environment variables (must contain RESEND_API_KEY)
+ * @returns true if email sent successfully, false otherwise
  */
 export async function sendEmail(options: EmailOptions, env: any): Promise<boolean> {
   try {
-    // Send email through MailChannels API (integrated with Cloudflare)
-    const response = await fetch('https://api.mailchannels.net/tx/v1/send', {
+    // Check if API key is configured
+    if (!env.RESEND_API_KEY) {
+      console.error('RESEND_API_KEY is not configured')
+      console.error('Please add RESEND_API_KEY to Cloudflare Pages secrets')
+      console.error('Command: npx wrangler pages secret put RESEND_API_KEY --project-name ai-nonsool-kr')
+      return false
+    }
+
+    // Send email through Resend API
+    const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
-        'content-type': 'application/json',
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        personalizations: [
-          {
-            to: [{ email: options.to }],
-          },
-        ],
-        from: {
-          email: options.from || 'admin@ai-nonsool.kr',
-          name: 'AI 논술',
-        },
+        from: options.from || 'AI 논술 <onboarding@resend.dev>',
+        to: [options.to],
         subject: options.subject,
-        content: [
-          {
-            type: 'text/html',
-            value: options.html,
-          },
-        ],
+        html: options.html,
       }),
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      console.error('MailChannels API error:', response.status, errorText)
+      const errorData = await response.json()
+      console.error('Resend API error:', response.status, JSON.stringify(errorData))
       return false
     }
 
-    console.log('Email sent successfully via MailChannels')
+    const result = await response.json()
+    console.log('Email sent successfully via Resend:', result.id)
     return true
   } catch (error) {
     console.error('Failed to send email:', error)
@@ -70,29 +75,6 @@ export async function sendEmail(options: EmailOptions, env: any): Promise<boolea
       console.error('Error stack:', error.stack)
     }
     
-    return false
-  }
-}
-
-/**
- * Alternative: Send email using Cloudflare's native Email Routing
- * This requires Email Routing to be enabled in Cloudflare Dashboard
- */
-export async function sendEmailViaCloudflare(options: EmailOptions): Promise<boolean> {
-  try {
-    // Note: This is a conceptual implementation
-    // Actual implementation depends on Cloudflare's Email API
-    // which may vary based on your Cloudflare plan and setup
-    
-    console.log('Attempting to send email via Cloudflare Email Routing')
-    console.log('To:', options.to)
-    console.log('Subject:', options.subject)
-    console.log('From:', options.from || 'admin@ai-nonsool.kr')
-    
-    // For now, use MailChannels which is integrated with Cloudflare
-    return await sendEmail(options, {})
-  } catch (error) {
-    console.error('Cloudflare email sending failed:', error)
     return false
   }
 }
