@@ -21,23 +21,12 @@ export interface EmailOptions {
 /**
  * Send email using Cloudflare Email Routing API
  * 
- * Uses the EmailMessage API available in Cloudflare Workers
- * No environment variables required - uses Cloudflare's native email routing
+ * Uses MailChannels API which is integrated with Cloudflare Workers
+ * No environment variables required
  */
 export async function sendEmail(options: EmailOptions, env: any): Promise<boolean> {
   try {
-    // Create email message using Cloudflare's EmailMessage API
-    const message = new EmailMessage(
-      options.from || 'admin@ai-nonsool.kr',
-      options.to,
-      options.html
-    )
-
-    // Set subject
-    message.setSubject(options.subject)
-
-    // Send email through Cloudflare Email Routing
-    // This uses the fetch API to send to Cloudflare's internal email service
+    // Send email through MailChannels API (integrated with Cloudflare)
     const response = await fetch('https://api.mailchannels.net/tx/v1/send', {
       method: 'POST',
       headers: {
