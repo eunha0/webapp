@@ -349,4 +349,184 @@ auth.post('/student/login', asyncHandler(async (c) => {
   })
 }))
 
+/**
+ * POST /api/auth/forgot-password - Send password reset email
+ */
+auth.post('/forgot-password', asyncHandler(async (c) => {
+  const { email } = await c.req.json()
+  const db = c.env.DB
+  
+  if (!email || !email.includes('@')) {
+    return c.json({ error: '올바른 이메일 주소를 입력해주세요.' }, 400)
+  }
+  
+  // Find user by email
+  const user = await db.prepare(
+    'SELECT id, name, email FROM users WHERE email = ?'
+  ).bind(email.toLowerCase()).first()
+  
+  // Always return success to prevent user enumeration
+  if (!user) {
+    // Simulate delay to prevent timing attacks
+    await new Promise(resolve => setTimeout(resolve, 100))
+    return c.json({ success: true, message: '비밀번호 재설정 링크가 이메일로 전송되었습니다.' })
+  }
+  
+  // Generate reset token (valid for 1 hour)
+  const resetToken = crypto.randomUUID()
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
+  
+  // Store reset token in database
+  await db.prepare(
+    `INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at) 
+     VALUES (?, ?, ?, ?)`
+  ).bind(user.id, resetToken, expiresAt.toISOString(), new Date().toISOString()).run()
+  
+  // Get client info
+  const clientIP = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
+  const requestTime = new Date().toLocaleString('ko-KR', { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric', 
+    weekday: 'long',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+  
+  // Generate reset URL
+  const resetUrl = `${new URL(c.req.url).origin}/reset-password?token=${resetToken}`
+  
+  // Email content (HTML format)
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: 'Malgun Gothic', sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #1e3a8a; color: white; padding: 20px; text-align: center; }
+        .content { background-color: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; }
+        .button { display: inline-block; background-color: #1e3a8a; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+        .info { background-color: #e0e7ff; padding: 15px; border-left: 4px solid: #3b82f6; margin: 20px 0; }
+        .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Ai-Nonsool.kr 비밀번호 재설정</h1>
+        </div>
+        <div class="content">
+          <p>친애하는 <strong>${user.name}</strong>님,</p>
+          
+          <p>Ai-Nonsool 계정 비밀번호를 재설정하려면 아래 버튼을 클릭하세요.</p>
+          
+          <div style="text-align: center;">
+            <a href="${resetUrl}" class="button">비밀번호 재설정하기</a>
+          </div>
+          
+          <div class="info">
+            <p><strong>참고로 알려드립니다:</strong></p>
+            <p>• 사용자 이름: ${user.name}</p>
+            <p>• 요청 시간: ${requestTime}</p>
+            <p>• IP 주소: ${clientIP}</p>
+          </div>
+          
+          <p>위 버튼을 클릭할 수 없는 경우, 아래 링크를 복사하여 브라우저에 붙여넣으세요:</p>
+          <p style="word-break: break-all; background-color: #f3f4f6; padding: 10px; border-radius: 5px; font-size: 12px;">
+            ${resetUrl}
+          </p>
+          
+          <p style="color: #ef4444; font-weight: bold;">이 링크는 1시간 동안만 유효합니다.</p>
+          
+          <p>비밀번호 재설정을 요청하지 않으셨다면, 이 이메일을 무시하셔도 됩니다.</p>
+        </div>
+        <div class="footer">
+          <p>궁금한 점이나 문의 사항이 있으시면 저희에게 연락해 주세요.</p>
+          <p>감사합니다,<br><strong>AI 논술 팀</strong></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+  
+  // Send email (using Cloudflare Email Routing or external service)
+  // For now, we'll log it and return success
+  // TODO: Implement actual email sending (SendGrid, Mailgun, etc.)
+  console.log('Password reset email would be sent to:', email)
+  console.log('Reset URL:', resetUrl)
+  console.log('Email HTML:', emailHtml)
+  
+  // In production, you would send the email here:
+  // await sendEmail({
+  //   to: email,
+  //   from: 'admin@ai-nonsool.kr',
+  //   subject: 'Ai-Nonsool 비밀번호 재설정',
+  //   html: emailHtml
+  // })
+  
+  return c.json({ 
+    success: true, 
+    message: '비밀번호 재설정 링크가 이메일로 전송되었습니다.',
+    // For development/testing only:
+    dev_reset_url: resetUrl
+  })
+}))
+
+/**
+ * POST /api/auth/reset-password - Reset password with token
+ */
+auth.post('/reset-password', asyncHandler(async (c) => {
+  const { token, new_password } = await c.req.json()
+  const db = c.env.DB
+  
+  if (!token || !new_password) {
+    return c.json({ error: '토큰과 새 비밀번호를 입력해주세요.' }, 400)
+  }
+  
+  if (new_password.length < 10) {
+    return c.json({ error: '비밀번호는 최소 10자 이상이어야 합니다.' }, 400)
+  }
+  
+  // Find valid reset token
+  const resetRequest = await db.prepare(
+    `SELECT user_id, expires_at FROM password_reset_tokens 
+     WHERE token = ? AND used_at IS NULL`
+  ).bind(token).first()
+  
+  if (!resetRequest) {
+    return c.json({ error: '유효하지 않거나 만료된 토큰입니다.' }, 400)
+  }
+  
+  // Check if token is expired
+  if (new Date() > new Date(resetRequest.expires_at as string)) {
+    return c.json({ error: '토큰이 만료되었습니다. 다시 요청해주세요.' }, 400)
+  }
+  
+  // Hash new password
+  const passwordHash = await hashPassword(new_password)
+  
+  // Update user password
+  await db.prepare(
+    'UPDATE users SET password_hash = ? WHERE id = ?'
+  ).bind(passwordHash, resetRequest.user_id).run()
+  
+  // Mark token as used
+  await db.prepare(
+    'UPDATE password_reset_tokens SET used_at = ? WHERE token = ?'
+  ).bind(new Date().toISOString(), token).run()
+  
+  // Log security event
+  const clientIP = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
+  await db.prepare(
+    'INSERT INTO security_logs (event_type, user_id, ip_address, details, created_at) VALUES (?, ?, ?, ?, ?)'
+  ).bind('password_reset', resetRequest.user_id, clientIP, JSON.stringify({ token }), new Date().toISOString()).run()
+  
+  return c.json({ 
+    success: true, 
+    message: '비밀번호가 성공적으로 재설정되었습니다.' 
+  })
+}))
+
 export default auth

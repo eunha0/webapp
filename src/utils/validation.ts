@@ -28,7 +28,7 @@ export const emailSchema = z
 
 /**
  * Password validation (OWASP compliant)
- * - Minimum 12 characters
+ * - Minimum 10 characters (reduced from 12 for user convenience)
  * - At least one uppercase letter
  * - At least one lowercase letter
  * - At least one digit
@@ -36,7 +36,7 @@ export const emailSchema = z
  */
 export const passwordSchema = z
   .string()
-  .min(12, '패스워드는 최소 12자 이상이어야 합니다')
+  .min(10, '패스워드는 최소 10자 이상이어야 합니다')
   .max(128, '패스워드는 128자를 초과할 수 없습니다')
   .regex(
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^()_+=\-[\]{}|\\:;"'<>,./~`])/,

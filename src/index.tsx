@@ -1312,8 +1312,8 @@ app.post('/api/user/change-password', async (c) => {
       return c.json({ error: '현재 비밀번호와 새 비밀번호를 입력해주세요.' }, 400)
     }
     
-    if (new_password.length < 6) {
-      return c.json({ error: '새 비밀번호는 최소 6자 이상이어야 합니다.' }, 400)
+    if (new_password.length < 10) {
+      return c.json({ error: '새 비밀번호는 최소 10자 이상이어야 합니다.' }, 400)
     }
     
     const db = c.env.DB
@@ -5298,8 +5298,8 @@ app.get('/student/signup', (c) => {
                             <label for="password" class="block text-sm font-medium text-gray-700 mb-1">비밀번호</label>
                             <input id="password" name="password" type="password" required 
                                    class="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
-                                   placeholder="비밀번호 (대문자, 소문자, 숫자, 특수문자 포함 12자 이상)">
-                            <p class="mt-1 text-xs text-gray-500">예: MyPass123!@#</p>
+                                   placeholder="비밀번호 (대문자, 소문자, 숫자, 특수문자 포함 10자 이상)">
+                            <p class="mt-1 text-xs text-gray-500">예: MyPass123!</p>
                         </div>
                         <div>
                             <label for="grade_level" class="block text-sm font-medium text-gray-700 mb-1">학년</label>
@@ -5339,8 +5339,8 @@ app.get('/student/signup', (c) => {
             const grade_level = document.getElementById('grade_level').value;
             
             // 비밀번호 검증
-            if (password.length < 12) {
-              alert('회원가입 실패: 비밀번호는 최소 12자 이상이어야 합니다.');
+            if (password.length < 10) {
+              alert('회원가입 실패: 비밀번호는 최소 10자 이상이어야 합니다.');
               return;
             }
             if (!/[a-z]/.test(password)) {
@@ -5496,9 +5496,9 @@ app.get('/login', (c) => {
                         </div>
 
                         <div class="text-sm">
-                            <a href="/forgot-password" class="font-medium text-navy-700 hover:text-navy-800">
+                            <button type="button" onclick="showForgotPasswordModal()" class="font-medium text-navy-700 hover:text-navy-800">
                                 비밀번호 찾기
-                            </a>
+                            </button>
                         </div>
                     </div>
 
@@ -5533,6 +5533,44 @@ app.get('/login', (c) => {
                             Kakao
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Forgot Password Modal -->
+        <div id="forgotPasswordModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full mx-4">
+                <div class="text-center">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-2">Ai-Nonsool</h3>
+                    <p class="text-gray-600 mb-6">이메일을 입력하고 버튼을 누르면,<br>비밀번호 재설정 링크가 발송됩니다.</p>
+                    
+                    <input type="email" id="resetEmail" placeholder="이메일을 입력해주세요" 
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4">
+                    
+                    <button onclick="sendResetLink()" 
+                            class="w-full bg-navy-900 text-white py-3 rounded-lg font-semibold hover:bg-navy-800 transition mb-3">
+                        비밀번호 재설정 링크 보내기
+                    </button>
+                    
+                    <button onclick="closeForgotPasswordModal()" 
+                            class="w-full text-gray-600 py-2 hover:text-gray-800">
+                        취소
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reset Link Sent Modal -->
+        <div id="resetLinkSentModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full mx-4">
+                <div class="text-center">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-2">Ai-Nonsool</h3>
+                    <p class="text-gray-600 mb-6">비밀번호 재설정 링크가<br>이메일로 발송되었습니다.</p>
+                    
+                    <button onclick="closeResetLinkSentModal()" 
+                            class="w-full bg-navy-900 text-white py-3 rounded-lg font-semibold hover:bg-navy-800 transition">
+                        확인
+                    </button>
                 </div>
             </div>
         </div>
@@ -5630,6 +5668,39 @@ app.get('/login', (c) => {
               }
             } catch (error) {
               alert('로그인 실패: ' + (error.response?.data?.error || error.message));
+            }
+          }
+          
+          function showForgotPasswordModal() {
+            document.getElementById('forgotPasswordModal').classList.remove('hidden');
+          }
+          
+          function closeForgotPasswordModal() {
+            document.getElementById('forgotPasswordModal').classList.add('hidden');
+            document.getElementById('resetEmail').value = '';
+          }
+          
+          function closeResetLinkSentModal() {
+            document.getElementById('resetLinkSentModal').classList.add('hidden');
+          }
+          
+          async function sendResetLink() {
+            const email = document.getElementById('resetEmail').value;
+            
+            if (!email || !email.includes('@')) {
+              alert('올바른 이메일 주소를 입력해주세요.');
+              return;
+            }
+            
+            try {
+              const response = await axios.post('/api/auth/forgot-password', { email });
+              
+              if (response.data.success) {
+                closeForgotPasswordModal();
+                document.getElementById('resetLinkSentModal').classList.remove('hidden');
+              }
+            } catch (error) {
+              alert('비밀번호 재설정 링크 전송 실패: ' + (error.response?.data?.error || error.message));
             }
           }
         </script>
@@ -5746,8 +5817,8 @@ app.get('/signup', (c) => {
                             <label for="password" class="sr-only">비밀번호</label>
                             <input id="password" name="password" type="password" required 
                                    class="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-navy-700 focus:border-navy-700 sm:text-sm" 
-                                   placeholder="비밀번호 (대문자, 소문자, 숫자, 특수문자 포함 12자 이상)">
-                            <p class="mt-1 text-xs text-gray-500">예: MyPass123!@#</p>
+                                   placeholder="비밀번호 (대문자, 소문자, 숫자, 특수문자 포함 10자 이상)">
+                            <p class="mt-1 text-xs text-gray-500">예: MyPass123!</p>
                         </div>
                         <div>
                             <label for="password-confirm" class="sr-only">비밀번호 확인</label>
@@ -5831,8 +5902,8 @@ app.get('/signup', (c) => {
             }
             
             // 비밀번호 검증
-            if (password.length < 12) {
-              alert('회원가입 실패: 비밀번호는 최소 12자 이상이어야 합니다.');
+            if (password.length < 10) {
+              alert('회원가입 실패: 비밀번호는 최소 10자 이상이어야 합니다.');
               return;
             }
             if (!/[a-z]/.test(password)) {
