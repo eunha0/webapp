@@ -5830,21 +5830,42 @@ app.get('/reset-password', (c) => {
           // Validate token on page load
           async function validateToken() {
             if (!token) {
+              console.error('No token found in URL');
               showExpiredState();
               return;
             }
 
+            console.log('Validating token:', token);
+
             try {
+              // Wait for axios to be loaded
+              if (typeof axios === 'undefined') {
+                console.error('Axios is not loaded yet');
+                await new Promise(resolve => setTimeout(resolve, 500));
+              }
+
               // Validate token by checking if it exists and is not expired
-              const response = await axios.post('/api/auth/validate-reset-token', { token });
+              console.log('Sending POST request to /api/auth/validate-reset-token');
+              const response = await axios.post('/api/auth/validate-reset-token', { token }, {
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              console.log('API Response:', response.data);
               
               if (response.data.valid) {
+                console.log('Token is valid, showing reset form');
                 showResetForm();
               } else {
+                console.log('Token is invalid');
                 showExpiredState();
               }
             } catch (error) {
               console.error('Token validation error:', error);
+              console.error('Error response:', error.response);
+              console.error('Error status:', error.response?.status);
+              console.error('Error data:', error.response?.data);
               showExpiredState();
             }
           }
@@ -5917,8 +5938,13 @@ app.get('/reset-password', (c) => {
             }
           }
 
-          // Validate token on page load
-          validateToken();
+          // Validate token on page load - wait for axios to be ready
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', validateToken);
+          } else {
+            // DOM is already loaded
+            validateToken();
+          }
         </script>
     </body>
     </html>
