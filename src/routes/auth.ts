@@ -584,11 +584,11 @@ auth.post('/reset-password', asyncHandler(async (c) => {
     'UPDATE password_reset_tokens SET used_at = ? WHERE token = ?'
   ).bind(new Date().toISOString(), token).run()
   
-  // Log security event
+  // Log security event (using 'password_change' to match CHECK constraint)
   const clientIP = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
   await db.prepare(
     'INSERT INTO security_logs (event_type, user_id, ip_address, details, created_at) VALUES (?, ?, ?, ?, ?)'
-  ).bind('password_reset', resetRequest.user_id, clientIP, JSON.stringify({ token }), new Date().toISOString()).run()
+  ).bind('password_change', resetRequest.user_id, clientIP, JSON.stringify({ method: 'reset_token', token }), new Date().toISOString()).run()
   
   return c.json({ 
     success: true, 
