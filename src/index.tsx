@@ -5711,15 +5711,23 @@ app.get('/login', (c) => {
 
 // Reset Password Page
 app.get('/reset-password', (c) => {
+  // Add cache busting with timestamp
+  const timestamp = Date.now();
+  
+  // Set no-cache headers
+  c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+  c.header('Pragma', 'no-cache');
+  c.header('Expires', '0');
+  
   return c.html(`
     <!DOCTYPE html>
     <html lang="ko">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>비밀번호 재설정 | AI 논술 평가</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <title>비밀번호 재설정 | AI 논술 평가 - v${timestamp}</title>
+        <script src="https://cdn.tailwindcss.com?v=${timestamp}"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css?v=${timestamp}" rel="stylesheet">
         <script>
           tailwind.config = {
             theme: {
@@ -5821,14 +5829,18 @@ app.get('/reset-password', (c) => {
             </div>
         </div>
 
-        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js?v=${timestamp}"></script>
         <script>
+          // VERSION: ${timestamp} - Cache busting enabled
+          console.log('🚀 Password Reset Page v${timestamp} - Loaded');
+          
           // Get token from URL
           const urlParams = new URLSearchParams(window.location.search);
           const token = urlParams.get('token');
 
           // Add axios interceptor to detect HTML responses
           if (typeof axios !== 'undefined') {
+            console.log('✅ Axios loaded successfully');
             axios.interceptors.response.use(
               response => {
                 // Check if API returned HTML instead of JSON
@@ -5845,6 +5857,8 @@ app.get('/reset-password', (c) => {
                 return Promise.reject(error);
               }
             );
+          } else {
+            console.error('❌ Axios NOT loaded');
           }
 
           // Validate token on page load
