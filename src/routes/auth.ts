@@ -351,6 +351,18 @@ auth.post('/student/login', asyncHandler(async (c) => {
 }))
 
 /**
+ * OPTIONS /api/auth/forgot-password - CORS preflight
+ */
+auth.options('/forgot-password', (c) => {
+  return c.text('', 204, {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400'
+  })
+})
+
+/**
  * POST /api/auth/forgot-password - Send password reset email
  */
 auth.post('/forgot-password', asyncHandler(async (c) => {
@@ -477,6 +489,18 @@ auth.post('/forgot-password', asyncHandler(async (c) => {
 }))
 
 /**
+ * OPTIONS /api/auth/validate-reset-token - CORS preflight
+ */
+auth.options('/validate-reset-token', (c) => {
+  return c.text('', 204, {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400'
+  })
+})
+
+/**
  * POST /api/auth/validate-reset-token - Validate password reset token
  */
 auth.post('/validate-reset-token', asyncHandler(async (c) => {
@@ -504,6 +528,18 @@ auth.post('/validate-reset-token', asyncHandler(async (c) => {
   
   return c.json({ valid: true })
 }))
+
+/**
+ * OPTIONS /api/auth/reset-password - CORS preflight
+ */
+auth.options('/reset-password', (c) => {
+  return c.text('', 204, {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400'
+  })
+})
 
 /**
  * POST /api/auth/reset-password - Reset password with token
