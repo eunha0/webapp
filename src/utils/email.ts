@@ -49,7 +49,7 @@ export async function sendEmail(options: EmailOptions, env: any): Promise<boolea
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: options.from || 'AI 논술 <onboarding@resend.dev>',
+        from: options.from || 'AI 논술 <admin@ai-nonsool.kr>',
         to: [options.to],
         subject: options.subject,
         html: options.html,
