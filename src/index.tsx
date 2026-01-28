@@ -5827,45 +5827,88 @@ app.get('/reset-password', (c) => {
           const urlParams = new URLSearchParams(window.location.search);
           const token = urlParams.get('token');
 
+          // Add axios interceptor to detect HTML responses
+          if (typeof axios !== 'undefined') {
+            axios.interceptors.response.use(
+              response => {
+                // Check if API returned HTML instead of JSON
+                if (typeof response.data === 'string' && 
+                    (response.data.trim().startsWith('<!DOCTYPE') || 
+                     response.data.trim().startsWith('<html'))) {
+                  console.error('❌ API returned HTML instead of JSON!');
+                  throw new Error('HTML_RESPONSE_FROM_API');
+                }
+                return response;
+              },
+              error => {
+                console.error('Axios interceptor error:', error);
+                return Promise.reject(error);
+              }
+            );
+          }
+
           // Validate token on page load
           async function validateToken() {
-            if (!token) {
-              console.error('No token found in URL');
+            // Always ensure loading state is eventually cleared
+            const loadingTimeout = setTimeout(() => {
+              console.error('⏱️ Validation timeout - forcing expired state');
               showExpiredState();
-              return;
-            }
-
-            console.log('Validating token:', token);
+            }, 10000); // 10 second timeout
 
             try {
+              if (!token) {
+                console.error('❌ No token found in URL');
+                clearTimeout(loadingTimeout);
+                showExpiredState();
+                return;
+              }
+
+              console.log('🔍 Validating token:', token);
+
               // Wait for axios to be loaded
               if (typeof axios === 'undefined') {
-                console.error('Axios is not loaded yet');
+                console.error('⚠️ Axios is not loaded yet, waiting...');
                 await new Promise(resolve => setTimeout(resolve, 500));
+                
+                if (typeof axios === 'undefined') {
+                  console.error('❌ Axios still not loaded after waiting');
+                  clearTimeout(loadingTimeout);
+                  showExpiredState();
+                  return;
+                }
               }
 
               // Validate token by checking if it exists and is not expired
-              console.log('Sending POST request to /api/auth/validate-reset-token');
+              console.log('📤 Sending POST request to /api/auth/validate-reset-token');
               const response = await axios.post('/api/auth/validate-reset-token', { token }, {
                 headers: {
-                  'Content-Type': 'application/json'
-                }
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json'
+                },
+                timeout: 5000 // 5 second timeout
               });
               
-              console.log('API Response:', response.data);
+              console.log('📥 API Response:', response.data);
               
-              if (response.data.valid) {
-                console.log('Token is valid, showing reset form');
+              clearTimeout(loadingTimeout);
+              
+              if (response?.data?.valid === true) {
+                console.log('✅ Token is valid, showing reset form');
                 showResetForm();
               } else {
-                console.log('Token is invalid');
+                console.log('❌ Token is invalid:', response?.data?.error);
                 showExpiredState();
               }
             } catch (error) {
-              console.error('Token validation error:', error);
-              console.error('Error response:', error.response);
-              console.error('Error status:', error.response?.status);
-              console.error('Error data:', error.response?.data);
+              clearTimeout(loadingTimeout);
+              console.error('❌ Token validation error:', error);
+              console.error('Error name:', error?.name);
+              console.error('Error message:', error?.message);
+              console.error('Error response:', error?.response);
+              console.error('Error status:', error?.response?.status);
+              console.error('Error data:', error?.response?.data);
+              
+              // Always show expired state on any error
               showExpiredState();
             }
           }
