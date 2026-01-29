@@ -6226,6 +6226,143 @@ app.get('/email-verification-sent', (c) => {
   `)
 })
 
+// Email Verification Handler Page
+app.get('/verify-email', (c) => {
+  const token = c.req.query('token')
+  
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>이메일 인증 중... | AI 논술 평가</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script>
+          tailwind.config = {
+            theme: {
+              extend: {
+                colors: {
+                  navy: {
+                    50: '#f0f4ff',
+                    700: '#4338ca',
+                    800: '#3730a3',
+                    900: '#1e3a8a',
+                  }
+                }
+              }
+            }
+          }
+        </script>
+    </head>
+    <body class="bg-gray-50">
+        <!-- Navigation -->
+        <nav class="bg-white border-b border-gray-200">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <a href="/" class="flex items-center">
+                        <span class="text-2xl font-bold text-navy-900">
+                            <i class="fas fa-graduation-cap mr-2"></i>AI 논술 평가
+                        </span>
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Email Verification Processing Content -->
+        <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-md w-full">
+                <div class="bg-white rounded-lg shadow-lg p-8 text-center">
+                    <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 mb-6">
+                        <i class="fas fa-spinner fa-spin text-3xl text-blue-600"></i>
+                    </div>
+                    
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">
+                        이메일 인증 중...
+                    </h2>
+                    
+                    <p class="text-gray-700 mb-6">
+                        잠시만 기다려주세요.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <script>
+          // Wait for axios to load
+          function waitForAxios() {
+            return new Promise((resolve) => {
+              if (typeof axios !== 'undefined') {
+                resolve();
+              } else {
+                const interval = setInterval(() => {
+                  if (typeof axios !== 'undefined') {
+                    clearInterval(interval);
+                    resolve();
+                  }
+                }, 100);
+              }
+            });
+          }
+
+          async function verifyEmail() {
+            const token = '${token}';
+            
+            if (!token) {
+              alert('인증 토큰이 없습니다.');
+              window.location.href = '/signup';
+              return;
+            }
+
+            try {
+              await waitForAxios();
+              
+              console.log('Verifying email with token:', token);
+              
+              const response = await axios.get('/api/auth/verify-email?token=' + token);
+              
+              console.log('Verification response:', response.data);
+              
+              if (response.data.success) {
+                // Success - redirect to success page
+                window.location.href = '/email-verified';
+              } else {
+                // Unexpected case
+                alert(response.data.error || '인증 처리 중 오류가 발생했습니다.');
+                window.location.href = '/signup';
+              }
+            } catch (error) {
+              console.error('Verification error:', error);
+              
+              if (error.response) {
+                // API returned an error
+                const errorMessage = error.response.data.error || '인증에 실패했습니다.';
+                alert(errorMessage);
+                
+                // Redirect based on error
+                if (errorMessage.includes('이미 인증')) {
+                  window.location.href = '/login';
+                } else {
+                  window.location.href = '/signup';
+                }
+              } else {
+                // Network or other error
+                alert('인증 처리 중 오류가 발생했습니다: ' + error.message);
+                window.location.href = '/signup';
+              }
+            }
+          }
+
+          // Start verification when page loads
+          verifyEmail();
+        </script>
+    </body>
+    </html>
+  `)
+})
+
 // Email Verification Success Page
 app.get('/email-verified', (c) => {
   return c.html(`

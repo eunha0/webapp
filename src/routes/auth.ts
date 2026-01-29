@@ -893,18 +893,7 @@ auth.get('/verify-email', asyncHandler(async (c) => {
   const db = c.env.DB
   
   if (!token) {
-    return c.html(`
-      <!DOCTYPE html>
-      <html>
-      <head><title>인증 실패</title></head>
-      <body>
-        <script>
-          alert('토큰이 필요합니다.');
-          window.location.href = '/signup';
-        </script>
-      </body>
-      </html>
-    `)
+    return c.json({ success: false, error: '토큰이 필요합니다.' }, 400)
   }
   
   // Find verification request
@@ -913,50 +902,17 @@ auth.get('/verify-email', asyncHandler(async (c) => {
   ).bind(token).first()
   
   if (!verification) {
-    return c.html(`
-      <!DOCTYPE html>
-      <html>
-      <head><title>인증 실패</title></head>
-      <body>
-        <script>
-          alert('유효하지 않은 인증 링크입니다.');
-          window.location.href = '/signup';
-        </script>
-      </body>
-      </html>
-    `)
+    return c.json({ success: false, error: '유효하지 않은 인증 링크입니다.' }, 400)
   }
   
   // Check if already verified
   if (verification.verified) {
-    return c.html(`
-      <!DOCTYPE html>
-      <html>
-      <head><title>이미 인증됨</title></head>
-      <body>
-        <script>
-          alert('이미 인증된 이메일입니다. 로그인해주세요.');
-          window.location.href = '/login';
-        </script>
-      </body>
-      </html>
-    `)
+    return c.json({ success: false, error: '이미 인증된 이메일입니다. 로그인해주세요.' }, 400)
   }
   
   // Check if expired
   if (new Date() > new Date(verification.expires_at as string)) {
-    return c.html(`
-      <!DOCTYPE html>
-      <html>
-      <head><title>인증 만료</title></head>
-      <body>
-        <script>
-          alert('인증 링크가 만료되었습니다. 다시 요청해주세요.');
-          window.location.href = '/signup';
-        </script>
-      </body>
-      </html>
-    `)
+    return c.json({ success: false, error: '인증 링크가 만료되었습니다. 다시 요청해주세요.' }, 400)
   }
   
   // Mark as verified
@@ -969,18 +925,10 @@ auth.get('/verify-email', asyncHandler(async (c) => {
     'UPDATE users SET email_verified = TRUE WHERE id = ?'
   ).bind(verification.user_id).run()
   
-  // Redirect to success page
-  return c.html(`
-    <!DOCTYPE html>
-    <html>
-    <head><title>인증 완료</title></head>
-    <body>
-      <script>
-        window.location.href = '/email-verified';
-      </script>
-    </body>
-    </html>
-  `)
+  return c.json({ 
+    success: true, 
+    message: '이메일 인증이 완료되었습니다!' 
+  })
 }))
 
 /**
