@@ -6060,8 +6060,8 @@ app.get('/signup', (c) => {
               });
               
               if (response.data.success) {
-                alert('회원가입 성공! 로그인 페이지로 이동합니다.');
-                window.location.href = '/login';
+                // Redirect to email verification confirmation page
+                window.location.href = '/email-verification-sent?email=' + encodeURIComponent(email);
               }
             } catch (error) {
               alert('회원가입 실패: ' + (error.response?.data?.error || error.message));
@@ -6094,6 +6094,203 @@ app.get('/signup', (c) => {
             }
           }
         </script>
+    </body>
+    </html>
+  `)
+})
+
+// Email Verification Sent Page
+app.get('/email-verification-sent', (c) => {
+  const email = c.req.query('email') || ''
+  
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>인증 메일 전송 | AI 논술 평가</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script>
+          tailwind.config = {
+            theme: {
+              extend: {
+                colors: {
+                  navy: {
+                    50: '#f0f4ff',
+                    700: '#4338ca',
+                    800: '#3730a3',
+                    900: '#1e3a8a',
+                  }
+                }
+              }
+            }
+          }
+        </script>
+    </head>
+    <body class="bg-gray-50">
+        <!-- Navigation -->
+        <nav class="bg-white border-b border-gray-200">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <a href="/" class="flex items-center">
+                        <span class="text-2xl font-bold text-navy-900">
+                            <i class="fas fa-graduation-cap mr-2"></i>AI 논술 평가
+                        </span>
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Email Verification Sent Content -->
+        <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-md w-full">
+                <div class="bg-white rounded-lg shadow-lg p-8 text-center">
+                    <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-6">
+                        <i class="fas fa-envelope-open-text text-3xl text-green-600"></i>
+                    </div>
+                    
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">
+                        인증 메일 전송
+                    </h2>
+                    
+                    <p class="text-gray-700 mb-6">
+                        인증 메일이 <strong class="text-navy-700">${email}</strong>로 전송되었습니다.
+                    </p>
+                    
+                    <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 text-left">
+                        <p class="text-sm text-gray-700 mb-2">
+                            받으신 이메일을 열어 링크를 클릭하면 가입이 완료됩니다.
+                        </p>
+                    </div>
+                    
+                    <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6 text-left">
+                        <p class="text-sm text-gray-700 font-semibold mb-2">
+                            인증 메일이 도착하지 않았나요?
+                        </p>
+                        <p class="text-sm text-gray-600 mb-2">
+                            • 스팸 메일함을 확인하거나,<br>
+                            • 잠시 후 다시 시도해 주시기 바랍니다.
+                        </p>
+                    </div>
+                    
+                    <button onclick="resendVerification()" 
+                            id="resendBtn"
+                            class="w-full bg-navy-700 text-white py-3 px-4 rounded-lg hover:bg-navy-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navy-700 transition mb-4">
+                        <i class="fas fa-redo mr-2"></i>인증 메일 다시 보내기
+                    </button>
+                    
+                    <a href="/login" 
+                       class="block w-full text-center bg-gray-200 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition">
+                        <i class="fas fa-sign-in-alt mr-2"></i>로그인 페이지로 이동
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <script>
+          async function resendVerification() {
+            const email = '${email}';
+            const btn = document.getElementById('resendBtn');
+            
+            if (!email) {
+              alert('이메일 주소가 없습니다.');
+              return;
+            }
+            
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>전송 중...';
+            
+            try {
+              const response = await axios.post('/api/auth/resend-verification', { email });
+              
+              if (response.data.success) {
+                alert('인증 메일이 재전송되었습니다. 이메일을 확인해주세요.');
+                btn.innerHTML = '<i class="fas fa-check mr-2"></i>전송 완료!';
+                setTimeout(() => {
+                  btn.disabled = false;
+                  btn.innerHTML = '<i class="fas fa-redo mr-2"></i>인증 메일 다시 보내기';
+                }, 3000);
+              }
+            } catch (error) {
+              alert('메일 재전송 실패: ' + (error.response?.data?.error || error.message));
+              btn.disabled = false;
+              btn.innerHTML = '<i class="fas fa-redo mr-2"></i>인증 메일 다시 보내기';
+            }
+          }
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+// Email Verification Success Page
+app.get('/email-verified', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>이메일 인증 완료 | AI 논술 평가</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script>
+          tailwind.config = {
+            theme: {
+              extend: {
+                colors: {
+                  navy: {
+                    50: '#f0f4ff',
+                    700: '#4338ca',
+                    800: '#3730a3',
+                    900: '#1e3a8a',
+                  }
+                }
+              }
+            }
+          }
+        </script>
+    </head>
+    <body class="bg-gray-50">
+        <!-- Navigation -->
+        <nav class="bg-white border-b border-gray-200">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <a href="/" class="flex items-center">
+                        <span class="text-2xl font-bold text-navy-900">
+                            <i class="fas fa-graduation-cap mr-2"></i>AI 논술 평가
+                        </span>
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Email Verification Success Content -->
+        <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-md w-full">
+                <div class="bg-white rounded-lg shadow-lg p-8 text-center">
+                    <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-6">
+                        <i class="fas fa-check-circle text-3xl text-green-600"></i>
+                    </div>
+                    
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">
+                        이메일 인증이 완료되었습니다.
+                    </h2>
+                    
+                    <p class="text-gray-700 mb-8">
+                        이제 당신의 계정으로 로그인할 수 있습니다.
+                    </p>
+                    
+                    <a href="/login" 
+                       class="block w-full bg-navy-700 text-white py-3 px-4 rounded-lg hover:bg-navy-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navy-700 transition">
+                        <i class="fas fa-sign-in-alt mr-2"></i>로그인 페이지로 가기
+                    </a>
+                </div>
+            </div>
+        </div>
     </body>
     </html>
   `)
