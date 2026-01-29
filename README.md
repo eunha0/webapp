@@ -61,9 +61,14 @@
 - **API Endpoints**:
   
   **교사 인증 API**:
-  - `POST /api/auth/signup` - 교사 회원가입
+  - `POST /api/auth/signup` - 교사 회원가입 (이메일 인증 필수)
   - `POST /api/auth/login` - 교사 로그인 (세션 생성)
   - `POST /api/auth/logout` - 교사 로그아웃
+  - `GET /api/auth/verify-email` - 이메일 인증 (토큰 검증)
+  - `POST /api/auth/resend-verification` - 인증 메일 재발송
+  - `POST /api/auth/forgot-password` - 비밀번호 재설정 요청
+  - `POST /api/auth/reset-password` - 비밀번호 재설정 실행
+  - `DELETE /api/auth/account` - 사용자 계정 삭제 (탈퇴하기)
   
   **학생 인증 API** (NEW! 🎉):
   - `POST /api/student/auth/signup` - 학생 회원가입
@@ -101,6 +106,7 @@
   - `GET /api/admin/stats` - 시스템 전체 통계
   - `GET /api/admin/recent-activity` - 최근 활동 내역
   - `GET /api/admin/users` - 사용자 목록 (교사/학생)
+  - `DELETE /api/admin/users/:userId` - 사용자 계정 삭제 (관리자 전용)
   
   **기존 채점 API**:
   - `POST /api/grade` - 직접 논술 채점
@@ -114,54 +120,58 @@
 ### Data Models
 
 **교사 인증**:
-1. **Users**: 교사 계정 정보 (이름, 이메일, 비밀번호 해시)
+1. **Users**: 교사 계정 정보 (이름, 이메일, 비밀번호 해시, 이메일 인증 상태)
 2. **Sessions**: 교사 로그인 세션 (UUID, 만료 시간)
 3. **Subscriptions**: 구독 정보 (요금제, 결제 주기)
+4. **Email Verifications**: 이메일 인증 토큰 (토큰, 만료 시간, 인증 상태) (NEW! 🎉)
+5. **Password Reset Tokens**: 비밀번호 재설정 토큰 (토큰, 만료 시간, 사용 상태) (NEW! 🎉)
+6. **Password Reset Attempt Notifications**: 실패한 재설정 시도 기록 (NEW! 🎉)
+7. **Security Logs**: 보안 이벤트 로그 (로그인, 계정 삭제 등) (NEW! 🎉)
 
 **학생 인증** (NEW! 🎉):
-4. **Student Users**: 학생 계정 정보 (이름, 이메일, 비밀번호 해시, 학년)
-5. **Student Sessions**: 학생 로그인 세션 (UUID, 만료 시간)
+8. **Student Users**: 학생 계정 정보 (이름, 이메일, 비밀번호 해시, 학년)
+9. **Student Sessions**: 학생 로그인 세션 (UUID, 만료 시간)
 
 **과제 관리**:
-6. **Assignments**: 논술 과제 (제목, 설명, 학년, 마감일)
-7. **Assignment Rubrics**: 과제별 루브릭 기준
-8. **Assignment Access Codes**: 6자리 액세스 코드 (과제 접근용)
-9. **Student Submissions**: 학생 답안지 (이름, 논술 내용, 채점 상태, 버전 추적)
+10. **Assignments**: 논술 과제 (제목, 설명, 학년, 마감일)
+11. **Assignment Rubrics**: 과제별 루브릭 기준
+12. **Assignment Access Codes**: 6자리 액세스 코드 (과제 접근용)
+13. **Student Submissions**: 학생 답안지 (이름, 논술 내용, 채점 상태, 버전 추적)
 
 **상세 피드백 시스템** (NEW! 🎉):
-10. **Submission Feedback**: 기준별 상세 피드백 (긍정적 피드백, 개선 영역, 구체적 제안)
-11. **Submission Summary**: 전체 요약 (총점, 강점, 약점, 전체 코멘트, 우선 개선 사항)
+14. **Submission Feedback**: 기준별 상세 피드백 (긍정적 피드백, 개선 영역, 구체적 제안)
+15. **Submission Summary**: 전체 요약 (총점, 강점, 약점, 전체 코멘트, 우선 개선 사항)
 
 **성장 추적** (NEW! 🎉):
-12. **Student Progress**: 학생별 과제 진행 상황 (제출 횟수, 최고/최근 점수, 개선율)
+16. **Student Progress**: 학생별 과제 진행 상황 (제출 횟수, 최고/최근 점수, 개선율)
 
 **채점 시스템**:
-13. **Grading Sessions**: 채점 세션 정보 (과제 프롬프트, 학년)
-14. **Rubric Criteria**: 평가 기준 (채점 세션용)
-15. **Essays**: 제출된 논술 (채점 세션용)
-16. **Grading Results**: 종합 채점 결과
-17. **Criterion Scores**: 기준별 상세 점수
+17. **Grading Sessions**: 채점 세션 정보 (과제 프롬프트, 학년)
+18. **Rubric Criteria**: 평가 기준 (채점 세션용)
+19. **Essays**: 제출된 논술 (채점 세션용)
+20. **Grading Results**: 종합 채점 결과
+21. **Criterion Scores**: 기준별 상세 점수
 
 **학습 리소스** (테이블 생성 완료, 기능 대기):
-18. **Learning Resources**: 학습 자료 (제목, 설명, 카테고리, 학년, URL/내용)
-19. **Student Resource Recommendations**: 학생별 추천 자료 (기반 제출물, 이유, 완료 상태)
+22. **Learning Resources**: 학습 자료 (제목, 설명, 카테고리, 학년, URL/내용)
+23. **Student Resource Recommendations**: 학생별 추천 자료 (기반 제출물, 이유, 완료 상태)
 
 **교사 통계** (테이블 생성 완료, 기능 대기):
-20. **Teacher Statistics**: 교사별 통계 (총 제출물, 평균 점수, 절약 시간, 공통 강점/약점)
+24. **Teacher Statistics**: 교사별 통계 (총 제출물, 평균 점수, 절약 시간, 공통 강점/약점)
 
 **CMS**:
-21. **Resource Posts**: 교육 자료 게시물 (루브릭, 논술 평가 자료)
+25. **Resource Posts**: 교육 자료 게시물 (루브릭, 논술 평가 자료)
 
 **파일 업로드** (NEW! 🎉):
-22. **Uploaded Files**: 업로드된 파일 정보 (파일명, 타입, 크기, 저장 키, 추출된 텍스트, 처리 상태)
-23. **File Processing Log**: 파일 처리 로그 (단계별 처리 상태, 메시지, 처리 시간)
+26. **Uploaded Files**: 업로드된 파일 정보 (파일명, 타입, 크기, 저장 키, 추출된 텍스트, 처리 상태)
+27. **File Processing Log**: 파일 처리 로그 (단계별 처리 상태, 메시지, 처리 시간)
 
 ### Storage Service
 
 - **Cloudflare D1 Database**: SQLite-based globally distributed database
   - Local Development: `.wrangler/state/v3/d1` (local SQLite)
   - Production: Cloudflare D1 (globally distributed)
-  - 6개 마이그레이션 완료:
+  - 24개 마이그레이션 완료:
     - 0001: 채점 시스템 기본 스키마
     - 0002: CMS 리소스 테이블
     - 0003: 사용자 및 구독 테이블
@@ -176,6 +186,11 @@
     - 0006: 파일 업로드 기능 (NEW! 🎉)
       - 파일 메타데이터 (uploaded_files)
       - 파일 처리 로그 (file_processing_log)
+    - 0023: 이메일 인증 및 비밀번호 재설정 (NEW! 🎉 - 2025-01-29)
+      - 이메일 인증 (email_verifications)
+      - 비밀번호 재설정 토큰 (password_reset_tokens)
+      - 재설정 실패 알림 (password_reset_attempt_notifications)
+      - 보안 로그 (security_logs)
 
 - **Google Cloud Vision API**: 이미지 OCR 및 PDF 이미지 추출
   - Text Detection: 이미지에서 한글/영어 텍스트 추출
@@ -472,6 +487,23 @@ Extract Text          Yes ↓    No ↓
 ✅ **세션 기반 인증 (7일 만료)**  
 ✅ **로그인 페이지 및 회원가입 페이지**  
 ✅ **프라이빗 라우트 보호 (인증 필요)**  
+✅ **이메일 인증 시스템** (NEW! 🎉 - 2025-01-29):
+  - 회원가입 시 이메일 인증 필수화
+  - 24시간 유효한 인증 토큰
+  - 인증 메일 전송 페이지 및 완료 페이지
+  - 인증 메일 재발송 기능
+  - 로그인 시 이메일 인증 확인
+✅ **비밀번호 재설정 실패 알림** (NEW! 🎉 - 2025-01-29):
+  - 실패한 재설정 시도 추적
+  - 알림 이메일 자동 발송
+  - IP 주소 및 시도 시간 기록
+  - 관리자/사용자 알림 시스템
+✅ **계정 삭제 기능** (NEW! 🎉 - 2025-01-29):
+  - 사용자 자체 계정 삭제 (탈퇴하기)
+  - 관리자 대시보드에서 사용자 삭제
+  - 경고 메시지 확인 후 삭제 (복구 불가 안내)
+  - 연관 데이터 CASCADE 삭제
+  - 보안 이벤트 로깅  
 
 ### 교사 대시보드 (NEW! 🎉)
 ✅ **"나의 페이지" - 교사 전용 대시보드**  
@@ -930,6 +962,21 @@ npm run db:console:local
     - IB 중등 프로그램 루브릭 (3개): 고등 개인사회, 중등 개인사회, 과학
     - 평가 관련 자료 페이지에 10개 루브릭 세부 내용 게시
     - 루브릭 목록 UI 개선 (기출 문제와 동일한 깔끔한 레이아웃)
+  - ✅ **이메일 인증 시스템 구현** (2025-01-29):
+    - 회원가입 시 이메일 인증 필수화
+    - 인증 메일 전송 및 완료 페이지
+    - 인증 메일 재발송 기능
+    - 로그인 시 이메일 인증 체크
+    - 24시간 유효한 인증 토큰
+  - ✅ **비밀번호 재설정 실패 알림** (2025-01-29):
+    - 실패한 재설정 시도 추적 및 알림
+    - IP 주소 및 시도 시간 기록
+    - 자동 알림 이메일 발송
+  - ✅ **계정 삭제 기능** (2025-01-29):
+    - 사용자 탈퇴하기 버튼 구현
+    - 관리자 대시보드 사용자 삭제
+    - 경고 메시지 및 확인 프로세스
+    - CASCADE 삭제 및 보안 로깅
 
 ## Test Accounts
 
