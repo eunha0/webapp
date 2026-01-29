@@ -8479,6 +8479,9 @@ app.get('/admin', (c) => {
           
           console.log('[DEBUG] Admin page - session_id:', sessionId);
           
+          // Configure axios to send cookies for authentication
+          axios.defaults.withCredentials = true;
+          
           if (sessionId) {
             axios.defaults.headers.common['X-Session-ID'] = sessionId;
             console.log('[DEBUG] Session found, loading stats...');
@@ -9616,7 +9619,7 @@ app.get('/admin/cms', (c) => {
           }
           
           // Account Delete Function
-          async function handleAccountDelete(event) {
+          window.handleAccountDelete = async function(event) {
             event.preventDefault();
             
             const confirmed = confirm('정말 계정을 삭제하시겠습니까?\\n\\n계정을 삭제하면 모든 기록이 사라지고 복구할 수 없습니다.');
