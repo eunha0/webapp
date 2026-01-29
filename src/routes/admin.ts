@@ -240,4 +240,70 @@ admin.delete('/resource/:id', async (c) => {
   }
 })
 
+/**
+ * DELETE /api/admin/users/:userId - Delete a user account (admin only)
+ */
+admin.delete('/users/:userId', async (c) => {
+  try {
+    const adminUser = await requireAdminAuth(c)
+    if (isErrorResponse(adminUser)) return adminUser
+    
+    const userId = parseInt(c.req.param('userId'))
+    const userType = c.req.query('type') || 'teacher' // 'teacher' or 'student'
+    const db = c.env.DB
+    
+    // Validate userId
+    if (isNaN(userId) || userId <= 0) {
+      return c.json({ error: '잘못된 사용자 ID입니다.' }, 400)
+    }
+    
+    // Prevent self-deletion
+    if (userId === adminUser.id && userType === 'teacher') {
+      return c.json({ error: '자신의 관리자 계정은 삭제할 수 없습니다.' }, 403)
+    }
+    
+    // Check if user exists
+    let userTable = userType === 'student' ? 'student_users' : 'users'
+    const targetUser = await db.prepare(
+      `SELECT id, email FROM ${userTable} WHERE id = ?`
+    ).bind(userId).first()
+    
+    if (!targetUser) {
+      return c.json({ error: '사용자를 찾을 수 없습니다.' }, 404)
+    }
+    
+    // Delete user (CASCADE will delete related records)
+    await db.prepare(
+      `DELETE FROM ${userTable} WHERE id = ?`
+    ).bind(userId).run()
+    
+    // Delete related sessions if teacher
+    if (userType === 'teacher') {
+      await db.prepare(
+        'DELETE FROM sessions WHERE user_id = ?'
+      ).bind(userId).run()
+    }
+    
+    // Log security event
+    const clientIP = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
+    await db.prepare(
+      'INSERT INTO security_logs (event_type, user_id, ip_address, details, created_at) VALUES (?, ?, ?, ?, ?)'
+    ).bind(
+      'account_deleted_by_admin', 
+      adminUser.id, 
+      clientIP, 
+      JSON.stringify({ deleted_user_id: userId, deleted_user_email: targetUser.email, user_type: userType }), 
+      new Date().toISOString()
+    ).run()
+    
+    return c.json({ 
+      success: true, 
+      message: '사용자 계정이 성공적으로 삭제되었습니다.' 
+    })
+  } catch (error) {
+    console.error('Error deleting user account:', error)
+    return c.json({ error: '사용자 삭제 중 오류가 발생했습니다.' }, 500)
+  }
+})
+
 export default admin

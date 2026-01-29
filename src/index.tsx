@@ -7757,7 +7757,7 @@ app.get('/my-page', (c) => {
 
                                 <div class="border-t border-gray-200 pt-6">
                                     <h3 class="text-lg font-bold text-gray-900 mb-2">계정 삭제</h3>
-                                    <p class="text-sm text-gray-600 mb-4">계정을 삭제하면 모든 기록이 사라지고 복구할 수 없습니다. <a href="#" class="text-blue-600 hover:underline">탈퇴하기</a></p>
+                                    <p class="text-sm text-gray-600 mb-4">계정을 삭제하면 모든 기록이 사라지고 복구할 수 없습니다. <a href="#" onclick="handleAccountDelete(event)" class="text-red-600 hover:underline font-semibold">탈퇴하기</a></p>
                                 </div>
                             </div>
                         </div>
@@ -8960,6 +8960,7 @@ app.get('/admin', (c) => {
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">과제</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">제출물</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">가입일</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">관리</th>
                       </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
@@ -8984,6 +8985,14 @@ app.get('/admin', (c) => {
                           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             \${new Date(t.created_at).toLocaleDateString('ko-KR')}
                           </td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <button 
+                              onclick="deleteUser(\${t.id}, 'teacher', '\${t.name}')"
+                              class="text-red-600 hover:text-red-800 font-medium"
+                            >
+                              <i class="fas fa-trash mr-1"></i>삭제
+                            </button>
+                          </td>
                         </tr>
                       \`).join('')}
                     </tbody>
@@ -9004,6 +9013,7 @@ app.get('/admin', (c) => {
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">학년</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">제출물</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">가입일</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">관리</th>
                       </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
@@ -9015,6 +9025,14 @@ app.get('/admin', (c) => {
                           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${s.submission_count || 0}</td>
                           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             \${new Date(s.created_at).toLocaleDateString('ko-KR')}
+                          </td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <button 
+                              onclick="deleteUser(\${s.id}, 'student', '\${s.name}')"
+                              class="text-red-600 hover:text-red-800 font-medium"
+                            >
+                              <i class="fas fa-trash mr-1"></i>삭제
+                            </button>
                           </td>
                         </tr>
                       \`).join('')}
@@ -9060,6 +9078,42 @@ app.get('/admin', (c) => {
               alert('구독 플랜 변경에 실패했습니다');
               // Reload users to revert the dropdown
               loadUsers();
+            }
+          }
+
+          // Delete user account (admin function)
+          window.deleteUser = async function(userId, userType, userName) {
+            const confirmed = confirm(\`정말 계정을 삭제하시겠습니까?\\n\\n사용자: \${userName}\\n계정을 삭제하면 모든 기록이 사라지고 복구할 수 없습니다.\`);
+            
+            if (!confirmed) {
+              return;
+            }
+            
+            try {
+              const response = await axios.delete(\`/api/admin/users/\${userId}?type=\${userType}\`);
+              
+              if (response.data.success) {
+                // Show success message
+                const message = document.createElement('div');
+                message.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+                message.innerHTML = \`
+                  <i class="fas fa-check-circle mr-2"></i>
+                  \${userName} 계정이 성공적으로 삭제되었습니다
+                \`;
+                document.body.appendChild(message);
+
+                setTimeout(() => {
+                  message.remove();
+                }, 3000);
+
+                // Reload users list and stats
+                loadUsers();
+                loadStats();
+              }
+            } catch (error) {
+              console.error('Error deleting user:', error);
+              const errorMsg = error.response?.data?.error || '사용자 삭제에 실패했습니다';
+              alert(errorMsg);
             }
           }
 
@@ -9558,6 +9612,32 @@ app.get('/admin/cms', (c) => {
             } catch (error) {
               console.error('Error deleting post:', error);
               alert('삭제 중 오류가 발생했습니다.');
+            }
+          }
+          
+          // Account Delete Function
+          async function handleAccountDelete(event) {
+            event.preventDefault();
+            
+            const confirmed = confirm('정말 계정을 삭제하시겠습니까?\\n\\n계정을 삭제하면 모든 기록이 사라지고 복구할 수 없습니다.');
+            
+            if (!confirmed) {
+              return;
+            }
+            
+            try {
+              const response = await axios.delete('/api/auth/account');
+              
+              if (response.data.success) {
+                alert('계정이 성공적으로 삭제되었습니다.');
+                // Clear session and redirect to home
+                localStorage.clear();
+                sessionStorage.clear();
+                window.location.href = '/';
+              }
+            } catch (error) {
+              console.error('Account delete error:', error);
+              alert('계정 삭제 실패: ' + (error.response?.data?.error || error.message));
             }
           }
           

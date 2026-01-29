@@ -1081,4 +1081,48 @@ auth.post('/send-failed-reset-notifications', asyncHandler(async (c) => {
   })
 }))
 
+/**
+ * DELETE /api/auth/account - Delete user account
+ */
+auth.delete('/account', asyncHandler(async (c) => {
+  const db = c.env.DB
+  const sessionId = c.req.header('X-Session-ID') || c.req.cookie('session_id')
+  
+  if (!sessionId) {
+    return c.json({ error: '인증이 필요합니다.' }, 401)
+  }
+  
+  // Get user from session
+  const session = await db.prepare(
+    'SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime("now")'
+  ).bind(sessionId).first()
+  
+  if (!session) {
+    return c.json({ error: '세션이 만료되었습니다.' }, 401)
+  }
+  
+  const userId = session.user_id
+  
+  // Delete user account (CASCADE will delete related records)
+  await db.prepare(
+    'DELETE FROM users WHERE id = ?'
+  ).bind(userId).run()
+  
+  // Delete session
+  await db.prepare(
+    'DELETE FROM sessions WHERE user_id = ?'
+  ).bind(userId).run()
+  
+  // Log security event
+  const clientIP = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
+  await db.prepare(
+    'INSERT INTO security_logs (event_type, user_id, ip_address, details, created_at) VALUES (?, ?, ?, ?, ?)'
+  ).bind('account_deleted', userId, clientIP, JSON.stringify({ reason: 'user_requested' }), new Date().toISOString()).run()
+  
+  return c.json({ 
+    success: true, 
+    message: '계정이 성공적으로 삭제되었습니다.' 
+  })
+}))
+
 export default auth
