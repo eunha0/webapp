@@ -1081,4 +1081,126 @@ auth.post('/send-failed-reset-notifications', asyncHandler(async (c) => {
   })
 }))
 
+/**
+ * DELETE /api/auth/account - Teacher account deletion (CASCADE all related data)
+ * SECURITY: Requires valid session authentication
+ */
+auth.delete('/account', asyncHandler(async (c) => {
+  const db = c.env.DB
+  
+  // Get session ID from header
+  const sessionId = c.req.header('X-Session-ID')
+  if (!sessionId) {
+    return c.json({ error: '인증이 필요합니다. 다시 로그인해 주세요.' }, 401)
+  }
+  
+  // Get user from session
+  const session = await db.prepare(
+    'SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime("now")'
+  ).bind(sessionId).first<{ user_id: number }>()
+  
+  if (!session) {
+    return c.json({ error: '세션이 만료되었습니다. 다시 로그인해 주세요.' }, 401)
+  }
+  
+  const userId = session.user_id
+  
+  // Get user info for logging
+  const user = await db.prepare(
+    'SELECT email, name FROM users WHERE id = ?'
+  ).bind(userId).first<{ email: string; name: string }>()
+  
+  if (!user) {
+    return c.json({ error: '사용자를 찾을 수 없습니다.' }, 404)
+  }
+  
+  // Log security event BEFORE deletion (important for audit trail)
+  const clientIP = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
+  await db.prepare(
+    'INSERT INTO security_logs (event_type, user_id, ip_address, details, created_at) VALUES (?, ?, ?, ?, ?)'
+  ).bind(
+    'account_delete_teacher', 
+    userId, 
+    clientIP, 
+    JSON.stringify({ email: user.email, name: user.name }), 
+    new Date().toISOString()
+  ).run()
+  
+  // Delete user (CASCADE will handle related tables automatically):
+  // - sessions (ON DELETE CASCADE)
+  // - subscriptions (via user_id)
+  // - assignments → assignment_rubrics, student_submissions, etc. (CASCADE)
+  // - uploaded_files (CASCADE)
+  // - teacher_statistics (CASCADE)
+  // - grading_sessions → rubric_criteria, essays, grading_results (CASCADE)
+  await db.prepare('DELETE FROM users WHERE id = ?').bind(userId).run()
+  
+  return c.json({ 
+    success: true, 
+    message: '계정이 성공적으로 삭제되었습니다.' 
+  })
+}))
+
+/**
+ * DELETE /api/student/auth/account - Student account deletion (CASCADE all related data)
+ * SECURITY: Requires valid student session authentication
+ */
+auth.delete('/student/auth/account', asyncHandler(async (c) => {
+  const db = c.env.DB
+  
+  // Get student session ID from header
+  const sessionId = c.req.header('X-Student-Session-ID')
+  if (!sessionId) {
+    return c.json({ error: '인증이 필요합니다. 다시 로그인해 주세요.' }, 401)
+  }
+  
+  // Get student from session
+  const session = await db.prepare(
+    'SELECT student_id FROM student_sessions WHERE id = ? AND expires_at > datetime("now")'
+  ).bind(sessionId).first<{ student_id: number }>()
+  
+  if (!session) {
+    return c.json({ error: '세션이 만료되었습니다. 다시 로그인해 주세요.' }, 401)
+  }
+  
+  const studentId = session.student_id
+  
+  // Get student info for logging
+  const student = await db.prepare(
+    'SELECT email, name FROM student_users WHERE id = ?'
+  ).bind(studentId).first<{ email: string; name: string }>()
+  
+  if (!student) {
+    return c.json({ error: '학생 계정을 찾을 수 없습니다.' }, 404)
+  }
+  
+  // Log security event BEFORE deletion
+  const clientIP = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
+  await db.prepare(
+    'INSERT INTO security_logs (event_type, student_user_id, ip_address, details, created_at) VALUES (?, ?, ?, ?, ?)'
+  ).bind(
+    'account_delete_student', 
+    studentId, 
+    clientIP, 
+    JSON.stringify({ email: student.email, name: student.name }), 
+    new Date().toISOString()
+  ).run()
+  
+  // Delete student-specific data that may not have CASCADE
+  // (some tables reference student_users without CASCADE)
+  await db.prepare('DELETE FROM student_resource_recommendations WHERE student_user_id = ?').bind(studentId).run()
+  await db.prepare('DELETE FROM student_progress WHERE student_user_id = ?').bind(studentId).run()
+  
+  // Delete student user (CASCADE will handle):
+  // - student_sessions (CASCADE)
+  // - student_submissions → submission_feedback, submission_summary (CASCADE)
+  // - uploaded_files (CASCADE)
+  await db.prepare('DELETE FROM student_users WHERE id = ?').bind(studentId).run()
+  
+  return c.json({ 
+    success: true, 
+    message: '계정이 성공적으로 삭제되었습니다.' 
+  })
+}))
+
 export default auth

@@ -7757,7 +7757,7 @@ app.get('/my-page', (c) => {
 
                                 <div class="border-t border-gray-200 pt-6">
                                     <h3 class="text-lg font-bold text-gray-900 mb-2">계정 삭제</h3>
-                                    <p class="text-sm text-gray-600 mb-4">계정을 삭제하면 모든 기록이 사라지고 복구할 수 없습니다. <a href="#" class="text-blue-600 hover:underline">탈퇴하기</a></p>
+                                    <p class="text-sm text-gray-600 mb-4">계정을 삭제하면 모든 기록이 사라지고 복구할 수 없습니다. <a href="#" onclick="handleAccountDelete(event)" class="text-blue-600 hover:underline">탈퇴하기</a></p>
                                 </div>
                             </div>
                         </div>
@@ -9939,6 +9939,48 @@ app.get('/student/dashboard', (c) => {
             removeStorageItem('student_name');
             window.location.href = '/student/login';
           };
+          
+          // Student Account Delete Handler
+          window.handleStudentAccountDelete = async function(event) {
+            if (event) {
+              event.preventDefault();
+            }
+            
+            const confirmed = confirm('정말 계정을 삭제하시겠습니까?\\n\\n계정을 삭제하면 모든 제출물과 피드백이 사라지고 복구할 수 없습니다.');
+            
+            if (!confirmed) {
+              return;
+            }
+            
+            try {
+              // Get student session ID
+              const sessionId = getStorageItem('student_session_id');
+              if (!sessionId) {
+                alert('로그인이 필요합니다.');
+                window.location.href = '/student/login';
+                return;
+              }
+              
+              console.log('[DEBUG] Sending DELETE request to /api/student/auth/account');
+              const response = await axios.delete('/api/student/auth/account', {
+                headers: {
+                  'X-Student-Session-ID': sessionId
+                }
+              });
+              
+              console.log('[DEBUG] Response received:', response);
+              if (response.data.success) {
+                alert('계정이 성공적으로 삭제되었습니다.');
+                // Clear session and redirect to home
+                removeStorageItem('student_session_id');
+                removeStorageItem('student_name');
+                window.location.href = '/';
+              }
+            } catch (error) {
+              console.error('Student account delete error:', error);
+              alert('계정 삭제 실패: ' + (error.response?.data?.error || error.message));
+            }
+          };
         </script>
         <style>
           .prose img {
@@ -10096,6 +10138,161 @@ app.get('/student/dashboard', (c) => {
   `;
   
   return c.html(html);
+})
+
+// Student Account Page
+app.get('/student/account', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>내 계정 | AI 논술 평가</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        ${STORAGE_UTILS_SCRIPT}
+    </head>
+    <body class="bg-gray-50">
+        <!-- Navigation -->
+        <nav class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <div class="flex items-center">
+                        <a href="/" class="text-2xl font-bold text-blue-900 hover:text-blue-700">
+                            <i class="fas fa-graduation-cap mr-2"></i>AI 논술 평가
+                        </a>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <a href="/student/dashboard" class="text-gray-700 hover:text-blue-700 font-medium">
+                            <i class="fas fa-arrow-left mr-1"></i>대시보드로 돌아가기
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div class="bg-white rounded-xl shadow-lg p-8">
+                <h1 class="text-3xl font-bold text-gray-900 mb-6">
+                    <i class="fas fa-user-circle mr-2"></i>내 계정
+                </h1>
+
+                <!-- Account Info -->
+                <div class="mb-8 p-6 bg-blue-50 rounded-lg">
+                    <h2 class="text-xl font-bold text-gray-900 mb-4">계정 정보</h2>
+                    <div class="space-y-2">
+                        <p class="text-gray-700">
+                            <i class="fas fa-user mr-2"></i>
+                            <strong>이름:</strong> <span id="studentName"></span>
+                        </p>
+                        <p class="text-gray-700">
+                            <i class="fas fa-envelope mr-2"></i>
+                            <strong>이메일:</strong> <span id="studentEmail"></span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Danger Zone -->
+                <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-bold text-gray-900 mb-2 text-red-600">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>계정 삭제
+                    </h3>
+                    <p class="text-sm text-gray-600 mb-4">
+                        계정을 삭제하면 모든 제출물과 피드백이 영구적으로 삭제되며 복구할 수 없습니다.
+                    </p>
+                    <button 
+                        onclick="handleStudentAccountDelete(event)" 
+                        class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold"
+                    >
+                        <i class="fas fa-trash mr-2"></i>계정 삭제하기
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+          // Load student info
+          window.addEventListener('DOMContentLoaded', async () => {
+            try {
+              const sessionId = getStorageItem('student_session_id');
+              const studentName = getStorageItem('student_name');
+              
+              if (!sessionId || !studentName) {
+                alert('로그인이 필요합니다');
+                window.location.href = '/student/login';
+                return;
+              }
+              
+              // Display basic info from storage
+              document.getElementById('studentName').textContent = studentName;
+              
+              // Try to fetch email from API
+              try {
+                const response = await axios.get('/api/student/me', {
+                  headers: { 'X-Student-Session-ID': sessionId }
+                });
+                
+                if (response.data && response.data.email) {
+                  document.getElementById('studentEmail').textContent = response.data.email;
+                }
+              } catch (error) {
+                console.error('Failed to fetch student email:', error);
+                document.getElementById('studentEmail').textContent = '(이메일 정보 없음)';
+              }
+            } catch (error) {
+              console.error('Failed to load student account info:', error);
+              alert('계정 정보를 불러오는 데 실패했습니다.');
+            }
+          });
+          
+          // Student Account Delete Handler
+          window.handleStudentAccountDelete = async function(event) {
+            if (event) {
+              event.preventDefault();
+            }
+            
+            const confirmed = confirm('정말 계정을 삭제하시겠습니까?\\n\\n계정을 삭제하면 모든 제출물과 피드백이 사라지고 복구할 수 없습니다.');
+            
+            if (!confirmed) {
+              return;
+            }
+            
+            try {
+              // Get student session ID
+              const sessionId = getStorageItem('student_session_id');
+              if (!sessionId) {
+                alert('로그인이 필요합니다.');
+                window.location.href = '/student/login';
+                return;
+              }
+              
+              console.log('[DEBUG] Sending DELETE request to /api/student/auth/account');
+              const response = await axios.delete('/api/student/auth/account', {
+                headers: {
+                  'X-Student-Session-ID': sessionId
+                }
+              });
+              
+              console.log('[DEBUG] Response received:', response);
+              if (response.data.success) {
+                alert('계정이 성공적으로 삭제되었습니다.');
+                // Clear session and redirect to home
+                removeStorageItem('student_session_id');
+                removeStorageItem('student_name');
+                window.location.href = '/';
+              }
+            } catch (error) {
+              console.error('Student account delete error:', error);
+              alert('계정 삭제 실패: ' + (error.response?.data?.error || error.message));
+            }
+          };
+        </script>
+    </body>
+    </html>
+  `)
 })
 
 // Student Feedback View Page

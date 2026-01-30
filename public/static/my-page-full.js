@@ -4807,8 +4807,20 @@ window.handleAccountDelete = async function(event) {
   }
   
   try {
-    console.log('[DEBUG] Sending DELETE request to /api/auth/account');
-    const response = await axios.delete('/api/auth/account');
+    // Get session ID
+    const sessionId = getStorageItem('session_id');
+    if (!sessionId) {
+      alert('로그인이 필요합니다.');
+      window.location.href = '/login';
+      return;
+    }
+    
+    console.log('[DEBUG] Sending DELETE request to /api/auth/account with session ID');
+    const response = await axios.delete('/api/auth/account', {
+      headers: {
+        'X-Session-ID': sessionId
+      }
+    });
     
     console.log('[DEBUG] Response received:', response);
     if (response.data.success) {
