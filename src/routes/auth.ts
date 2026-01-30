@@ -321,20 +321,93 @@ auth.post('/student/signup', asyncHandler(async (c) => {
   // Hash password using bcrypt
   const passwordHash = await hashPassword(password)
   
-  // Insert new student
+  // Insert new student (email_verified = FALSE by default)
   const result = await db.prepare(
-    'INSERT INTO student_users (name, email, password_hash, grade_level) VALUES (?, ?, ?, ?)'
-  ).bind(name, email.toLowerCase(), passwordHash, grade_level).run()
+    'INSERT INTO student_users (name, email, password_hash, grade_level, email_verified) VALUES (?, ?, ?, ?, ?)'
+  ).bind(name, email.toLowerCase(), passwordHash, grade_level, false).run()
+  
+  const studentId = result.meta.last_row_id
+  
+  // Generate email verification token (valid for 24 hours)
+  const verificationToken = crypto.randomUUID()
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+  
+  await db.prepare(
+    'INSERT INTO email_verifications (student_user_id, email, token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)'
+  ).bind(studentId, email.toLowerCase(), verificationToken, expiresAt.toISOString(), new Date().toISOString()).run()
   
   // Log security event
   await db.prepare(
     'INSERT INTO security_logs (event_type, user_id, ip_address, details, created_at) VALUES (?, ?, ?, ?, ?)'
-  ).bind('student_signup_success', result.meta.last_row_id, clientIP, JSON.stringify({ email: email.toLowerCase(), type: 'student' }), new Date().toISOString()).run()
+  ).bind('student_signup_success', studentId, clientIP, JSON.stringify({ email: email.toLowerCase(), type: 'student' }), new Date().toISOString()).run()
+  
+  // Send verification email
+  const verificationUrl = `${new URL(c.req.url).origin}/verify-email?token=${verificationToken}`
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: 'Malgun Gothic', sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #1e3a8a; color: white; padding: 20px; text-align: center; }
+        .content { background-color: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; }
+        .button { display: inline-block; background-color: #1e3a8a; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+        .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>AI 논술 이메일 인증 (학생)</h1>
+        </div>
+        <div class="content">
+          <p>안녕하세요 <strong>${name}</strong> 학생님,</p>
+          
+          <p>AI 논술 학생 계정 회원가입을 환영합니다!</p>
+          
+          <p>아래 버튼을 클릭하여 이메일 인증을 완료해 주세요. 이메일 인증을 완료해야 학생 대시보드를 이용하실 수 있습니다.</p>
+          
+          <div style="text-align: center;">
+            <a href="${verificationUrl}" class="button">이메일 인증하기</a>
+          </div>
+          
+          <p style="color: #6b7280; font-size: 14px;">버튼이 작동하지 않으면 아래 링크를 복사하여 브라우저에 붙여넣으세요:</p>
+          <p style="word-break: break-all; color: #3b82f6; font-size: 12px;">${verificationUrl}</p>
+          
+          <p style="margin-top: 30px; color: #dc2626; font-weight: bold;">
+            ⚠️ 이 인증 링크는 24시간 동안 유효합니다.
+          </p>
+          
+          <p style="color: #6b7280; font-size: 14px; margin-top: 20px;">
+            본인이 회원가입하지 않았다면 이 이메일을 무시해 주세요.
+          </p>
+        </div>
+        <div class="footer">
+          <p>감사합니다,<br><strong>AI 논술 평가 팀</strong></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+  
+  try {
+    await sendEmail({
+      to: email,
+      subject: '[AI 논술] 학생 계정 이메일 인증',
+      html: emailHtml
+    }, c.env)
+  } catch (error) {
+    console.error('Failed to send student verification email:', error)
+    // Don't fail registration if email fails - user can request resend later
+  }
   
   return c.json({ 
     success: true, 
-    student_id: result.meta.last_row_id,
-    message: '학생 회원가입이 완료되었습니다'
+    student_id: studentId,
+    message: '학생 회원가입이 완료되었습니다. 이메일로 전송된 인증 링크를 확인해 주세요.',
+    email_sent: true
   })
 }))
 
@@ -370,7 +443,7 @@ auth.post('/student/login', asyncHandler(async (c) => {
   
   // Find student
   const student = await db.prepare(
-    'SELECT id, name, email, password_hash, grade_level FROM student_users WHERE email = ?'
+    'SELECT id, name, email, password_hash, grade_level, email_verified FROM student_users WHERE email = ?'
   ).bind(email.toLowerCase()).first()
   
   // Constant-time response
@@ -394,6 +467,15 @@ auth.post('/student/login', asyncHandler(async (c) => {
     ).bind('student_login_failure', null, clientIP, JSON.stringify({ email: email.toLowerCase(), type: 'student' }), new Date().toISOString()).run()
     
     return c.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' }, 401)
+  }
+  
+  // Check email verification
+  if (!student.email_verified) {
+    return c.json({ 
+      error: '이메일 인증이 필요합니다. 회원가입 시 발송된 인증 메일을 확인해 주세요.',
+      email_not_verified: true,
+      student_email: student.email
+    }, 403)
   }
   
   // Create session
