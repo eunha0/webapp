@@ -1,16 +1,67 @@
-// CRITICAL: Session management must be first
-const sessionId = localStorage.getItem('session_id');
-if (!sessionId) {
-  alert('로그인이 필요합니다.');
-  window.location.href = '/login';
-  throw new Error('No session'); // Stop execution
-}
+// Immediate execution - verify script is loaded
+console.log('[DEBUG] my-page-full.js START - Script is being parsed');
+console.log('[DEBUG] Dependencies check:', {
+  axios: typeof axios,
+  marked: typeof marked,
+  DOMPurify: typeof DOMPurify,
+  getStorageItem: typeof getStorageItem
+});
+
+// Initialize on DOM load
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('[DEBUG] DOMContentLoaded fired');
+  
+  try {
+    // CRITICAL: Session management must be first
+    console.log('[DEBUG] Attempting to get session_id');
+    const sessionId = getStorageItem('session_id');
+    console.log('[DEBUG] Session ID retrieved:', sessionId ? 'exists' : 'null');
+    
+    if (!sessionId) {
+      alert('로그인이 필요합니다.');
+      window.location.href = '/login';
+      return; // Stop execution
+    }
+
+    // Configure axios to include session ID in all requests
+    axios.defaults.headers.common['X-Session-ID'] = sessionId;
+
+    console.log('[DEBUG] Session initialized successfully');
+    
+    // CRITICAL: Use event delegation to handle dynamically created modal content
+    console.log('[DEBUG] Setting up event delegation for delete button...');
+    
+    // Use event delegation on document level
+    document.addEventListener('click', function(e) {
+      const target = e.target;
+      
+      // Check if clicked element is the delete link or contains it
+      if (target.tagName === 'A' && target.textContent.includes('탈퇴하기')) {
+        console.log('[DEBUG] Delete link clicked via event delegation!');
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Call handleAccountDelete directly
+        if (typeof window.handleAccountDelete === 'function') {
+          window.handleAccountDelete(e);
+        } else {
+          console.error('[ERROR] handleAccountDelete is not defined!');
+        }
+        
+        return false;
+      }
+    }, true); // Use capture phase to catch events early
+    
+    console.log('[DEBUG] Event delegation setup complete');
+    
+  } catch (error) {
+    console.error('[ERROR] DOMContentLoaded handler failed:', error);
+    alert('페이지 초기화 중 오류가 발생했습니다: ' + error.message);
+  }
+});
 
 let currentAssignmentId = null;
 let criterionCounter = 0;
-
-// Configure axios to include session ID in all requests
-axios.defaults.headers.common['X-Session-ID'] = sessionId;
 
 // Helper: Convert Markdown to HTML safely
 function convertMarkdownToHtml(markdown) {
@@ -4741,3 +4792,66 @@ window.submitRating = async function() {
     alert('평가 저장에 실패했습니다: ' + (error.response?.data?.error || error.message));
   }
 };
+
+// Account Delete Function
+window.handleAccountDelete = async function(event) {
+  console.log('[DEBUG] handleAccountDelete called!', event);
+  event.preventDefault();
+  
+  console.log('[DEBUG] Before confirm dialog');
+  const confirmed = confirm('정말 계정을 삭제하시겠습니까?\n\n계정을 삭제하면 모든 기록이 사라지고 복구할 수 없습니다.');
+  
+  console.log('[DEBUG] Confirmed:', confirmed);
+  if (!confirmed) {
+    return;
+  }
+  
+  try {
+    console.log('[DEBUG] Sending DELETE request to /api/auth/account');
+    const response = await axios.delete('/api/auth/account');
+    
+    console.log('[DEBUG] Response received:', response);
+    if (response.data.success) {
+      alert('계정이 성공적으로 삭제되었습니다.');
+      // Clear session and redirect to home
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.href = '/';
+    }
+  } catch (error) {
+    console.error('Account delete error:', error);
+    alert('계정 삭제 실패: ' + (error.response?.data?.error || error.message));
+  }
+};
+
+// Set upgrade button link based on user's current subscription
+(async function() {
+  try {
+    const sessionId = getStorageItem('session_id');
+    if (!sessionId) return;
+    
+    const response = await fetch('/api/user/me', {
+      headers: { 'X-Session-ID': sessionId }
+    });
+    
+    if (response.ok) {
+      const userData = await response.json();
+      const subscription = userData.subscription || '무료';
+      const planMap = { '무료': 'free', '스타터': 'starter', '베이직': 'basic', '프로': 'pro' };
+      const currentPlan = planMap[subscription] || 'free';
+      
+      const upgradeButton = document.getElementById('upgradeButton');
+      if (upgradeButton) {
+        upgradeButton.href = `/pricing?plan=${currentPlan}`;
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch user subscription for upgrade button:', error);
+  }
+})();
+
+// Debug: Check if functions are defined
+console.log('[DEBUG] my-page-full.js loaded');
+console.log('[DEBUG] handleAccountDelete defined:', typeof window.handleAccountDelete);
+console.log('[DEBUG] axios available:', typeof axios);
+console.log('[DEBUG] getStorageItem available:', typeof getStorageItem);
