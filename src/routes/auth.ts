@@ -1164,8 +1164,9 @@ auth.post('/send-failed-reset-notifications', asyncHandler(async (c) => {
 }))
 
 /**
- * DELETE /api/auth/account - Teacher account deletion (CASCADE all related data)
+ * DELETE /api/auth/account - Teacher account deletion (Personal info only)
  * SECURITY: Requires valid session authentication
+ * NOTE: Keeps assignments and grading history, only removes personal information
  */
 auth.delete('/account', asyncHandler(async (c) => {
   const db = c.env.DB
@@ -1204,18 +1205,23 @@ auth.delete('/account', asyncHandler(async (c) => {
     'account_delete_teacher', 
     userId, 
     clientIP, 
-    JSON.stringify({ email: user.email, name: user.name }), 
+    JSON.stringify({ email: user.email, name: user.name, note: 'Personal info only - keeps assignments' }), 
     new Date().toISOString()
   ).run()
   
-  // Delete user (CASCADE will handle related tables automatically):
-  // - sessions (ON DELETE CASCADE)
-  // - subscriptions (via user_id)
-  // - assignments → assignment_rubrics, student_submissions, etc. (CASCADE)
-  // - uploaded_files (CASCADE)
-  // - teacher_statistics (CASCADE)
-  // - grading_sessions → rubric_criteria, essays, grading_results (CASCADE)
+  // Delete only personal information and authentication data
+  // Keep assignments, grading history, and uploaded files for data integrity
+  await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run()
+  await db.prepare('DELETE FROM subscriptions WHERE user_id = ?').bind(userId).run()
+  await db.prepare('DELETE FROM email_verifications WHERE user_id = ?').bind(userId).run()
+  await db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').bind(userId).run()
+  await db.prepare('DELETE FROM security_logs WHERE user_id = ?').bind(userId).run()
+  
+  // Delete user account (name and email only)
   await db.prepare('DELETE FROM users WHERE id = ?').bind(userId).run()
+  
+  // NOTE: Assignments, student_submissions, grading_sessions, uploaded_files are NOT deleted
+  // These records remain for data integrity and student access
   
   return c.json({ 
     success: true, 
@@ -1224,8 +1230,9 @@ auth.delete('/account', asyncHandler(async (c) => {
 }))
 
 /**
- * DELETE /api/student/auth/account - Student account deletion (CASCADE all related data)
+ * DELETE /api/student/auth/account - Student account deletion (Personal info only)
  * SECURITY: Requires valid student session authentication
+ * NOTE: Keeps submissions and feedback, only removes personal information
  */
 auth.delete('/student/auth/account', asyncHandler(async (c) => {
   const db = c.env.DB
@@ -1249,8 +1256,8 @@ auth.delete('/student/auth/account', asyncHandler(async (c) => {
   
   // Get student info for logging
   const student = await db.prepare(
-    'SELECT email, name FROM student_users WHERE id = ?'
-  ).bind(studentId).first<{ email: string; name: string }>()
+    'SELECT email, name, grade_level FROM student_users WHERE id = ?'
+  ).bind(studentId).first<{ email: string; name: string; grade_level: string }>()
   
   if (!student) {
     return c.json({ error: '학생 계정을 찾을 수 없습니다.' }, 404)
@@ -1264,20 +1271,21 @@ auth.delete('/student/auth/account', asyncHandler(async (c) => {
     'account_delete_student', 
     studentId, 
     clientIP, 
-    JSON.stringify({ email: student.email, name: student.name }), 
+    JSON.stringify({ email: student.email, name: student.name, grade_level: student.grade_level, note: 'Personal info only - keeps submissions' }), 
     new Date().toISOString()
   ).run()
   
-  // Delete student-specific data that may not have CASCADE
-  // (some tables reference student_users without CASCADE)
+  // Delete only personal information and authentication data
+  // Keep submissions, feedback, and progress for data integrity
+  await db.prepare('DELETE FROM student_sessions WHERE student_id = ?').bind(studentId).run()
   await db.prepare('DELETE FROM student_resource_recommendations WHERE student_user_id = ?').bind(studentId).run()
-  await db.prepare('DELETE FROM student_progress WHERE student_user_id = ?').bind(studentId).run()
+  await db.prepare('DELETE FROM email_verifications WHERE student_user_id = ?').bind(studentId).run()
   
-  // Delete student user (CASCADE will handle):
-  // - student_sessions (CASCADE)
-  // - student_submissions → submission_feedback, submission_summary (CASCADE)
-  // - uploaded_files (CASCADE)
+  // Delete student user (name, email, grade_level only)
   await db.prepare('DELETE FROM student_users WHERE id = ?').bind(studentId).run()
+  
+  // NOTE: student_submissions, submission_feedback, submission_summary, student_progress are NOT deleted
+  // These records remain for teacher access and data integrity
   
   return c.json({ 
     success: true, 

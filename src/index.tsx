@@ -5371,7 +5371,8 @@ app.get('/student/signup', (c) => {
               });
               
               if (response.data.success) {
-                alert('회원가입이 완료되었습니다! 로그인해 주세요.');
+                // Show email verification notice
+                alert('인증 메일 전송\\n\\n인증 메일이 ' + email + '로 전송되었습니다.\\n\\n받으신 이메일을 열어 링크를 클릭하면 가입이 완료됩니다.');
                 window.location.href = '/student/login';
               }
             } catch (error) {
