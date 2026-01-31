@@ -9992,12 +9992,6 @@ app.get('/student/dashboard', (c) => {
                                 <a href="/student/account" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
                                     <i class="fas fa-user-cog mr-2"></i>내 계정
                                 </a>
-                                <a href="/student/subscription" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                    <i class="fas fa-crown mr-2"></i>내 요금제
-                                </a>
-                                <a href="/student/billing" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                    <i class="fas fa-credit-card mr-2"></i>구독 결제 관리
-                                </a>
                                 <div class="border-t border-gray-200 my-2"></div>
                                 <button onclick="handleLogout()" class="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 font-medium">
                                     <i class="fas fa-sign-out-alt mr-2"></i>로그아웃

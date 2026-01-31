@@ -167,7 +167,7 @@ auth.post('/login', asyncHandler(async (c) => {
     'SELECT COUNT(*) as count FROM security_logs WHERE ip_address = ? AND event_type = ? AND created_at > datetime("now", "-15 minutes")'
   ).bind(clientIP, 'login_failure').first()
   
-  if (recentAttempts && recentAttempts.count >= 5) {
+  if (recentAttempts && recentAttempts.count >= 10) {
     return c.json({ 
       error: '로그인 시도가 너무 많습니다. 15분 후 다시 시도해주세요' 
     }, 429)
@@ -435,7 +435,7 @@ auth.post('/student/login', asyncHandler(async (c) => {
     'SELECT COUNT(*) as count FROM security_logs WHERE ip_address = ? AND event_type = ? AND created_at > datetime("now", "-15 minutes")'
   ).bind(clientIP, 'student_login_failure').first()
   
-  if (recentAttempts && recentAttempts.count >= 5) {
+  if (recentAttempts && recentAttempts.count >= 10) {
     return c.json({ 
       error: '로그인 시도가 너무 많습니다. 15분 후 다시 시도해주세요' 
     }, 429)
