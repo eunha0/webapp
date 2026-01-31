@@ -10190,6 +10190,7 @@ app.get('/student/account', (c) => {
             try {
               const sessionId = getStorageItem('student_session_id');
               const studentName = getStorageItem('student_name');
+              const studentEmail = getStorageItem('student_email');
               
               if (!sessionId || !studentName) {
                 alert('로그인이 필요합니다');
@@ -10197,22 +10198,10 @@ app.get('/student/account', (c) => {
                 return;
               }
               
-              // Display basic info from storage
+              // Display info from storage
               document.getElementById('studentName').textContent = studentName;
+              document.getElementById('studentEmail').textContent = studentEmail || '(이메일 정보 없음)';
               
-              // Try to fetch email from API
-              try {
-                const response = await axios.get('/api/student/me', {
-                  headers: { 'X-Student-Session-ID': sessionId }
-                });
-                
-                if (response.data && response.data.email) {
-                  document.getElementById('studentEmail').textContent = response.data.email;
-                }
-              } catch (error) {
-                console.error('Failed to fetch student email:', error);
-                document.getElementById('studentEmail').textContent = '(이메일 정보 없음)';
-              }
             } catch (error) {
               console.error('Failed to load student account info:', error);
               alert('계정 정보를 불러오는 데 실패했습니다.');
@@ -10250,9 +10239,12 @@ app.get('/student/account', (c) => {
               console.log('[DEBUG] Response received:', response);
               if (response.data.success) {
                 alert('계정이 성공적으로 삭제되었습니다.');
-                // Clear session and redirect to home
+                // Clear all student session data and redirect to home
                 removeStorageItem('student_session_id');
                 removeStorageItem('student_name');
+                removeStorageItem('student_email');
+                removeStorageItem('student_grade_level');
+                removeStorageItem('isLoggedIn');
                 window.location.href = '/';
               }
             } catch (error) {
