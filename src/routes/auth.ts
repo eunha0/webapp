@@ -978,18 +978,24 @@ auth.get('/verify-email', asyncHandler(async (c) => {
     return c.json({ success: false, error: '토큰이 필요합니다.' }, 400)
   }
   
-  // Find verification request
+  // Find verification request (check both user_id and student_user_id)
   const verification = await db.prepare(
-    'SELECT id, user_id, email, verified, expires_at FROM email_verifications WHERE token = ?'
+    'SELECT id, user_id, student_user_id, email, verified, expires_at FROM email_verifications WHERE token = ?'
   ).bind(token).first()
   
   if (!verification) {
     return c.json({ success: false, error: '유효하지 않은 인증 링크입니다.' }, 400)
   }
   
+  // Determine account type
+  const isStudent = verification.student_user_id !== null && verification.student_user_id !== undefined
+  const isTeacher = verification.user_id !== null && verification.user_id !== undefined
+  
   // Check if already verified
   if (verification.verified) {
-    return c.json({ success: false, error: '이미 인증된 이메일입니다. 로그인해주세요.' }, 400)
+    // Redirect to appropriate login page based on account type
+    const loginUrl = isStudent ? '/student/login' : '/login'
+    return c.redirect(`${loginUrl}?verified=already&email=${encodeURIComponent(verification.email as string)}`)
   }
   
   // Check if expired
@@ -1002,15 +1008,20 @@ auth.get('/verify-email', asyncHandler(async (c) => {
     'UPDATE email_verifications SET verified = TRUE, verified_at = ? WHERE id = ?'
   ).bind(new Date().toISOString(), verification.id).run()
   
-  // Update user email_verified status
-  await db.prepare(
-    'UPDATE users SET email_verified = TRUE WHERE id = ?'
-  ).bind(verification.user_id).run()
+  // Update email_verified status based on account type
+  if (isStudent) {
+    await db.prepare(
+      'UPDATE student_users SET email_verified = TRUE WHERE id = ?'
+    ).bind(verification.student_user_id).run()
+  } else if (isTeacher) {
+    await db.prepare(
+      'UPDATE users SET email_verified = TRUE WHERE id = ?'
+    ).bind(verification.user_id).run()
+  }
   
-  return c.json({ 
-    success: true, 
-    message: '이메일 인증이 완료되었습니다!' 
-  })
+  // Redirect to appropriate login page with success message
+  const loginUrl = isStudent ? '/student/login' : '/login'
+  return c.redirect(`${loginUrl}?verified=success&email=${encodeURIComponent(verification.email as string)}`)
 }))
 
 /**

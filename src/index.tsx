@@ -5142,6 +5142,9 @@ app.get('/student/login', (c) => {
 
         <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
             <div class="max-w-md w-full space-y-8">
+                <!-- Verification success message -->
+                <div id="verificationMessage" class="hidden rounded-md p-4"></div>
+                
                 <div>
                     <h2 class="mt-6 text-center text-3xl font-bold text-gray-900">
                         학생 로그인
@@ -5181,6 +5184,57 @@ app.get('/student/login', (c) => {
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+          // Check for verification status from URL parameters
+          const urlParams = new URLSearchParams(window.location.search);
+          const verified = urlParams.get('verified');
+          const email = urlParams.get('email');
+          
+          if (verified && email) {
+            const messageDiv = document.getElementById('verificationMessage');
+            if (verified === 'success') {
+              messageDiv.className = 'rounded-md p-4 bg-green-50 border border-green-200';
+              messageDiv.innerHTML = \`
+                <div class="flex">
+                  <div class="flex-shrink-0">
+                    <i class="fas fa-check-circle text-green-400 text-xl"></i>
+                  </div>
+                  <div class="ml-3">
+                    <h3 class="text-sm font-medium text-green-800">이메일 인증 완료!</h3>
+                    <div class="mt-2 text-sm text-green-700">
+                      <p><strong>\${decodeURIComponent(email)}</strong> 계정의 이메일 인증이 완료되었습니다. 이제 로그인하실 수 있습니다.</p>
+                    </div>
+                  </div>
+                </div>
+              \`;
+              messageDiv.classList.remove('hidden');
+              
+              // Pre-fill email field
+              document.getElementById('email').value = decodeURIComponent(email);
+            } else if (verified === 'already') {
+              messageDiv.className = 'rounded-md p-4 bg-blue-50 border border-blue-200';
+              messageDiv.innerHTML = \`
+                <div class="flex">
+                  <div class="flex-shrink-0">
+                    <i class="fas fa-info-circle text-blue-400 text-xl"></i>
+                  </div>
+                  <div class="ml-3">
+                    <h3 class="text-sm font-medium text-blue-800">이미 인증된 계정입니다</h3>
+                    <div class="mt-2 text-sm text-blue-700">
+                      <p><strong>\${decodeURIComponent(email)}</strong> 계정은 이미 이메일 인증이 완료되었습니다. 로그인해 주세요.</p>
+                    </div>
+                  </div>
+                </div>
+              \`;
+              messageDiv.classList.remove('hidden');
+              
+              // Pre-fill email field
+              document.getElementById('email').value = decodeURIComponent(email);
+            }
+            
+            // Clean URL after displaying message
+            window.history.replaceState({}, document.title, '/student/login');
+          }
+          
           // Storage fallback for Safari's tracking prevention
           function getStorageItem(key) {
             try {
@@ -5449,6 +5503,9 @@ app.get('/login', (c) => {
         <!-- Login Form -->
         <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
             <div class="max-w-md w-full space-y-8">
+                <!-- Verification success message -->
+                <div id="verificationMessage" class="hidden rounded-md p-4"></div>
+                
                 <div>
                     <div class="flex justify-center mb-4">
                         <div class="w-16 h-16 bg-navy-100 rounded-full flex items-center justify-center">
@@ -5578,6 +5635,54 @@ app.get('/login', (c) => {
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
+          // Check for verification status from URL parameters
+          const urlParams = new URLSearchParams(window.location.search);
+          const verified = urlParams.get('verified');
+          const email = urlParams.get('email');
+          
+          if (verified && email) {
+            const messageDiv = document.getElementById('verificationMessage');
+            if (verified === 'success') {
+              messageDiv.className = 'rounded-md p-4 bg-green-50 border border-green-200';
+              messageDiv.innerHTML = \`
+                <div class="flex">
+                  <div class="flex-shrink-0">
+                    <i class="fas fa-check-circle text-green-400 text-xl"></i>
+                  </div>
+                  <div class="ml-3">
+                    <h3 class="text-sm font-medium text-green-800">이메일 인증 완료!</h3>
+                    <div class="mt-2 text-sm text-green-700">
+                      <p><strong>\${decodeURIComponent(email)}</strong> 계정의 이메일 인증이 완료되었습니다. 이제 로그인하실 수 있습니다.</p>
+                    </div>
+                  </div>
+                </div>
+              \`;
+              messageDiv.classList.remove('hidden');
+              
+              // Pre-fill email field
+              document.getElementById('email').value = decodeURIComponent(email);
+            } else if (verified === 'already') {
+              messageDiv.className = 'rounded-md p-4 bg-blue-50 border border-blue-200';
+              messageDiv.innerHTML = \`
+                <div class="flex">
+                  <div class="flex-shrink-0">
+                    <i class="fas fa-info-circle text-blue-400 text-xl"></i>
+                  </div>
+                  <div class="ml-3">
+                    <h3 class="text-sm font-medium text-blue-800">이미 인증된 계정입니다</h3>
+                    <div class="mt-2 text-sm text-blue-700">
+                      <p><strong>\${decodeURIComponent(email)}</strong> 계정은 이미 이메일 인증이 완료되었습니다. 로그인해 주세요.</p>
+                    </div>
+                  </div>
+                </div>
+              \`;
+              messageDiv.classList.remove('hidden');
+              
+              // Pre-fill email field
+              document.getElementById('email').value = decodeURIComponent(email);
+            }
+          }
+          
           // Storage fallback for Safari's tracking prevention
           function getStorageItem(key) {
             try {
@@ -5606,7 +5711,6 @@ app.get('/login', (c) => {
             sessionStorage.removeItem(key);
           }
           
-          const urlParams = new URLSearchParams(window.location.search);
           const loginType = urlParams.get('type') || 'teacher';
           const isStudentLogin = loginType === 'student';
           
