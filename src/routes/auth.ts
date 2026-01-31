@@ -1216,23 +1216,51 @@ auth.delete('/account', asyncHandler(async (c) => {
     'account_delete_teacher', 
     userId, 
     clientIP, 
-    JSON.stringify({ email: user.email, name: user.name, note: 'Personal info only - keeps assignments' }), 
+    JSON.stringify({ email: user.email, name: user.name, note: 'Full account deletion - includes all assignments and data' }), 
     new Date().toISOString()
   ).run()
   
-  // Delete only personal information and authentication data
-  // Keep assignments, grading history, and uploaded files for data integrity
+  // Delete all related data in correct order (respecting foreign key constraints)
+  
+  // 1. Delete security_logs first (to avoid self-reference issues)
+  await db.prepare('DELETE FROM security_logs WHERE user_id = ?').bind(userId).run()
+  
+  // 2. Delete assignment-related data
+  // Get all assignment IDs for this user
+  const userAssignments = await db.prepare(
+    'SELECT id FROM assignments WHERE user_id = ?'
+  ).bind(userId).all<{ id: number }>()
+  
+  if (userAssignments.results && userAssignments.results.length > 0) {
+    for (const assignment of userAssignments.results) {
+      const assignmentId = assignment.id
+      
+      // Delete assignment rubrics
+      await db.prepare('DELETE FROM assignment_rubrics WHERE assignment_id = ?').bind(assignmentId).run()
+      
+      // Delete student submissions
+      await db.prepare('DELETE FROM student_submissions WHERE assignment_id = ?').bind(assignmentId).run()
+      await db.prepare('DELETE FROM student_submissions_new WHERE assignment_id = ?').bind(assignmentId).run()
+      
+      // Delete grading sessions
+      await db.prepare('DELETE FROM grading_sessions WHERE assignment_id = ?').bind(assignmentId).run()
+      
+      // Delete uploaded files
+      await db.prepare('DELETE FROM uploaded_files WHERE assignment_id = ?').bind(assignmentId).run()
+    }
+    
+    // Delete assignments
+    await db.prepare('DELETE FROM assignments WHERE user_id = ?').bind(userId).run()
+  }
+  
+  // 3. Delete authentication and session data
   await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run()
   await db.prepare('DELETE FROM subscriptions WHERE user_id = ?').bind(userId).run()
   await db.prepare('DELETE FROM email_verifications WHERE user_id = ?').bind(userId).run()
   await db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').bind(userId).run()
-  await db.prepare('DELETE FROM security_logs WHERE user_id = ?').bind(userId).run()
   
-  // Delete user account (name and email only)
+  // 4. Finally delete user account
   await db.prepare('DELETE FROM users WHERE id = ?').bind(userId).run()
-  
-  // NOTE: Assignments, student_submissions, grading_sessions, uploaded_files are NOT deleted
-  // These records remain for data integrity and student access
   
   return c.json({ 
     success: true, 
