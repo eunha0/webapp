@@ -1277,7 +1277,7 @@ auth.delete('/student/account', asyncHandler(async (c) => {
   // Log security event BEFORE deletion
   const clientIP = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
   await db.prepare(
-    'INSERT INTO security_logs (event_type, student_user_id, ip_address, details, created_at) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO security_logs (event_type, user_id, ip_address, details, created_at) VALUES (?, ?, ?, ?, ?)'
   ).bind(
     'account_delete_student', 
     studentId, 
