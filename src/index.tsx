@@ -9932,8 +9932,8 @@ app.get('/student/dashboard', (c) => {
                 return;
               }
               
-              console.log('[DEBUG] Sending DELETE request to /api/student/auth/account');
-              const response = await axios.delete('/api/student/auth/account', {
+              console.log('[DEBUG] Sending DELETE request to /api/auth/student/account');
+              const response = await axios.delete('/api/auth/student/account', {
                 headers: {
                   'X-Student-Session-ID': sessionId
                 }
@@ -10229,8 +10229,8 @@ app.get('/student/account', (c) => {
                 return;
               }
               
-              console.log('[DEBUG] Sending DELETE request to /api/student/auth/account');
-              const response = await axios.delete('/api/student/auth/account', {
+              console.log('[DEBUG] Sending DELETE request to /api/auth/student/account');
+              const response = await axios.delete('/api/auth/student/account', {
                 headers: {
                   'X-Student-Session-ID': sessionId
                 }

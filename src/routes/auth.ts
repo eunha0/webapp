@@ -1241,11 +1241,11 @@ auth.delete('/account', asyncHandler(async (c) => {
 }))
 
 /**
- * DELETE /api/student/auth/account - Student account deletion (Personal info only)
+ * DELETE /api/auth/student/account - Student account deletion (Personal info only)
  * SECURITY: Requires valid student session authentication
  * NOTE: Keeps submissions and feedback, only removes personal information
  */
-auth.delete('/student/auth/account', asyncHandler(async (c) => {
+auth.delete('/student/account', asyncHandler(async (c) => {
   const db = c.env.DB
   
   // Get student session ID from header
