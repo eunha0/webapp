@@ -73,7 +73,7 @@ auth.post('/signup', asyncHandler(async (c) => {
   ).bind('signup_success', userId, clientIP, JSON.stringify({ email: email.toLowerCase() }), new Date().toISOString()).run()
   
   // Send verification email
-  const verificationUrl = `${new URL(c.req.url).origin}/verify-email?token=${verificationToken}`
+  const verificationUrl = `${new URL(c.req.url).origin}/api/auth/verify-email?token=${verificationToken}`
   const emailHtml = `
     <!DOCTYPE html>
     <html>
@@ -342,7 +342,7 @@ auth.post('/student/signup', asyncHandler(async (c) => {
   ).bind('student_signup_success', studentId, clientIP, JSON.stringify({ email: email.toLowerCase(), type: 'student' }), new Date().toISOString()).run()
   
   // Send verification email
-  const verificationUrl = `${new URL(c.req.url).origin}/verify-email?token=${verificationToken}`
+  const verificationUrl = `${new URL(c.req.url).origin}/api/auth/verify-email?token=${verificationToken}`
   const emailHtml = `
     <!DOCTYPE html>
     <html>
