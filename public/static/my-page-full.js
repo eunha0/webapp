@@ -3901,7 +3901,7 @@ function showAccountTab(tabName) {
 
         <div class="border-t border-gray-200 pt-6">
           <h3 class="text-lg font-bold text-gray-900 mb-2">계정 삭제</h3>
-          <p class="text-sm text-gray-600 mb-4">계정을 삭제하면 모든 기록이 사라지고 복구할 수 없습니다. <a href="#" class="text-blue-600 hover:underline">탈퇴하기</a></p>
+          <p class="text-sm text-gray-600 mb-4">계정을 삭제하면 이름과 이메일 주소 등 개인 정보가 사라지고 복구할 수 없습니다. <a href="#" class="text-blue-600 hover:underline">탈퇴하기</a></p>
         </div>
       </div>
     `;
@@ -4799,7 +4799,7 @@ window.handleAccountDelete = async function(event) {
   event.preventDefault();
   
   console.log('[DEBUG] Before confirm dialog');
-  const confirmed = confirm('정말 계정을 삭제하시겠습니까?\n\n계정을 삭제하면 모든 기록이 사라지고 복구할 수 없습니다.');
+  const confirmed = confirm('정말 계정을 삭제하시겠습니까?\n\n계정을 삭제하면 이름과 이메일 주소 등 개인 정보가 사라지고 복구할 수 없습니다.');
   
   console.log('[DEBUG] Confirmed:', confirmed);
   if (!confirmed) {
