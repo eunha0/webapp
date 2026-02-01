@@ -1211,6 +1211,31 @@ auth.delete('/account', asyncHandler(async (c) => {
     
     console.log('[TEACHER DELETE] Starting deletion for user:', userId, user.email)
     
+    // Ensure system "deleted_teacher" account exists
+    const systemUser = await db.prepare(
+      'SELECT id FROM users WHERE email = ?'
+    ).bind('deleted_teacher@system').first<{ id: number }>()
+    
+    let systemUserId: number
+    if (!systemUser) {
+      console.log('[TEACHER DELETE] Creating system deleted_teacher account')
+      const result = await db.prepare(
+        'INSERT INTO users (email, name, password_hash, role, email_verified, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+      ).bind(
+        'deleted_teacher@system',
+        '삭제된 교사',
+        'SYSTEM_ACCOUNT_NO_PASSWORD',
+        'system',
+        1,
+        new Date().toISOString()
+      ).run()
+      systemUserId = result.meta.last_row_id as number
+      console.log('[TEACHER DELETE] Created system user with ID:', systemUserId)
+    } else {
+      systemUserId = systemUser.id
+      console.log('[TEACHER DELETE] Using existing system user ID:', systemUserId)
+    }
+    
     // Log security event BEFORE deletion (important for audit trail)
     const clientIP = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
     await db.prepare(
@@ -1219,57 +1244,21 @@ auth.delete('/account', asyncHandler(async (c) => {
       'account_delete_teacher', 
       userId, 
       clientIP, 
-      JSON.stringify({ email: user.email, name: user.name, note: 'Full account deletion - includes all assignments and data' }), 
+      JSON.stringify({ email: user.email, name: user.name, note: 'Data preserved - ownership transferred to system account' }), 
       new Date().toISOString()
     ).run()
     
-    // Delete all related data in correct order (respecting foreign key constraints)
+    // Transfer ownership of all assignments to system account
+    // This preserves all data while removing the teacher's personal info
+    console.log('[TEACHER DELETE] Transferring assignment ownership to system account')
+    await db.prepare(
+      'UPDATE assignments SET user_id = ? WHERE user_id = ?'
+    ).bind(systemUserId, userId).run()
     
-    // Get all assignment IDs for this user FIRST
-    const userAssignments = await db.prepare(
-      'SELECT id FROM assignments WHERE user_id = ?'
-    ).bind(userId).all<{ id: number }>()
-    
-    console.log('[TEACHER DELETE] Found assignments:', userAssignments.results?.length || 0)
-    
-    if (userAssignments.results && userAssignments.results.length > 0) {
-      for (const assignment of userAssignments.results) {
-        const assignmentId = assignment.id
-        console.log('[TEACHER DELETE] Deleting assignment:', assignmentId)
-        
-        // Delete in order: most dependent → least dependent
-        
-        // 1. Delete grading history (references grading_results)
-        await db.prepare('DELETE FROM grading_history WHERE assignment_id = ?').bind(assignmentId).run()
-        
-        // 2. Delete grading results
-        await db.prepare('DELETE FROM grading_results WHERE assignment_id = ?').bind(assignmentId).run()
-        
-        // 3. Delete grading sessions
-        await db.prepare('DELETE FROM grading_sessions WHERE assignment_id = ?').bind(assignmentId).run()
-        
-        // 4. Delete student submissions (both old and new)
-        await db.prepare('DELETE FROM student_submissions WHERE assignment_id = ?').bind(assignmentId).run()
-        await db.prepare('DELETE FROM student_submissions_new WHERE assignment_id = ?').bind(assignmentId).run()
-        
-        // 5. Delete uploaded files
-        await db.prepare('DELETE FROM uploaded_files WHERE assignment_id = ?').bind(assignmentId).run()
-        
-        // 6. Delete assignment ratings and tags
-        await db.prepare('DELETE FROM assignment_ratings WHERE assignment_id = ?').bind(assignmentId).run()
-        await db.prepare('DELETE FROM assignment_tags WHERE assignment_id = ?').bind(assignmentId).run()
-        
-        // 7. Delete assignment access codes
-        await db.prepare('DELETE FROM assignment_access_codes WHERE assignment_id = ?').bind(assignmentId).run()
-        
-        // 8. Delete assignment rubrics
-        await db.prepare('DELETE FROM assignment_rubrics WHERE assignment_id = ?').bind(assignmentId).run()
-      }
-      
-      // Finally delete assignments
-      console.log('[TEACHER DELETE] Deleting all assignments for user')
-      await db.prepare('DELETE FROM assignments WHERE user_id = ?').bind(userId).run()
-    }
+    console.log('[TEACHER DELETE] Transferring uploaded files ownership')
+    await db.prepare(
+      'UPDATE uploaded_files SET user_id = ? WHERE user_id = ?'
+    ).bind(systemUserId, userId).run()
     
     // Delete authentication and session data
     console.log('[TEACHER DELETE] Deleting auth data')
@@ -1278,7 +1267,7 @@ auth.delete('/account', asyncHandler(async (c) => {
     await db.prepare('DELETE FROM email_verifications WHERE user_id = ?').bind(userId).run()
     await db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').bind(userId).run()
     
-    // Delete security logs LAST (after we've used it for the deletion event)
+    // Delete security logs
     console.log('[TEACHER DELETE] Deleting security logs')
     await db.prepare('DELETE FROM security_logs WHERE user_id = ?').bind(userId).run()
     
@@ -1301,7 +1290,7 @@ auth.delete('/account', asyncHandler(async (c) => {
     if (error.message && error.message.includes('FOREIGN KEY')) {
       return c.json({
         error: 'TEACHER_HAS_ACTIVE_RESOURCES',
-        message: '담당 중인 과제나 수업이 있어 삭제할 수 없습니다. 관리자에게 문의해주세요.',
+        message: '계정 삭제 중 참조 오류가 발생했습니다. 관리자에게 문의해주세요.',
         detail: error.message
       }, 409)
     }
