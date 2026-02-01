@@ -1248,7 +1248,7 @@ auth.delete('/account', asyncHandler(async (c) => {
       new Date().toISOString()
     ).run()
     
-    // Transfer ownership of all assignments to system account
+    // Transfer ownership of all data to system account
     // This preserves all data while removing the teacher's personal info
     console.log('[TEACHER DELETE] Transferring assignment ownership to system account')
     await db.prepare(
@@ -1259,6 +1259,10 @@ auth.delete('/account', asyncHandler(async (c) => {
     await db.prepare(
       'UPDATE uploaded_files SET user_id = ? WHERE user_id = ?'
     ).bind(systemUserId, userId).run()
+    
+    console.log('[TEACHER DELETE] Handling teacher_statistics')
+    // Delete teacher statistics (can't be transferred)
+    await db.prepare('DELETE FROM teacher_statistics WHERE user_id = ?').bind(userId).run()
     
     // Delete authentication and session data
     console.log('[TEACHER DELETE] Deleting auth data')
