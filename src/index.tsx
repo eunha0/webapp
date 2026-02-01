@@ -2916,6 +2916,83 @@ app.put('/api/admin/users/:id/subscription', async (c) => {
 })
 
 /**
+ * DELETE /api/admin/users/:id - Delete user account (Admin only)
+ */
+app.delete('/api/admin/users/:id', async (c) => {
+  try {
+    // Check admin authentication
+    const user = await requireAdminAuth(c)
+    if (isErrorResponse(user)) return user
+
+    const userId = c.req.param('id')
+    const { userType } = await c.req.json() // 'teacher' or 'student'
+    const db = c.env.DB
+
+    console.log(`[ADMIN DELETE] Deleting ${userType} account: ${userId}`)
+
+    if (userType === 'teacher') {
+      // Teacher account deletion - anonymize
+      const deletedEmail = `deleted_${userId}@anonymized.local`
+      const deletedName = `삭제된 계정 ${userId}`
+
+      // Update user info (anonymize)
+      await db.prepare(
+        'UPDATE users SET email = ?, name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).bind(deletedEmail, deletedName, userId).run()
+
+      // Delete sessions
+      await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run()
+
+      // Delete subscriptions
+      await db.prepare('DELETE FROM subscriptions WHERE user_id = ?').bind(userId).run()
+
+      // Delete email verifications
+      await db.prepare('DELETE FROM email_verifications WHERE user_id = ?').bind(userId).run()
+
+      // Delete password reset tokens
+      await db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').bind(userId).run()
+
+      // Delete security logs
+      await db.prepare('DELETE FROM security_logs WHERE user_id = ?').bind(userId).run()
+
+      // Delete teacher statistics
+      await db.prepare('DELETE FROM teacher_statistics WHERE user_id = ?').bind(userId).run()
+
+      console.log(`[ADMIN DELETE] Teacher account anonymized: ${userId}`)
+
+    } else if (userType === 'student') {
+      // Student account deletion - anonymize
+      const deletedEmail = `deleted_student_${userId}@anonymized.local`
+      const deletedName = `삭제된 학생 ${userId}`
+
+      // Update student info (anonymize)
+      await db.prepare(
+        'UPDATE student_users SET email = ?, name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).bind(deletedEmail, deletedName, userId).run()
+
+      // Delete student sessions
+      await db.prepare('DELETE FROM student_sessions WHERE student_user_id = ?').bind(userId).run()
+
+      console.log(`[ADMIN DELETE] Student account anonymized: ${userId}`)
+
+    } else {
+      return c.json({ error: '유효하지 않은 사용자 유형입니다' }, 400)
+    }
+
+    return c.json({ 
+      success: true, 
+      message: '계정이 성공적으로 삭제되었습니다'
+    })
+  } catch (error) {
+    console.error('[ADMIN DELETE] Error:', error)
+    return c.json({ 
+      error: '계정 삭제에 실패했습니다', 
+      details: String(error) 
+    }, 500)
+  }
+})
+
+/**
  * DELETE /api/submissions/:id - Delete a submission (teacher only)
  */
 app.delete('/api/submissions/:id', async (c) => {
@@ -5581,14 +5658,10 @@ app.get('/login', (c) => {
                         </div>
                     </div>
 
-                    <div class="mt-6 grid grid-cols-2 gap-3">
-                        <button onclick="loginWithGoogle()" type="button" class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                            <i class="fab fa-google text-red-500 mr-2"></i>
-                            Google
-                        </button>
-                        <button type="button" class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 opacity-50 cursor-not-allowed">
-                            <i class="fas fa-comment text-yellow-400 mr-2"></i>
-                            Kakao
+                    <div class="mt-6 flex justify-center">
+                        <button onclick="loginWithGoogle()" type="button" class="inline-flex items-center justify-center py-3 px-6 border border-gray-300 rounded-lg shadow-sm bg-white hover:bg-gray-50 transition">
+                            <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google" class="w-5 h-5 mr-3">
+                            <span class="text-sm font-medium text-gray-700">Google로 로그인</span>
                         </button>
                     </div>
                 </div>
@@ -8931,6 +9004,7 @@ app.get('/admin', (c) => {
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">과제</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">제출물</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">가입일</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">작업</th>
                       </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
@@ -8955,6 +9029,14 @@ app.get('/admin', (c) => {
                           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             \${new Date(t.created_at).toLocaleDateString('ko-KR')}
                           </td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <button 
+                              onclick="deleteUser(\${t.id}, 'teacher', '\${t.name}')"
+                              class="text-red-600 hover:text-red-800 font-medium"
+                            >
+                              <i class="fas fa-trash-alt mr-1"></i>삭제
+                            </button>
+                          </td>
                         </tr>
                       \`).join('')}
                     </tbody>
@@ -8975,6 +9057,7 @@ app.get('/admin', (c) => {
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">학년</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">제출물</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">가입일</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">작업</th>
                       </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
@@ -8986,6 +9069,14 @@ app.get('/admin', (c) => {
                           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${s.submission_count || 0}</td>
                           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             \${new Date(s.created_at).toLocaleDateString('ko-KR')}
+                          </td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <button 
+                              onclick="deleteUser(\${s.id}, 'student', '\${s.name}')"
+                              class="text-red-600 hover:text-red-800 font-medium"
+                            >
+                              <i class="fas fa-trash-alt mr-1"></i>삭제
+                            </button>
                           </td>
                         </tr>
                       \`).join('')}
@@ -9031,6 +9122,41 @@ app.get('/admin', (c) => {
               alert('구독 플랜 변경에 실패했습니다');
               // Reload users to revert the dropdown
               loadUsers();
+            }
+          }
+
+          // Delete user account
+          async function deleteUser(userId, userType, userName) {
+            const confirmed = confirm(\`정말 계정을 삭제하시겠습니까?\\n\\n계정을 삭제하면 이름과 이메일 주소 등 개인 정보가 사라지고 복구할 수 없습니다.\\n\\n사용자: \${userName}\`);
+            
+            if (!confirmed) return;
+
+            try {
+              const response = await axios.delete(\`/api/admin/users/\${userId}\`, {
+                data: { userType }
+              });
+
+              if (response.data.success) {
+                // Show success message
+                const message = document.createElement('div');
+                message.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+                message.innerHTML = \`
+                  <i class="fas fa-check-circle mr-2"></i>
+                  계정이 성공적으로 삭제되었습니다
+                \`;
+                document.body.appendChild(message);
+
+                setTimeout(() => {
+                  message.remove();
+                }, 3000);
+
+                // Reload users and stats
+                loadUsers();
+                loadStats();
+              }
+            } catch (error) {
+              console.error('Error deleting user:', error);
+              alert('계정 삭제에 실패했습니다');
             }
           }
 
