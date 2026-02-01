@@ -1182,90 +1182,137 @@ auth.post('/send-failed-reset-notifications', asyncHandler(async (c) => {
 auth.delete('/account', asyncHandler(async (c) => {
   const db = c.env.DB
   
-  // Get session ID from header
-  const sessionId = c.req.header('X-Session-ID')
-  if (!sessionId) {
-    return c.json({ error: '인증이 필요합니다. 다시 로그인해 주세요.' }, 401)
-  }
-  
-  // Get user from session
-  const session = await db.prepare(
-    'SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime("now")'
-  ).bind(sessionId).first<{ user_id: number }>()
-  
-  if (!session) {
-    return c.json({ error: '세션이 만료되었습니다. 다시 로그인해 주세요.' }, 401)
-  }
-  
-  const userId = session.user_id
-  
-  // Get user info for logging
-  const user = await db.prepare(
-    'SELECT email, name FROM users WHERE id = ?'
-  ).bind(userId).first<{ email: string; name: string }>()
-  
-  if (!user) {
-    return c.json({ error: '사용자를 찾을 수 없습니다.' }, 404)
-  }
-  
-  // Log security event BEFORE deletion (important for audit trail)
-  const clientIP = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
-  await db.prepare(
-    'INSERT INTO security_logs (event_type, user_id, ip_address, details, created_at) VALUES (?, ?, ?, ?, ?)'
-  ).bind(
-    'account_delete_teacher', 
-    userId, 
-    clientIP, 
-    JSON.stringify({ email: user.email, name: user.name, note: 'Full account deletion - includes all assignments and data' }), 
-    new Date().toISOString()
-  ).run()
-  
-  // Delete all related data in correct order (respecting foreign key constraints)
-  
-  // 1. Delete security_logs first (to avoid self-reference issues)
-  await db.prepare('DELETE FROM security_logs WHERE user_id = ?').bind(userId).run()
-  
-  // 2. Delete assignment-related data
-  // Get all assignment IDs for this user
-  const userAssignments = await db.prepare(
-    'SELECT id FROM assignments WHERE user_id = ?'
-  ).bind(userId).all<{ id: number }>()
-  
-  if (userAssignments.results && userAssignments.results.length > 0) {
-    for (const assignment of userAssignments.results) {
-      const assignmentId = assignment.id
-      
-      // Delete assignment rubrics
-      await db.prepare('DELETE FROM assignment_rubrics WHERE assignment_id = ?').bind(assignmentId).run()
-      
-      // Delete student submissions
-      await db.prepare('DELETE FROM student_submissions WHERE assignment_id = ?').bind(assignmentId).run()
-      await db.prepare('DELETE FROM student_submissions_new WHERE assignment_id = ?').bind(assignmentId).run()
-      
-      // Delete grading sessions
-      await db.prepare('DELETE FROM grading_sessions WHERE assignment_id = ?').bind(assignmentId).run()
-      
-      // Delete uploaded files
-      await db.prepare('DELETE FROM uploaded_files WHERE assignment_id = ?').bind(assignmentId).run()
+  try {
+    // Get session ID from header
+    const sessionId = c.req.header('X-Session-ID')
+    if (!sessionId) {
+      return c.json({ error: '인증이 필요합니다. 다시 로그인해 주세요.' }, 401)
     }
     
-    // Delete assignments
-    await db.prepare('DELETE FROM assignments WHERE user_id = ?').bind(userId).run()
+    // Get user from session
+    const session = await db.prepare(
+      'SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime("now")'
+    ).bind(sessionId).first<{ user_id: number }>()
+    
+    if (!session) {
+      return c.json({ error: '세션이 만료되었습니다. 다시 로그인해 주세요.' }, 401)
+    }
+    
+    const userId = session.user_id
+    
+    // Get user info for logging
+    const user = await db.prepare(
+      'SELECT email, name FROM users WHERE id = ?'
+    ).bind(userId).first<{ email: string; name: string }>()
+    
+    if (!user) {
+      return c.json({ error: '사용자를 찾을 수 없습니다.' }, 404)
+    }
+    
+    console.log('[TEACHER DELETE] Starting deletion for user:', userId, user.email)
+    
+    // Log security event BEFORE deletion (important for audit trail)
+    const clientIP = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
+    await db.prepare(
+      'INSERT INTO security_logs (event_type, user_id, ip_address, details, created_at) VALUES (?, ?, ?, ?, ?)'
+    ).bind(
+      'account_delete_teacher', 
+      userId, 
+      clientIP, 
+      JSON.stringify({ email: user.email, name: user.name, note: 'Full account deletion - includes all assignments and data' }), 
+      new Date().toISOString()
+    ).run()
+    
+    // Delete all related data in correct order (respecting foreign key constraints)
+    
+    // Get all assignment IDs for this user FIRST
+    const userAssignments = await db.prepare(
+      'SELECT id FROM assignments WHERE user_id = ?'
+    ).bind(userId).all<{ id: number }>()
+    
+    console.log('[TEACHER DELETE] Found assignments:', userAssignments.results?.length || 0)
+    
+    if (userAssignments.results && userAssignments.results.length > 0) {
+      for (const assignment of userAssignments.results) {
+        const assignmentId = assignment.id
+        console.log('[TEACHER DELETE] Deleting assignment:', assignmentId)
+        
+        // Delete in order: most dependent → least dependent
+        
+        // 1. Delete grading history (references grading_results)
+        await db.prepare('DELETE FROM grading_history WHERE assignment_id = ?').bind(assignmentId).run()
+        
+        // 2. Delete grading results
+        await db.prepare('DELETE FROM grading_results WHERE assignment_id = ?').bind(assignmentId).run()
+        
+        // 3. Delete grading sessions
+        await db.prepare('DELETE FROM grading_sessions WHERE assignment_id = ?').bind(assignmentId).run()
+        
+        // 4. Delete student submissions (both old and new)
+        await db.prepare('DELETE FROM student_submissions WHERE assignment_id = ?').bind(assignmentId).run()
+        await db.prepare('DELETE FROM student_submissions_new WHERE assignment_id = ?').bind(assignmentId).run()
+        
+        // 5. Delete uploaded files
+        await db.prepare('DELETE FROM uploaded_files WHERE assignment_id = ?').bind(assignmentId).run()
+        
+        // 6. Delete assignment ratings and tags
+        await db.prepare('DELETE FROM assignment_ratings WHERE assignment_id = ?').bind(assignmentId).run()
+        await db.prepare('DELETE FROM assignment_tags WHERE assignment_id = ?').bind(assignmentId).run()
+        
+        // 7. Delete assignment access codes
+        await db.prepare('DELETE FROM assignment_access_codes WHERE assignment_id = ?').bind(assignmentId).run()
+        
+        // 8. Delete assignment rubrics
+        await db.prepare('DELETE FROM assignment_rubrics WHERE assignment_id = ?').bind(assignmentId).run()
+      }
+      
+      // Finally delete assignments
+      console.log('[TEACHER DELETE] Deleting all assignments for user')
+      await db.prepare('DELETE FROM assignments WHERE user_id = ?').bind(userId).run()
+    }
+    
+    // Delete authentication and session data
+    console.log('[TEACHER DELETE] Deleting auth data')
+    await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run()
+    await db.prepare('DELETE FROM subscriptions WHERE user_id = ?').bind(userId).run()
+    await db.prepare('DELETE FROM email_verifications WHERE user_id = ?').bind(userId).run()
+    await db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').bind(userId).run()
+    
+    // Delete security logs LAST (after we've used it for the deletion event)
+    console.log('[TEACHER DELETE] Deleting security logs')
+    await db.prepare('DELETE FROM security_logs WHERE user_id = ?').bind(userId).run()
+    
+    // Finally delete user account
+    console.log('[TEACHER DELETE] Deleting user account')
+    await db.prepare('DELETE FROM users WHERE id = ?').bind(userId).run()
+    
+    console.log('[TEACHER DELETE] Deletion completed successfully')
+    
+    return c.json({ 
+      success: true, 
+      message: '계정이 성공적으로 삭제되었습니다.' 
+    })
+  } catch (error: any) {
+    console.error('[TEACHER DELETE ERROR]', error)
+    console.error('[TEACHER DELETE ERROR] Stack:', error.stack)
+    console.error('[TEACHER DELETE ERROR] Message:', error.message)
+    
+    // Check for specific constraint errors
+    if (error.message && error.message.includes('FOREIGN KEY')) {
+      return c.json({
+        error: 'TEACHER_HAS_ACTIVE_RESOURCES',
+        message: '담당 중인 과제나 수업이 있어 삭제할 수 없습니다. 관리자에게 문의해주세요.',
+        detail: error.message
+      }, 409)
+    }
+    
+    // Generic error
+    return c.json({
+      error: 'ACCOUNT_DELETE_FAILED',
+      message: '계정 삭제 중 오류가 발생했습니다. 관리자에게 문의해주세요.',
+      detail: error.message
+    }, 500)
   }
-  
-  // 3. Delete authentication and session data
-  await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run()
-  await db.prepare('DELETE FROM subscriptions WHERE user_id = ?').bind(userId).run()
-  await db.prepare('DELETE FROM email_verifications WHERE user_id = ?').bind(userId).run()
-  await db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').bind(userId).run()
-  
-  // 4. Finally delete user account
-  await db.prepare('DELETE FROM users WHERE id = ?').bind(userId).run()
-  
-  return c.json({ 
-    success: true, 
-    message: '계정이 성공적으로 삭제되었습니다.' 
-  })
 }))
 
 /**
