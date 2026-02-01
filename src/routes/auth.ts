@@ -1202,39 +1202,14 @@ auth.delete('/account', asyncHandler(async (c) => {
     
     // Get user info for logging
     const user = await db.prepare(
-      'SELECT email, name FROM users WHERE id = ?'
-    ).bind(userId).first<{ email: string; name: string }>()
+      'SELECT email, name, password_hash FROM users WHERE id = ?'
+    ).bind(userId).first<{ email: string; name: string; password_hash: string }>()
     
     if (!user) {
       return c.json({ error: '사용자를 찾을 수 없습니다.' }, 404)
     }
     
     console.log('[TEACHER DELETE] Starting deletion for user:', userId, user.email)
-    
-    // Ensure system "deleted_teacher" account exists
-    const systemUser = await db.prepare(
-      'SELECT id FROM users WHERE email = ?'
-    ).bind('deleted_teacher@system').first<{ id: number }>()
-    
-    let systemUserId: number
-    if (!systemUser) {
-      console.log('[TEACHER DELETE] Creating system deleted_teacher account')
-      const result = await db.prepare(
-        'INSERT INTO users (email, name, password_hash, role, email_verified, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-      ).bind(
-        'deleted_teacher@system',
-        '삭제된 교사',
-        'SYSTEM_ACCOUNT_NO_PASSWORD',
-        'system',
-        1,
-        new Date().toISOString()
-      ).run()
-      systemUserId = result.meta.last_row_id as number
-      console.log('[TEACHER DELETE] Created system user with ID:', systemUserId)
-    } else {
-      systemUserId = systemUser.id
-      console.log('[TEACHER DELETE] Using existing system user ID:', systemUserId)
-    }
     
     // Log security event BEFORE deletion (important for audit trail)
     const clientIP = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
@@ -1244,42 +1219,34 @@ auth.delete('/account', asyncHandler(async (c) => {
       'account_delete_teacher', 
       userId, 
       clientIP, 
-      JSON.stringify({ email: user.email, name: user.name, note: 'Data preserved - ownership transferred to system account' }), 
+      JSON.stringify({ 
+        email: user.email, 
+        name: user.name, 
+        note: 'Personal info anonymized - all data preserved' 
+      }), 
       new Date().toISOString()
     ).run()
     
-    // Transfer ownership of all data to system account
-    // This preserves all data while removing the teacher's personal info
-    console.log('[TEACHER DELETE] Transferring assignment ownership to system account')
+    // Anonymize personal information (name and email only)
+    // All assignments, submissions, grading history, and files are PRESERVED
+    const anonymizedEmail = `deleted_${userId}@anonymized.local`
+    const anonymizedName = `삭제된 계정 ${userId}`
+    const disabledPassword = 'ACCOUNT_DELETED_NO_LOGIN_ALLOWED'
+    
+    console.log('[TEACHER DELETE] Anonymizing personal information')
     await db.prepare(
-      'UPDATE assignments SET user_id = ? WHERE user_id = ?'
-    ).bind(systemUserId, userId).run()
+      'UPDATE users SET email = ?, name = ?, password_hash = ?, email_verified = 0 WHERE id = ?'
+    ).bind(anonymizedEmail, anonymizedName, disabledPassword, userId).run()
     
-    console.log('[TEACHER DELETE] Transferring uploaded files ownership')
-    await db.prepare(
-      'UPDATE uploaded_files SET user_id = ? WHERE user_id = ?'
-    ).bind(systemUserId, userId).run()
-    
-    console.log('[TEACHER DELETE] Handling teacher_statistics')
-    // Delete teacher statistics (can't be transferred)
-    await db.prepare('DELETE FROM teacher_statistics WHERE user_id = ?').bind(userId).run()
-    
-    // Delete authentication and session data
-    console.log('[TEACHER DELETE] Deleting auth data')
+    // Delete authentication and session data to prevent login
+    console.log('[TEACHER DELETE] Deleting auth and session data')
     await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run()
-    await db.prepare('DELETE FROM subscriptions WHERE user_id = ?').bind(userId).run()
     await db.prepare('DELETE FROM email_verifications WHERE user_id = ?').bind(userId).run()
     await db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').bind(userId).run()
     
-    // Delete security logs
-    console.log('[TEACHER DELETE] Deleting security logs')
-    await db.prepare('DELETE FROM security_logs WHERE user_id = ?').bind(userId).run()
-    
-    // Finally delete user account
-    console.log('[TEACHER DELETE] Deleting user account')
-    await db.prepare('DELETE FROM users WHERE id = ?').bind(userId).run()
-    
     console.log('[TEACHER DELETE] Deletion completed successfully')
+    console.log('[TEACHER DELETE] Preserved: assignments, submissions, grading history, uploaded files, statistics')
+    console.log('[TEACHER DELETE] Deleted: name, email, password, sessions')
     
     return c.json({ 
       success: true, 
