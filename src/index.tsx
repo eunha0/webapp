@@ -8487,7 +8487,7 @@ app.get('/admin', (c) => {
                 <div class="col-span-4 text-center py-8 text-red-600">
                   <i class="fas fa-exclamation-triangle text-3xl mb-3"></i>
                   <p>통계를 불러오는 데 실패했습니다</p>
-                  <p class="text-sm mt-2">먼저 교사 계정으로 로그인해 주세요</p>
+                  <p class="text-sm mt-2">먼저 관리자 계정으로 로그인해 주세요</p>
                   <a href="/login" class="mt-4 inline-block bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">로그인하기</a>
                 </div>
               \`;
@@ -9917,7 +9917,7 @@ app.get('/student/dashboard', (c) => {
               event.preventDefault();
             }
             
-            const confirmed = confirm('정말 계정을 삭제하시겠습니까?\\n\\n계정을 삭제하면 모든 제출물과 피드백이 사라지고 복구할 수 없습니다.');
+            const confirmed = confirm('정말 계정을 삭제하시겠습니까?\\n\\n계정을 삭제하면 이름과 이메일 주소 등 개인 정보가 사라지고 복구할 수 없습니다.');
             
             if (!confirmed) {
               return;
@@ -10166,7 +10166,7 @@ app.get('/student/account', (c) => {
                         <i class="fas fa-exclamation-triangle mr-2"></i>계정 삭제
                     </h3>
                     <p class="text-sm text-gray-600 mb-4">
-                        계정을 삭제하면 모든 제출물과 피드백이 영구적으로 삭제되며 복구할 수 없습니다.
+                        계정을 삭제하면 이름과 이메일 주소 등 개인 정보가 영구적으로 삭제되며 복구할 수 없습니다.
                     </p>
                     <button 
                         onclick="handleStudentAccountDelete(event)" 
@@ -10208,7 +10208,7 @@ app.get('/student/account', (c) => {
               event.preventDefault();
             }
             
-            const confirmed = confirm('정말 계정을 삭제하시겠습니까?\\n\\n계정을 삭제하면 모든 제출물과 피드백이 사라지고 복구할 수 없습니다.');
+            const confirmed = confirm('정말 계정을 삭제하시겠습니까?\\n\\n계정을 삭제하면 이름과 이메일 주소 등 개인 정보가 사라지고 복구할 수 없습니다.');
             
             if (!confirmed) {
               return;
