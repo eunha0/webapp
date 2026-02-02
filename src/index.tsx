@@ -232,10 +232,10 @@ app.get('/rubric-detail/:rubricId', (c) => {
       title: '뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭 (4개 기준)',
       pdf: '/rubric-pdfs/뉴욕 주 리젠트 시험 논증적 글쓰기 루브릭.pdf',
       criteria: [
-        { name: 'Content and Analysis (내용과 분석)', desc: '명확하고 통찰력 있는 논제를 제시하며, 과제와 맥락에 대한 깊이 있는 이해를 보여줍니다. 복잡한 개념을 효과적으로 분석하고 설명합니다.' },
-        { name: 'Use of Evidence (증거 활용)', desc: '제공된 문서(documents)를 효과적으로 활용하여 논증을 뒷받침합니다. 관련성 높은 증거를 명시적으로 인용하고, 증거와 논제 간의 관계를 명확하게 설명합니다.' },
-        { name: 'Coherence, Organization (일관성과 구성)', desc: '논리적으로 잘 구성되어 있으며, 명확한 서론-본론-결론 구조를 갖추고 있습니다. 각 단락이 효과적으로 연결되어 전체 논지가 일관성 있게 전개됩니다.' },
-        { name: 'Language Use and Conventions (언어 사용과 규칙)', desc: '문법과 철자가 정확하며, 적절한 학술적 어휘를 사용합니다. 문장 구조가 다양하고 명확하여 읽기 쉽습니다.' }
+        { name: 'Content and Analysis (내용과 분석)', desc: '명확하고 통찰력 있는 논제를 제시하며, 과제와 맥락에 대한 깊이 있는 이해를 보여줍니다. 복잡한 개념을 효과적으로 분석하고 설명합니다.', max_score: 6 },
+        { name: 'Use of Evidence (증거 활용)', desc: '제공된 문서(documents)를 효과적으로 활용하여 논증을 뒷받침합니다. 관련성 높은 증거를 명시적으로 인용하고, 증거와 논제 간의 관계를 명확하게 설명합니다.', max_score: 6 },
+        { name: 'Coherence, Organization (일관성과 구성)', desc: '논리적으로 잘 구성되어 있으며, 명확한 서론-본론-결론 구조를 갖추고 있습니다. 각 단락이 효과적으로 연결되어 전체 논지가 일관성 있게 전개됩니다.', max_score: 6 },
+        { name: 'Language Use and Conventions (언어 사용과 규칙)', desc: '문법과 철자가 정확하며, 적절한 학술적 어휘를 사용합니다. 문장 구조가 다양하고 명확하여 읽기 쉽습니다.', max_score: 6 }
       ]
     },
     'nyregents_analytical': {
