@@ -2113,11 +2113,40 @@ async function executeGrading(submissionId, feedbackLevel, strictness) {
     const submissionData = submissionResponse.data;
     console.log('Submission data received:', submissionData);
     
-    // Grade submission with settings
-    const response = await axios.post(`/api/submission/${submissionId}/grade`, {
-      feedback_level: feedbackLevel,
-      grading_strictness: strictness
-    });
+    // Grade submission with settings (60s timeout + 1 retry on failure)
+    let response;
+    let retryCount = 0;
+    const maxRetries = 1;
+    
+    while (retryCount <= maxRetries) {
+      try {
+        console.log(`Grading attempt ${retryCount + 1}/${maxRetries + 1}`);
+        response = await axios.post(`/api/submission/${submissionId}/grade`, {
+          feedback_level: feedbackLevel,
+          grading_strictness: strictness
+        }, {
+          timeout: 60000  // 60 seconds timeout
+        });
+        console.log('Grading successful');
+        break;  // Success, exit retry loop
+      } catch (gradingError) {
+        const shouldRetry = retryCount < maxRetries && (
+          gradingError.code === 'ECONNABORTED' ||
+          gradingError.response?.status === 503 ||
+          gradingError.response?.status === 504
+        );
+        
+        if (shouldRetry) {
+          retryCount++;
+          console.log(`Grading failed, retrying... (${retryCount}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 2000));  // Wait 2s before retry
+          continue;
+        }
+        
+        // No more retries or non-retryable error
+        throw gradingError;
+      }
+    }
     
     if (button) {
       button.disabled = false;
@@ -2208,11 +2237,40 @@ async function executeGradingWithLoading(submissionId, feedbackLevel, strictness
     const submissionData = submissionResponse.data;
     console.log('Submission data received:', submissionData);
     
-    // Grade submission with settings
-    const response = await axios.post('/api/submission/' + submissionId + '/grade', {
-      feedback_level: feedbackLevel,
-      grading_strictness: strictness
-    });
+    // Grade submission with settings (60s timeout + 1 retry on failure)
+    let response;
+    let retryCount = 0;
+    const maxRetries = 1;
+    
+    while (retryCount <= maxRetries) {
+      try {
+        console.log(`Grading attempt ${retryCount + 1}/${maxRetries + 1}`);
+        response = await axios.post('/api/submission/' + submissionId + '/grade', {
+          feedback_level: feedbackLevel,
+          grading_strictness: strictness
+        }, {
+          timeout: 60000  // 60 seconds timeout
+        });
+        console.log('Grading successful');
+        break;  // Success, exit retry loop
+      } catch (gradingError) {
+        const shouldRetry = retryCount < maxRetries && (
+          gradingError.code === 'ECONNABORTED' ||
+          gradingError.response?.status === 503 ||
+          gradingError.response?.status === 504
+        );
+        
+        if (shouldRetry) {
+          retryCount++;
+          console.log(`Grading failed, retrying... (${retryCount}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 2000));  // Wait 2s before retry
+          continue;
+        }
+        
+        // No more retries or non-retryable error
+        throw gradingError;
+      }
+    }
     
     // Close loading modal
     closeGradingLoadingModal();
