@@ -850,10 +850,10 @@ function getPlatformRubricCriteria(type) {
       { name: '문체 및 어법의 세련됨', description: '학술적 글쓰기에 적합한 어조와 세련된 문장 구사력을 보여줍니다.', order: 4, max_score: 15 }
     ],
     nyregents: [
-      { name: '내용과 분석 (주장 제시)', description: '구체적인 주장을 제시하고, 자료와 주제를 적절히 분석하며, 반론을 평가합니다.', order: 1, max_score: 4 },
-      { name: '증거 활용 능력', description: '관련 증거를 활용하여 충분하고 적절한 근거를 제시하며, 표절을 피하고 허용 가능한 인용 형식을 사용합니다.', order: 2, max_score: 4 },
-      { name: '일관성과 구성', description: '과제에 대한 수용 가능한 집중도를 유지하고, 체계적이고 논리적인 구조로 글을 구성합니다.', order: 3, max_score: 4 },
-      { name: '언어 사용과 규칙', description: '적절한 어휘와 문장 구조를 사용하며, 문법과 맞춤법 규칙을 준수합니다.', order: 4, max_score: 4 }
+      { name: '내용과 분석 (주장 제시)', description: '구체적인 주장을 제시하고, 자료와 주제를 적절히 분석하며, 반론을 평가합니다.', order: 1, max_score: 6 },
+      { name: '증거 활용 능력', description: '관련 증거를 활용하여 충분하고 적절한 근거를 제시하며, 표절을 피하고 허용 가능한 인용 형식을 사용합니다.', order: 2, max_score: 6 },
+      { name: '일관성과 구성', description: '과제에 대한 수용 가능한 집중도를 유지하고, 체계적이고 논리적인 구조로 글을 구성합니다.', order: 3, max_score: 6 },
+      { name: '언어 사용과 규칙', description: '적절한 어휘와 문장 구조를 사용하며, 문법과 맞춤법 규칙을 준수합니다.', order: 4, max_score: 6 }
     ],
     nyregents_analytical: [
       { name: '내용 및 분석', description: '4점: 분석 기준을 명확히 설정하는 논리적인 중심 아이디어와 글쓰기 전략을 제시하고, 저자가 중심 아이디어를 전개하기 위해 글쓰기 전략을 사용한 방식을 깊이 있게 분석합니다.', order: 1, max_score: 4 },
