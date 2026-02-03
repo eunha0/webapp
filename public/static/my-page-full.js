@@ -2139,6 +2139,12 @@ async function executeGrading(submissionId, feedbackLevel, strictness) {
         if (shouldRetry) {
           retryCount++;
           console.log(`Grading failed, retrying... (${retryCount}/${maxRetries})`);
+          
+          // Update button to show retry status
+          if (button) {
+            button.innerHTML = '<i class="fas fa-redo fa-spin mr-2"></i>재시도 중...';
+          }
+          
           await new Promise(resolve => setTimeout(resolve, 2000));  // Wait 2s before retry
           continue;
         }
@@ -2215,6 +2221,16 @@ function closeGradingLoadingModal() {
   }
 }
 
+function updateGradingLoadingModal(message, submessage) {
+  const modal = document.getElementById('gradingLoadingModal');
+  if (modal) {
+    const title = modal.querySelector('h3');
+    const subtitle = modal.querySelector('p.text-gray-600');
+    if (title) title.textContent = message;
+    if (subtitle) subtitle.textContent = submessage;
+  }
+}
+
 async function executeGradingWithLoading(submissionId, feedbackLevel, strictness) {
   console.log('Execute Grading With Loading called with:', {
     submissionId,
@@ -2263,11 +2279,27 @@ async function executeGradingWithLoading(submissionId, feedbackLevel, strictness
         if (shouldRetry) {
           retryCount++;
           console.log(`Grading failed, retrying... (${retryCount}/${maxRetries})`);
+          
+          // Update loading modal to show retry message
+          updateGradingLoadingModal(
+            '연결 문제 발생',
+            '연결 문제가 발생하여 자동으로 재시도 중입니다...'
+          );
+          
           await new Promise(resolve => setTimeout(resolve, 2000));  // Wait 2s before retry
           continue;
         }
         
         // No more retries or non-retryable error
+        // Update modal to show final failure message
+        updateGradingLoadingModal(
+          '채점 실패',
+          '자동 재시도도 실패했습니다. 나중에 다시 시도해 주세요.'
+        );
+        
+        // Wait 2 seconds to show the message before closing
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
         throw gradingError;
       }
     }
