@@ -1560,6 +1560,25 @@ app.get('/api/assignment/:id', async (c) => {
       return c.json({ error: 'Assignment not found' }, 404)
     }
     
+    // AUTO-MIGRATE: If assignment has access_code, ensure it's in assignment_access_codes table
+    if (assignment.access_code) {
+      const existingInAccessCodes = await db.prepare(
+        'SELECT id FROM assignment_access_codes WHERE assignment_id = ?'
+      ).bind(assignmentId).first()
+      
+      if (!existingInAccessCodes) {
+        try {
+          await db.prepare(
+            'INSERT INTO assignment_access_codes (assignment_id, access_code) VALUES (?, ?)'
+          ).bind(assignmentId, assignment.access_code).run()
+          console.log(`[AUTO-MIGRATE] Migrated access code ${assignment.access_code} for assignment ${assignmentId}`)
+        } catch (err) {
+          console.error(`[AUTO-MIGRATE] Failed to migrate access code:`, err)
+          // Continue even if migration fails (might already exist with different ID)
+        }
+      }
+    }
+    
     // Check if user owns the assignment OR if it's a library assignment
     // is_library is 1 or 0 (number) from SQLite, need to convert to boolean
     const isLibrary = Boolean(assignment.is_library)
