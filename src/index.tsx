@@ -1488,6 +1488,19 @@ app.post('/api/assignment/:id/generate-access-code', async (c) => {
     
     // Check if access code already exists
     if (assignment.access_code) {
+      // Ensure it's also in assignment_access_codes table (migration)
+      const existingInAccessCodes = await db.prepare(
+        'SELECT id FROM assignment_access_codes WHERE assignment_id = ?'
+      ).bind(assignmentId).first()
+      
+      if (!existingInAccessCodes) {
+        // Migrate existing code to new table
+        await db.prepare(
+          'INSERT INTO assignment_access_codes (assignment_id, access_code) VALUES (?, ?)'
+        ).bind(assignmentId, assignment.access_code).run()
+        console.log(`[ACCESS_CODE] Migrated existing code ${assignment.access_code} to assignment_access_codes`)
+      }
+      
       return c.json({ access_code: assignment.access_code })
     }
     
@@ -1496,16 +1509,27 @@ app.post('/api/assignment/:id/generate-access-code', async (c) => {
     let isUnique = false
     while (!isUnique) {
       accessCode = Math.floor(100000 + Math.random() * 900000).toString()
-      const existing = await db.prepare(
+      // Check both tables for uniqueness
+      const existingInAssignments = await db.prepare(
         'SELECT id FROM assignments WHERE access_code = ?'
       ).bind(accessCode).first()
-      if (!existing) isUnique = true
+      const existingInAccessCodes = await db.prepare(
+        'SELECT id FROM assignment_access_codes WHERE access_code = ?'
+      ).bind(accessCode).first()
+      if (!existingInAssignments && !existingInAccessCodes) isUnique = true
     }
     
-    // Update assignment with access code
+    // Update assignment with access code (for backward compatibility)
     await db.prepare(
       'UPDATE assignments SET access_code = ? WHERE id = ?'
     ).bind(accessCode, assignmentId).run()
+    
+    // Insert into assignment_access_codes table (for student queries)
+    await db.prepare(
+      'INSERT INTO assignment_access_codes (assignment_id, access_code) VALUES (?, ?)'
+    ).bind(assignmentId, accessCode).run()
+    
+    console.log(`[ACCESS_CODE] Generated code ${accessCode} for assignment ${assignmentId}`)
     
     return c.json({ success: true, access_code: accessCode })
   } catch (error) {
