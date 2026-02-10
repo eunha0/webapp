@@ -2543,7 +2543,15 @@ app.post('/api/submission/:id/grade', async (c) => {
     }
     
     console.error('[Grade API] ========== ERROR END ==========');
-    return c.json({ error: 'Failed to grade submission', details: String(error) }, 500)
+    
+    // Return detailed error information for debugging
+    return c.json({ 
+      error: 'Failed to grade submission',
+      details: error instanceof Error ? error.message : String(error),
+      error_type: error instanceof Error ? error.constructor.name : typeof error,
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    }, 500)
   }
 })
 
