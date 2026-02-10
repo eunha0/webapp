@@ -8396,7 +8396,7 @@ app.get('/my-page', (c) => {
         <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
         ${STORAGE_UTILS_SCRIPT}
-        <script src="/static/my-page-full.js"></script>
+        <script src="/static/my-page-full.js?v=acc09e9"></script>
         <script>
           // Set upgrade button link based on user's current subscription
           (async function() {
