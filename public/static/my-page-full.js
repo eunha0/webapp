@@ -2254,14 +2254,26 @@ async function executeGradingWithLoading(submissionId, feedbackLevel, strictness
     console.log('Submission data received:', submissionData);
     
     // Grade submission with settings (90s timeout, NO automatic retry)
-    console.log('Starting grading request - single attempt only');
+    console.log('📝 [FRONTEND] Starting grading request - single attempt only');
+    console.log('📝 [FRONTEND] Request URL:', '/api/submission/' + submissionId + '/grade');
+    console.log('📝 [FRONTEND] Request body:', {
+      feedback_level: feedbackLevel,
+      grading_strictness: strictness
+    });
+    console.log('📝 [FRONTEND] Timeout:', 90000, 'ms');
+    
+    const gradingStartTime = Date.now();
     const response = await axios.post('/api/submission/' + submissionId + '/grade', {
       feedback_level: feedbackLevel,
       grading_strictness: strictness
     }, {
       timeout: 90000  // 90 seconds timeout (increased from 60s)
     });
-    console.log('Grading completed successfully');
+    
+    const gradingEndTime = Date.now();
+    console.log('✅ [FRONTEND] Grading completed successfully in', (gradingEndTime - gradingStartTime) / 1000, 'seconds');
+    console.log('✅ [FRONTEND] Response status:', response.status);
+    console.log('✅ [FRONTEND] Response data:', response.data);
     
     // Close loading modal
     closeGradingLoadingModal();
@@ -2288,9 +2300,28 @@ async function executeGradingWithLoading(submissionId, feedbackLevel, strictness
       throw new Error(response.data.error || '채점 실패');
     }
   } catch (error) {
-    console.error('Error grading submission:', error);
+    console.error('❌ [FRONTEND] Error grading submission:', error);
+    console.error('❌ [FRONTEND] Error type:', error.constructor.name);
+    console.error('❌ [FRONTEND] Error message:', error.message);
+    console.error('❌ [FRONTEND] Error code:', error.code);
+    console.error('❌ [FRONTEND] Error response:', error.response);
+    console.error('❌ [FRONTEND] Error response status:', error.response?.status);
+    console.error('❌ [FRONTEND] Error response data:', error.response?.data);
+    
     closeGradingLoadingModal();
-    alert('채점에 실패했습니다: ' + (error.response?.data?.error || error.message));
+    
+    // Construct detailed error message
+    let errorMessage = '채점에 실패했습니다';
+    if (error.response?.status === 500) {
+      errorMessage += ' (서버 내부 오류)';
+    } else if (error.response?.status === 503) {
+      errorMessage += ' (서비스 일시 중단)';
+    } else if (error.code === 'ECONNABORTED') {
+      errorMessage += ' (시간 초과)';
+    }
+    errorMessage += ': ' + (error.response?.data?.error || error.response?.data?.details || error.message);
+    
+    alert(errorMessage);
   }
 }
 
