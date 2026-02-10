@@ -2253,56 +2253,15 @@ async function executeGradingWithLoading(submissionId, feedbackLevel, strictness
     const submissionData = submissionResponse.data;
     console.log('Submission data received:', submissionData);
     
-    // Grade submission with settings (60s timeout + 1 retry on failure)
-    let response;
-    let retryCount = 0;
-    const maxRetries = 1;
-    
-    while (retryCount <= maxRetries) {
-      try {
-        console.log(`Grading attempt ${retryCount + 1}/${maxRetries + 1}`);
-        response = await axios.post('/api/submission/' + submissionId + '/grade', {
-          feedback_level: feedbackLevel,
-          grading_strictness: strictness
-        }, {
-          timeout: 60000  // 60 seconds timeout
-        });
-        console.log('Grading successful');
-        break;  // Success, exit retry loop
-      } catch (gradingError) {
-        const shouldRetry = retryCount < maxRetries && (
-          gradingError.code === 'ECONNABORTED' ||
-          gradingError.response?.status === 503 ||
-          gradingError.response?.status === 504
-        );
-        
-        if (shouldRetry) {
-          retryCount++;
-          console.log(`Grading failed, retrying... (${retryCount}/${maxRetries})`);
-          
-          // Update loading modal to show retry message
-          updateGradingLoadingModal(
-            '연결 문제 발생',
-            '연결 문제가 발생하여 자동으로 재시도 중입니다...'
-          );
-          
-          await new Promise(resolve => setTimeout(resolve, 2000));  // Wait 2s before retry
-          continue;
-        }
-        
-        // No more retries or non-retryable error
-        // Update modal to show final failure message
-        updateGradingLoadingModal(
-          '채점 실패',
-          '자동 재시도도 실패했습니다. 나중에 다시 시도해 주세요.'
-        );
-        
-        // Wait 2 seconds to show the message before closing
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        throw gradingError;
-      }
-    }
+    // Grade submission with settings (90s timeout, NO automatic retry)
+    console.log('Starting grading request - single attempt only');
+    const response = await axios.post('/api/submission/' + submissionId + '/grade', {
+      feedback_level: feedbackLevel,
+      grading_strictness: strictness
+    }, {
+      timeout: 90000  // 90 seconds timeout (increased from 60s)
+    });
+    console.log('Grading completed successfully');
     
     // Close loading modal
     closeGradingLoadingModal();
