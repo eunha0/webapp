@@ -8,18 +8,68 @@ import type { GradingRequest, GradingResult, CriterionScore } from './types';
  * Initialize AI clients with configuration
  */
 function initializeClients(env: any) {
+  // CRITICAL: Debug logging for environment variables
+  console.log('[Hybrid AI] ========== ENVIRONMENT CHECK START ==========');
+  console.log('[Hybrid AI] Initializing AI clients...');
+  
+  // Check if env object exists
+  if (!env) {
+    console.error('[Hybrid AI] ERROR: env object is null or undefined!');
+    throw new Error('Environment object is not available. This is a critical Worker configuration issue.');
+  }
+  
+  // Log available environment keys
+  const envKeys = Object.keys(env || {});
+  console.log('[Hybrid AI] Available env keys:', envKeys);
+  console.log('[Hybrid AI] Total env keys count:', envKeys.length);
+  
+  // Check API keys
+  const hasOpenAI = !!env.OPENAI_API_KEY;
+  const hasAnthropic = !!(env.ANTHROPIC_API_KEY || env.CLAUDE_API_KEY);
+  
+  console.log('[Hybrid AI] Environment variables status:', {
+    has_openai_key: hasOpenAI,
+    has_anthropic_key: hasAnthropic,
+    openai_key_length: env.OPENAI_API_KEY?.length || 0,
+    anthropic_key_length: (env.ANTHROPIC_API_KEY || env.CLAUDE_API_KEY)?.length || 0,
+    openai_key_prefix: env.OPENAI_API_KEY?.substring(0, 8) || 'MISSING',
+    anthropic_key_prefix: (env.ANTHROPIC_API_KEY || env.CLAUDE_API_KEY)?.substring(0, 8) || 'MISSING',
+    api_related_keys: envKeys.filter(k => k.includes('API') || k.includes('KEY'))
+  });
+  
+  // Validate OPENAI_API_KEY
+  if (!env.OPENAI_API_KEY) {
+    console.error('[Hybrid AI] CRITICAL ERROR: OPENAI_API_KEY is missing!');
+    console.error('[Hybrid AI] This will cause 503 errors in production.');
+    console.error('[Hybrid AI] Please set OPENAI_API_KEY in Cloudflare Pages environment variables.');
+    throw new Error('OPENAI_API_KEY is not configured. Please set it in Cloudflare Pages Settings → Environment variables → Production.');
+  }
+  
+  // Validate ANTHROPIC_API_KEY
+  if (!env.ANTHROPIC_API_KEY && !env.CLAUDE_API_KEY) {
+    console.error('[Hybrid AI] CRITICAL ERROR: ANTHROPIC_API_KEY is missing!');
+    console.error('[Hybrid AI] This will cause 503 errors in production.');
+    console.error('[Hybrid AI] Please set ANTHROPIC_API_KEY in Cloudflare Pages environment variables.');
+    throw new Error('ANTHROPIC_API_KEY is not configured. Please set it in Cloudflare Pages Settings → Environment variables → Production.');
+  }
+  
+  console.log('[Hybrid AI] ✅ All API keys are present');
+  
   // OpenAI client for scoring (GPT-4o)
   const openai = new OpenAI({
     apiKey: env.OPENAI_API_KEY,
     baseURL: env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
   });
+  console.log('[Hybrid AI] ✅ OpenAI client initialized');
 
   // Anthropic client for feedback generation (Claude 3.5 Sonnet)
   // Support both ANTHROPIC_API_KEY and CLAUDE_API_KEY for flexibility
   const anthropic = new Anthropic({
     apiKey: env.ANTHROPIC_API_KEY || env.CLAUDE_API_KEY,
   });
+  console.log('[Hybrid AI] ✅ Anthropic client initialized');
 
+  console.log('[Hybrid AI] ========== ENVIRONMENT CHECK END ==========');
   return { openai, anthropic };
 }
 
@@ -250,19 +300,35 @@ export async function gradeEssayHybrid(
   request: GradingRequest,
   env: any
 ): Promise<GradingResult> {
+  console.log('[Hybrid AI] ========== GRADING START ==========');
+  console.log('[Hybrid AI] Request summary:', {
+    essay_length: request.essay_text?.length || 0,
+    grade_level: request.grade_level,
+    criteria_count: request.rubric_criteria?.length || 0,
+    has_env: !!env
+  });
+  
   try {
     // Check if AI API keys are configured
+    console.log('[Hybrid AI] Checking API keys...');
     if (!env.OPENAI_API_KEY || (!env.ANTHROPIC_API_KEY && !env.CLAUDE_API_KEY)) {
-      console.error('AI API keys not configured - grading cannot proceed');
+      console.error('[Hybrid AI] ERROR: AI API keys not configured!');
+      console.error('[Hybrid AI] OPENAI_API_KEY:', env.OPENAI_API_KEY ? 'Present' : 'MISSING');
+      console.error('[Hybrid AI] ANTHROPIC_API_KEY:', (env.ANTHROPIC_API_KEY || env.CLAUDE_API_KEY) ? 'Present' : 'MISSING');
       throw new Error('AI 연결에 장애가 발생하여 채점이 실행되지 않았습니다. 잠시 후에 다시 채점을 시도해 주시기 바랍니다.');
     }
+    console.log('[Hybrid AI] ✅ API keys confirmed present');
 
+    console.log('[Hybrid AI] Initializing AI clients...');
     const { openai, anthropic } = initializeClients(env);
 
     // Phase 1: GPT-4o scores the essay
-    console.log('[Hybrid AI] Phase 1: GPT-4o scoring...');
+    console.log('[Hybrid AI] ========== PHASE 1: GPT-4o SCORING START ==========');
     const scoringPrompt = generateScoringPrompt(request);
+    console.log('[Hybrid AI] Scoring prompt length:', scoringPrompt.length);
     
+    console.log('[Hybrid AI] Calling OpenAI API...');
+    const scoringStartTime = Date.now();
     const scoringResponse = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
@@ -278,15 +344,21 @@ export async function gradeEssayHybrid(
       temperature: 0.3, // Lower temperature for consistency
       response_format: { type: 'json_object' }
     });
+    const scoringDuration = Date.now() - scoringStartTime;
+    console.log('[Hybrid AI] ✅ OpenAI API response received in', scoringDuration, 'ms');
 
     const scoringResultText = scoringResponse.choices[0].message.content || '{}';
     const scoringResult = JSON.parse(scoringResultText);
     console.log('[Hybrid AI] Phase 1 complete. Total score:', scoringResult.total_score);
+    console.log('[Hybrid AI] ========== PHASE 1: GPT-4o SCORING END ==========');
 
     // Phase 2: Claude 3.5 Sonnet generates feedback
-    console.log('[Hybrid AI] Phase 2: Claude 3.5 Sonnet feedback generation...');
+    console.log('[Hybrid AI] ========== PHASE 2: CLAUDE FEEDBACK START ==========');
     const feedbackPrompt = generateFeedbackPrompt(request, scoringResult);
+    console.log('[Hybrid AI] Feedback prompt length:', feedbackPrompt.length);
     
+    console.log('[Hybrid AI] Calling Anthropic API...');
+    const feedbackStartTime = Date.now();
     const feedbackResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929', // Claude Sonnet 4.5 (latest)
       max_tokens: 4096,
@@ -397,14 +469,24 @@ export async function gradeEssayHybrid(
     return result;
 
   } catch (error) {
-    console.error('[Hybrid AI] Error during grading:', error);
+    console.error('[Hybrid AI] ========== ERROR OCCURRED ==========');
+    console.error('[Hybrid AI] Error type:', error instanceof Error ? error.constructor.name : typeof error);
+    console.error('[Hybrid AI] Error message:', error instanceof Error ? error.message : String(error));
+    console.error('[Hybrid AI] Error details:', error);
+    
+    // Log stack trace if available
+    if (error instanceof Error && error.stack) {
+      console.error('[Hybrid AI] Stack trace:', error.stack);
+    }
     
     // Check if it's an API connection error
     if (error instanceof Error) {
+      console.error('[Hybrid AI] Throwing user-friendly error message');
       // Re-throw with user-friendly message
       throw new Error('AI 연결에 장애가 발생하여 채점이 실행되지 않았습니다. 잠시 후에 다시 채점을 시도해 주시기 바랍니다.');
     }
     
+    console.error('[Hybrid AI] ========== ERROR END ==========');
     throw error;
   }
 }
