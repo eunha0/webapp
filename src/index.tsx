@@ -2236,17 +2236,32 @@ app.post('/api/student/submit', async (c) => {
  * POST /api/submission/:id/grade - Grade a student submission
  */
 app.post('/api/submission/:id/grade', async (c) => {
+  console.log('[Grade API] ========== REQUEST START ==========');
+  console.log('[Grade API] Timestamp:', new Date().toISOString());
+  console.log('[Grade API] URL:', c.req.url);
+  console.log('[Grade API] Method:', c.req.method);
+  
   try {
+    console.log('[Grade API] Step 1: Authenticating user...');
     const user = await requireAuth(c)
-    if (!user.id) return user // Return error response
+    if (!user.id) {
+      console.error('[Grade API] Authentication failed');
+      return user; // Return error response
+    }
+    console.log('[Grade API] ✅ User authenticated:', user.id);
     
     const submissionId = parseInt(c.req.param('id'))
+    console.log('[Grade API] Step 2: Submission ID:', submissionId);
+    
     const db = c.env.DB
+    console.log('[Grade API] Step 3: Database connection:', !!db);
     
     // Check subscription limits for grading (NEW)
+    console.log('[Grade API] Step 4: Checking subscription limits...');
     const userInfo = await db.prepare(
       'SELECT subscription FROM users WHERE id = ?'
     ).bind(user.id).first()
+    console.log('[Grade API] User subscription:', userInfo?.subscription);
     
     // Count graded submissions for this user
     const gradedCount = await db.prepare(
@@ -2255,6 +2270,7 @@ app.post('/api/submission/:id/grade', async (c) => {
        JOIN assignments a ON s.assignment_id = a.id
        WHERE a.user_id = ? AND s.graded = 1`
     ).bind(user.id).first()
+    console.log('[Grade API] Graded submissions count:', gradedCount?.count);
     
     const subscription = userInfo?.subscription || '무료'
     const currentGradedCount = gradedCount?.count || 0
@@ -2268,8 +2284,15 @@ app.post('/api/submission/:id/grade', async (c) => {
     }
     
     const limit = gradingLimits[subscription] || gradingLimits['무료']
+    console.log('[Grade API] Subscription limit check:', {
+      subscription,
+      current: currentGradedCount,
+      limit,
+      can_grade: currentGradedCount < limit
+    });
     
     if (currentGradedCount >= limit) {
+      console.error('[Grade API] Subscription limit reached!');
       return c.json({ 
         error: `현재 구독 플랜(${subscription})의 채점 한도(${limit}회)를 초과했습니다. 구독 플랜을 업그레이드해주세요.`,
         limit_reached: true,
@@ -2280,11 +2303,14 @@ app.post('/api/submission/:id/grade', async (c) => {
     }
     
     // Get grading settings from request body (optional)
+    console.log('[Grade API] Step 5: Parsing request body...');
     const body = await c.req.json().catch(() => ({}))
     const feedbackLevel = body.feedback_level || 'detailed' // 'detailed', 'moderate', 'brief'
     const gradingStrictness = body.grading_strictness || 'moderate' // 'lenient', 'moderate', 'strict'
+    console.log('[Grade API] Grading settings:', { feedbackLevel, gradingStrictness });
     
     // Get submission and verify assignment ownership
+    console.log('[Grade API] Step 6: Fetching submission data...');
     const submission = await db.prepare(
       `SELECT s.*, a.title as assignment_title, a.description as assignment_prompt, a.grade_level, a.user_id
        FROM student_submissions s
@@ -2293,23 +2319,31 @@ app.post('/api/submission/:id/grade', async (c) => {
     ).bind(submissionId).first()
     
     if (!submission) {
+      console.error('[Grade API] Submission not found:', submissionId);
       return c.json({ error: 'Submission not found' }, 404)
     }
+    console.log('[Grade API] ✅ Submission found');
     
     if (submission.user_id !== user.id) {
+      console.error('[Grade API] Access denied: user mismatch');
       return c.json({ error: 'Access denied' }, 403)
     }
+    console.log('[Grade API] ✅ Access verified');
     
     // Get rubric criteria for this assignment
+    console.log('[Grade API] Step 7: Fetching rubric criteria...');
     const rubrics = await db.prepare(
       'SELECT id, criterion_name, criterion_description, max_score FROM assignment_rubrics WHERE assignment_id = ? ORDER BY criterion_order'
     ).bind(submission.assignment_id).all()
     
     if (!rubrics.results || rubrics.results.length === 0) {
+      console.error('[Grade API] No rubric criteria found');
       return c.json({ error: 'No rubric criteria found for this assignment' }, 400)
     }
+    console.log('[Grade API] ✅ Rubric criteria count:', rubrics.results.length);
     
     // Build grading request
+    console.log('[Grade API] Step 8: Building grading request...');
     const gradingRequest: GradingRequest = {
       assignment_prompt: submission.assignment_prompt as string,
       essay_text: submission.essay_text as string,
@@ -2321,18 +2355,25 @@ app.post('/api/submission/:id/grade', async (c) => {
         max_score: r.max_score || 4
       }))
     }
+    console.log('[Grade API] Grading request prepared');
     
     // Create grading session
+    console.log('[Grade API] Step 9: Creating grading session...');
     const sessionId = await createGradingSession(db, gradingRequest)
+    console.log('[Grade API] ✅ Session created:', sessionId);
     
     // Create essay
+    console.log('[Grade API] Step 10: Creating essay record...');
     const essayId = await createEssay(db, sessionId, submission.essay_text as string)
+    console.log('[Grade API] ✅ Essay created:', essayId);
     
     // Grade the essay using AI (with graceful fallback)
     let gradingResult: any
     let detailedFeedback: any
     
     try {
+      console.log('[Grade API] Step 11: Starting AI grading...');
+      console.log('[Grade API] Calling gradeEssayHybrid...');
       gradingResult = await gradeEssayHybrid(gradingRequest, c.env)
       
       // Generate detailed feedback with grade-level tone adjustment and custom settings
@@ -2492,7 +2533,16 @@ app.post('/api/submission/:id/grade', async (c) => {
       detailed_feedback: detailedFeedback
     })
   } catch (error) {
-    console.error('Error grading submission:', error)
+    console.error('[Grade API] ========== ERROR OCCURRED ==========');
+    console.error('[Grade API] Error type:', error instanceof Error ? error.constructor.name : typeof error);
+    console.error('[Grade API] Error message:', error instanceof Error ? error.message : String(error));
+    console.error('[Grade API] Full error:', error);
+    
+    if (error instanceof Error && error.stack) {
+      console.error('[Grade API] Stack trace:', error.stack);
+    }
+    
+    console.error('[Grade API] ========== ERROR END ==========');
     return c.json({ error: 'Failed to grade submission', details: String(error) }, 500)
   }
 })
