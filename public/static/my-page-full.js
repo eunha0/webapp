@@ -812,7 +812,6 @@ window.selectFeedbackLevel = selectFeedbackLevel;
 window.selectGradingStrictness = selectGradingStrictness;
 window.closeGradingSettingsModal = closeGradingSettingsModal;
 window.confirmGradingSettings = confirmGradingSettings;
-window.togglePrintDropdown = togglePrintDropdown;
 window.printReport = printReport;
 window.exportToPDF = exportToPDF;
 window.regradeSubmission = regradeSubmission;
@@ -2484,30 +2483,11 @@ function showGradingReviewModal() {
 
         <!-- Action Buttons -->
         <div class="bg-gray-50 border-t border-gray-200 px-6 py-4 flex gap-3 rounded-b-xl">
-          <!-- Print Button with Dropdown -->
-          <div class="relative">
-            <div class="flex">
-              <button onclick="printFeedback()" 
-                class="px-6 py-3 bg-green-600 text-white rounded-l-lg font-semibold hover:bg-green-700 transition">
-                <i class="fas fa-print mr-2"></i>출력
-              </button>
-              <button onclick="togglePrintDropdown()" 
-                class="px-3 py-3 bg-green-600 text-white rounded-r-lg font-semibold hover:bg-green-700 transition border-l border-green-700">
-                <i class="fas fa-chevron-down"></i>
-              </button>
-            </div>
-            <!-- Dropdown Menu -->
-            <div id="printDropdownMenu" class="hidden absolute bottom-full mb-2 left-0 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[200px] z-50">
-              <button onclick="printReport()" 
-                class="w-full text-left px-4 py-2 hover:bg-gray-100 transition">
-                <i class="fas fa-file-alt mr-2 text-blue-600"></i>보고서 인쇄
-              </button>
-              <button onclick="exportToPDF()" 
-                class="w-full text-left px-4 py-2 hover:bg-gray-100 transition">
-                <i class="fas fa-file-pdf mr-2 text-red-600"></i>PDF로 내보내기
-              </button>
-            </div>
-          </div>
+          <!-- Print Button -->
+          <button onclick="printReport()" 
+            class="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition">
+            <i class="fas fa-print mr-2"></i>출력
+          </button>
           
           <!-- Regrade Button -->
           <button onclick="regradeSubmission()" 
@@ -2542,12 +2522,10 @@ function closeGradingReviewModal() {
   currentGradingData = null;
 }
 
-// Setup print dropdown listeners
+// Setup print dropdown listeners (DEPRECATED - dropdown removed)
 function setupPrintDropdownListeners() {
-  const dropdownToggle = document.querySelector('button[onclick="togglePrintDropdown()"]');
-  const dropdown = document.getElementById('printDropdownMenu');
-  const printReportBtn = document.querySelector('button[onclick="printReport()"]');
-  const exportPdfBtn = document.querySelector('button[onclick="exportToPDF()"]');
+  // Function kept for backward compatibility but no longer needed
+  return;
   
   if (dropdownToggle && dropdown) {
     console.log('Setting up print dropdown listeners');
@@ -2596,18 +2574,9 @@ function setupPrintDropdownListeners() {
 }
 
 // Toggle print dropdown menu (kept for compatibility)
-function togglePrintDropdown() {
-  const dropdown = document.getElementById('printDropdownMenu');
-  if (dropdown) {
-    console.log('togglePrintDropdown called');
-    dropdown.classList.toggle('hidden');
-  }
-}
-
 // Print report function
 function printReport() {
   console.log('Print Report clicked');
-  togglePrintDropdown();
   printFeedback(); // Use existing print functionality
 }
 
@@ -2617,12 +2586,8 @@ async function exportToPDF() {
   
   if (!currentGradingData) {
     alert('채점 데이터를 찾을 수 없습니다.');
-    togglePrintDropdown();
     return;
   }
-  
-  // Close dropdown first
-  togglePrintDropdown();
   
   try {
     // Show loading message
