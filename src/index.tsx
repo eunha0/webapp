@@ -2481,7 +2481,7 @@ app.post('/api/submission/:id/grade', async (c) => {
       gradingResult.summary_evaluation || ''
     ).run()
     
-    // Update submission with grading result and strictness
+    // Update submission with grading result and strictness (in two steps for D1 compatibility)
     console.log('[Grade API] Step 11: Updating submission in database...');
     console.log('[Grade API] Update parameters:', {
       submissionId,
@@ -2490,20 +2490,34 @@ app.post('/api/submission/:id/grade', async (c) => {
       gradingStrictnessType: typeof gradingStrictness
     });
     
-    const updateResult = await db.prepare(
+    // Step 11-1: Update core grading fields
+    const updateResult1 = await db.prepare(
       `UPDATE student_submissions 
-       SET graded = 1, 
+       SET graded = ?, 
            grade_result_id = ?, 
-           grading_strictness = ?,
-           graded_at = CURRENT_TIMESTAMP,
-           status = ?
+           grading_strictness = ?
        WHERE id = ?`
-    ).bind(resultId, gradingStrictness, 'graded', submissionId).run();
+    ).bind(1, resultId, gradingStrictness, submissionId).run();
     
-    console.log('[Grade API] ✅ Update completed:', {
-      success: updateResult.success,
-      meta: updateResult.meta,
-      changes: updateResult.meta?.changes
+    console.log('[Grade API] ✅ Update step 1 completed:', {
+      success: updateResult1.success,
+      meta: updateResult1.meta,
+      changes: updateResult1.meta?.changes
+    });
+    
+    // Step 11-2: Update status and timestamp separately
+    const currentTime = new Date().toISOString();
+    const updateResult2 = await db.prepare(
+      `UPDATE student_submissions 
+       SET status = ?,
+           graded_at = ?
+       WHERE id = ?`
+    ).bind('graded', currentTime, submissionId).run();
+    
+    console.log('[Grade API] ✅ Update step 2 completed:', {
+      success: updateResult2.success,
+      meta: updateResult2.meta,
+      changes: updateResult2.meta?.changes
     });
     
     // Verify the update by reading back the submission
