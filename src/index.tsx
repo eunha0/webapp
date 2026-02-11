@@ -8384,15 +8384,15 @@ app.get('/my-page', (c) => {
 
         <!-- Assignment Detail Modal -->
         <div id="assignmentDetailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="bg-white rounded-xl shadow-2xl p-8 max-w-6xl w-full max-h-[90vh] overflow-y-auto mx-4">
-                <div class="flex justify-between items-center mb-6">
+            <div class="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] mx-4 flex flex-col">
+                <div class="flex justify-between items-center p-8 pb-4 border-b border-gray-200">
                     <h2 id="detailTitle" class="text-2xl font-bold text-gray-900"></h2>
                     <button onclick="closeAssignmentDetailModal()" class="text-gray-500 hover:text-gray-700">
                         <i class="fas fa-times text-2xl"></i>
                     </button>
                 </div>
 
-                <div id="assignmentDetailContent">
+                <div id="assignmentDetailContent" class="flex-1 overflow-y-auto p-8 pt-6">
                     <!-- Detail content will be loaded here -->
                 </div>
             </div>
