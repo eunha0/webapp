@@ -588,11 +588,11 @@ async function viewAssignment(assignmentId) {
         </div>
 
         <!-- Bottom action buttons -->
-        <div class="sticky bottom-0 bg-white border-t-2 border-gray-200 pt-4 mt-6 flex justify-end gap-3">
-          <button onclick="closeAssignmentDetailModal()" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">
+        <div class="sticky bottom-0 bg-transparent pt-4 mt-6 flex justify-end gap-3" style="background: linear-gradient(to top, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0.7) 80%, transparent 100%); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);">
+          <button onclick="closeAssignmentDetailModal()" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition shadow-lg">
             <i class="fas fa-times mr-2"></i>닫기
           </button>
-          <button onclick="printAssignment()" class="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition">
+          <button onclick="printAssignment()" class="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition shadow-lg">
             <i class="fas fa-print mr-2"></i>출력
           </button>
         </div>
