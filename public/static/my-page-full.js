@@ -3140,6 +3140,11 @@ async function loadHistory() {
           case 'graded_at':
             comparison = new Date(a.graded_at) - new Date(b.graded_at);
             break;
+          case 'grading_strictness':
+            // 강도 정렬: lenient < moderate < strict
+            const strictnessOrder = { 'lenient': 1, 'moderate': 2, 'strict': 3 };
+            comparison = (strictnessOrder[a.grading_strictness] || 2) - (strictnessOrder[b.grading_strictness] || 2);
+            break;
           case 'overall_score':
             comparison = a.overall_score - b.overall_score;
             break;
@@ -3177,6 +3182,11 @@ async function loadHistory() {
                     onclick="sortSubmissions('graded_at')">
                     채점일
                     <i class="fas fa-sort${sortField === 'graded_at' ? (sortOrder === 'asc' ? '-up' : '-down') : ''} ml-1 text-gray-400"></i>
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onclick="sortSubmissions('grading_strictness')">
+                    강도
+                    <i class="fas fa-sort${sortField === 'grading_strictness' ? (sortOrder === 'asc' ? '-up' : '-down') : ''} ml-1 text-gray-400"></i>
                   </th>
                   <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onclick="sortSubmissions('overall_score')">
@@ -3221,6 +3231,14 @@ async function loadHistory() {
                       <div class="text-xs text-gray-500">
                         ${toKST(item.graded_at).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'})}
                       </div>
+                    </td>
+                    <td class="px-6 py-4">
+                      ${item.grading_strictness === 'lenient' 
+                        ? '<span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">🟢 관대하게</span>'
+                        : item.grading_strictness === 'strict'
+                        ? '<span class="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold">🔴 엄격하게</span>'
+                        : '<span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">🔵 보통</span>'
+                      }
                     </td>
                     <td class="px-6 py-4">
                       <div class="flex items-center">

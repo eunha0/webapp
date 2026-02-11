@@ -2481,10 +2481,16 @@ app.post('/api/submission/:id/grade', async (c) => {
       gradingResult.summary_evaluation || ''
     ).run()
     
-    // Update submission with grading result
+    // Update submission with grading result and strictness
     await db.prepare(
-      'UPDATE student_submissions SET graded = 1, grade_result_id = ? WHERE id = ?'
-    ).bind(resultId, submissionId).run()
+      `UPDATE student_submissions 
+       SET graded = 1, 
+           grade_result_id = ?, 
+           grading_strictness = ?,
+           graded_at = CURRENT_TIMESTAMP,
+           status = 'graded'
+       WHERE id = ?`
+    ).bind(resultId, gradingStrictness, submissionId).run()
     
     // Update student progress tracking
     const studentUserId = submission.student_user_id
@@ -2530,7 +2536,8 @@ app.post('/api/submission/:id/grade', async (c) => {
       submission_id: submissionId,
       result_id: resultId,
       grading_result: gradingResult,
-      detailed_feedback: detailedFeedback
+      detailed_feedback: detailedFeedback,
+      grading_strictness: gradingStrictness  // ✅ 채점 강도 추가
     })
   } catch (error) {
     console.error('[Grade API] ========== ERROR OCCURRED ==========');
