@@ -2482,15 +2482,52 @@ app.post('/api/submission/:id/grade', async (c) => {
     ).run()
     
     // Update submission with grading result and strictness
-    await db.prepare(
+    console.log('[Grade API] Step 11: Updating submission in database...');
+    console.log('[Grade API] Update parameters:', {
+      submissionId,
+      resultId,
+      gradingStrictness,
+      gradingStrictnessType: typeof gradingStrictness
+    });
+    
+    const updateResult = await db.prepare(
       `UPDATE student_submissions 
        SET graded = 1, 
            grade_result_id = ?, 
            grading_strictness = ?,
            graded_at = CURRENT_TIMESTAMP,
-           status = 'graded'
+           status = ?
        WHERE id = ?`
-    ).bind(resultId, gradingStrictness, submissionId).run()
+    ).bind(resultId, gradingStrictness, 'graded', submissionId).run();
+    
+    console.log('[Grade API] ✅ Update completed:', {
+      success: updateResult.success,
+      meta: updateResult.meta,
+      changes: updateResult.meta?.changes
+    });
+    
+    // Verify the update by reading back the submission
+    const verifiedSubmission = await db.prepare(
+      `SELECT id, grading_strictness, graded, status, graded_at 
+       FROM student_submissions 
+       WHERE id = ?`
+    ).bind(submissionId).first();
+    
+    console.log('[Grade API] 🔍 Verification - Submission after update:', {
+      id: verifiedSubmission?.id,
+      grading_strictness: verifiedSubmission?.grading_strictness,
+      graded: verifiedSubmission?.graded,
+      status: verifiedSubmission?.status
+    });
+    
+    if (verifiedSubmission?.grading_strictness !== gradingStrictness) {
+      console.error('[Grade API] ⚠️ WARNING: grading_strictness mismatch!', {
+        expected: gradingStrictness,
+        actual: verifiedSubmission?.grading_strictness
+      });
+    } else {
+      console.log('[Grade API] ✅ grading_strictness verified successfully');
+    }
     
     // Update student progress tracking
     const studentUserId = submission.student_user_id
