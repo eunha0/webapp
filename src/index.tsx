@@ -2434,6 +2434,18 @@ app.post('/api/submission/:id/grade', async (c) => {
     // Store grading result
     const resultId = await storeGradingResult(db, essayId, sessionId, gradingResult)
     
+    console.log('[Grade API] ✅ Grading result stored:', {
+      resultId,
+      resultIdType: typeof resultId,
+      isNull: resultId === null,
+      isUndefined: resultId === undefined
+    });
+    
+    if (!resultId) {
+      console.error('[Grade API] ❌ CRITICAL: resultId is NULL/undefined!');
+      throw new Error('Failed to store grading result - resultId is NULL');
+    }
+    
     // Store detailed feedback for each criterion (DELETE old + INSERT new for regrade)
     console.log('[Grade API] Step 9: Updating submission_feedback...');
     // First, delete old feedback for this submission
