@@ -2434,15 +2434,6 @@ app.post('/api/submission/:id/grade', async (c) => {
     // Store grading result
     const resultId = await storeGradingResult(db, essayId, sessionId, gradingResult)
     
-    // Delete existing feedback for regrade (if any)
-    await db.prepare(
-      'DELETE FROM submission_feedback WHERE submission_id = ?'
-    ).bind(submissionId).run()
-    
-    await db.prepare(
-      'DELETE FROM submission_summary WHERE submission_id = ?'
-    ).bind(submissionId).run()
-    
     // Store detailed feedback for each criterion (DELETE old + INSERT new for regrade)
     console.log('[Grade API] Step 9: Updating submission_feedback...');
     // First, delete old feedback for this submission
