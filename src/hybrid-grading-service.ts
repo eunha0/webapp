@@ -327,10 +327,12 @@ export async function gradeEssayHybrid(
     const scoringPrompt = generateScoringPrompt(request);
     console.log('[Hybrid AI] Scoring prompt length:', scoringPrompt.length);
     
-    console.log('[Hybrid AI] Calling OpenAI API...');
+    console.log('[Hybrid AI] Calling OpenAI API (GPT-4o-mini for speed)...');
     const scoringStartTime = Date.now();
-    const scoringResponse = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    
+    // Add timeout wrapper (10 seconds)
+    const scoringResponsePromise = openai.chat.completions.create({
+      model: 'gpt-4o-mini', // OPTIMIZED: Use mini version for speed
       messages: [
         {
           role: 'system',
@@ -344,6 +346,12 @@ export async function gradeEssayHybrid(
       temperature: 0.3, // Lower temperature for consistency
       response_format: { type: 'json_object' }
     });
+    
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('OpenAI API timeout (10s)')), 10000)
+    );
+    
+    const scoringResponse = await Promise.race([scoringResponsePromise, timeoutPromise]) as any;
     const scoringDuration = Date.now() - scoringStartTime;
     console.log('[Hybrid AI] ✅ OpenAI API response received in', scoringDuration, 'ms');
 
@@ -359,7 +367,9 @@ export async function gradeEssayHybrid(
     
     console.log('[Hybrid AI] Calling Anthropic API...');
     const feedbackStartTime = Date.now();
-    const feedbackResponse = await anthropic.messages.create({
+    
+    // Add timeout wrapper (10 seconds)
+    const feedbackResponsePromise = anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929', // Claude Sonnet 4.5 (latest)
       max_tokens: 4096,
       temperature: 0.7, // Higher temperature for creative feedback
@@ -370,6 +380,12 @@ export async function gradeEssayHybrid(
         }
       ]
     });
+    
+    const feedbackTimeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Anthropic API timeout (10s)')), 10000)
+    );
+    
+    const feedbackResponse = await Promise.race([feedbackResponsePromise, feedbackTimeoutPromise]) as any;
 
     const feedbackText = feedbackResponse.content[0].type === 'text' 
       ? feedbackResponse.content[0].text 

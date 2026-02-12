@@ -2236,6 +2236,7 @@ app.post('/api/student/submit', async (c) => {
  * POST /api/submission/:id/grade - Grade a student submission
  */
 app.post('/api/submission/:id/grade', async (c) => {
+  const startTime = Date.now(); // Track total execution time
   console.log('[Grade API] ========== REQUEST START ==========');
   console.log('[Grade API] Timestamp:', new Date().toISOString());
   console.log('[Grade API] URL:', c.req.url);
@@ -2431,19 +2432,40 @@ app.post('/api/submission/:id/grade', async (c) => {
       }
     }
     
-    // Store grading result
-    const resultId = await storeGradingResult(db, essayId, sessionId, gradingResult)
-    
-    console.log('[Grade API] ✅ Grading result stored:', {
-      resultId,
-      resultIdType: typeof resultId,
-      isNull: resultId === null,
-      isUndefined: resultId === undefined
-    });
-    
-    if (!resultId) {
-      console.error('[Grade API] ❌ CRITICAL: resultId is NULL/undefined!');
-      throw new Error('Failed to store grading result - resultId is NULL');
+    // Store grading result with error handling
+    console.log('[Grade API] Step 12: Storing grading result...');
+    let resultId: number | undefined;
+    try {
+      resultId = await storeGradingResult(db, essayId, sessionId, gradingResult);
+      
+      console.log('[Grade API] ✅ Grading result stored:', {
+        resultId,
+        resultIdType: typeof resultId,
+        isNull: resultId === null,
+        isUndefined: resultId === undefined
+      });
+      
+      if (!resultId) {
+        console.error('[Grade API] ❌ CRITICAL: resultId is NULL/undefined!');
+        throw new Error('Failed to store grading result - resultId is NULL');
+      }
+    } catch (storeError: any) {
+      console.error('[Grade API] ❌ ERROR storing grading result:', {
+        error: storeError.message,
+        stack: storeError.stack,
+        essayId,
+        sessionId
+      });
+      
+      // PARTIAL SAVE: Update submission status to show grading attempted
+      console.log('[Grade API] Attempting partial save (status update only)...');
+      await db.prepare(
+        `UPDATE student_submissions 
+         SET status = ?, graded_at = ?
+         WHERE id = ?`
+      ).bind('grading_failed', new Date().toISOString(), submissionId).run();
+      
+      throw new Error(`채점 결과 저장 실패: ${storeError.message}. 잠시 후 다시 시도해주세요.`);
     }
     
     // Store detailed feedback for each criterion (DELETE old + INSERT new for regrade)
@@ -2618,16 +2640,26 @@ app.post('/api/submission/:id/grade', async (c) => {
       ).run()
     }
     
+    const endTime = Date.now();
+    const totalDuration = endTime - startTime;
+    console.log('[Grade API] ========== REQUEST COMPLETE ==========');
+    console.log('[Grade API] Total execution time:', totalDuration, 'ms');
+    
     return c.json({
       success: true,
       submission_id: submissionId,
       result_id: resultId,
       grading_result: gradingResult,
       detailed_feedback: detailedFeedback,
-      grading_strictness: gradingStrictness  // ✅ 채점 강도 추가
+      grading_strictness: gradingStrictness,  // ✅ 채점 강도 추가
+      execution_time_ms: totalDuration
     })
   } catch (error) {
+    const endTime = Date.now();
+    const totalDuration = endTime - (startTime || endTime);
+    
     console.error('[Grade API] ========== ERROR OCCURRED ==========');
+    console.error('[Grade API] Total execution time:', totalDuration, 'ms');
     console.error('[Grade API] Error type:', error instanceof Error ? error.constructor.name : typeof error);
     console.error('[Grade API] Error message:', error instanceof Error ? error.message : String(error));
     console.error('[Grade API] Full error:', error);
@@ -2638,14 +2670,27 @@ app.post('/api/submission/:id/grade', async (c) => {
     
     console.error('[Grade API] ========== ERROR END ==========');
     
+    // Detect timeout/503 errors
+    const isTimeout = error instanceof Error && (
+      error.message.includes('timeout') || 
+      error.message.includes('CPU time limit') ||
+      error.message.includes('exceeded')
+    );
+    
+    const errorMessage = isTimeout 
+      ? 'AI 채점 시간이 초과되었습니다. 논술 길이가 너무 길거나 서버 부하가 높을 수 있습니다. 잠시 후 다시 시도해주세요.'
+      : (error instanceof Error ? error.message : 'Failed to grade submission');
+    
     // Return detailed error information for debugging
     return c.json({ 
-      error: 'Failed to grade submission',
+      error: errorMessage,
       details: error instanceof Error ? error.message : String(error),
       error_type: error instanceof Error ? error.constructor.name : typeof error,
+      execution_time_ms: totalDuration,
+      is_timeout: isTimeout,
       stack: error instanceof Error ? error.stack : undefined,
       timestamp: new Date().toISOString()
-    }, 500)
+    }, isTimeout ? 503 : 500)
   }
 })
 
