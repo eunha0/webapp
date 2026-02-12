@@ -2443,7 +2443,13 @@ app.post('/api/submission/:id/grade', async (c) => {
       'DELETE FROM submission_summary WHERE submission_id = ?'
     ).bind(submissionId).run()
     
-    // Store detailed feedback for each criterion
+    // Store detailed feedback for each criterion (DELETE old + INSERT new for regrade)
+    // First, delete old feedback for this submission
+    await db.prepare(
+      `DELETE FROM submission_feedback WHERE submission_id = ?`
+    ).bind(submissionId).run()
+    
+    // Then insert new feedback
     for (let i = 0; i < detailedFeedback.criterion_feedbacks.length; i++) {
       const feedback = detailedFeedback.criterion_feedbacks[i]
       const rubric = rubrics.results.find((r: any) => r.criterion_name === feedback.criterion_name)
@@ -2464,9 +2470,9 @@ app.post('/api/submission/:id/grade', async (c) => {
       }
     }
     
-    // Store overall summary
+    // Store overall summary (REPLACE for regrade support)
     await db.prepare(
-      `INSERT INTO submission_summary 
+      `REPLACE INTO submission_summary 
        (submission_id, total_score, strengths, weaknesses, overall_comment, improvement_priority, revision_suggestions, next_steps_advice, summary_evaluation)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
