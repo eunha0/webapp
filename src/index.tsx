@@ -2444,12 +2444,18 @@ app.post('/api/submission/:id/grade', async (c) => {
     ).bind(submissionId).run()
     
     // Store detailed feedback for each criterion (DELETE old + INSERT new for regrade)
+    console.log('[Grade API] Step 9: Updating submission_feedback...');
     // First, delete old feedback for this submission
-    await db.prepare(
+    const deleteResult = await db.prepare(
       `DELETE FROM submission_feedback WHERE submission_id = ?`
     ).bind(submissionId).run()
     
+    console.log('[Grade API] ✅ Old feedback deleted:', {
+      changes: deleteResult.meta?.changes
+    });
+    
     // Then insert new feedback
+    let insertedCount = 0;
     for (let i = 0; i < detailedFeedback.criterion_feedbacks.length; i++) {
       const feedback = detailedFeedback.criterion_feedbacks[i]
       const rubric = rubrics.results.find((r: any) => r.criterion_name === feedback.criterion_name)
@@ -2467,14 +2473,30 @@ app.post('/api/submission/:id/grade', async (c) => {
           feedback.improvement_areas,
           feedback.specific_suggestions
         ).run()
+        insertedCount++;
       }
     }
     
-    // Store overall summary (REPLACE for regrade support)
-    await db.prepare(
-      `REPLACE INTO submission_summary 
+    console.log('[Grade API] ✅ New feedback inserted:', {
+      count: insertedCount
+    });
+    
+    // Store overall summary (UPSERT for safe regrade support)
+    console.log('[Grade API] Step 10: Upserting submission_summary...');
+    const summaryResult = await db.prepare(
+      `INSERT INTO submission_summary 
        (submission_id, total_score, strengths, weaknesses, overall_comment, improvement_priority, revision_suggestions, next_steps_advice, summary_evaluation)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(submission_id)
+       DO UPDATE SET
+         total_score = excluded.total_score,
+         strengths = excluded.strengths,
+         weaknesses = excluded.weaknesses,
+         overall_comment = excluded.overall_comment,
+         improvement_priority = excluded.improvement_priority,
+         revision_suggestions = excluded.revision_suggestions,
+         next_steps_advice = excluded.next_steps_advice,
+         summary_evaluation = excluded.summary_evaluation`
     ).bind(
       submissionId,
       detailedFeedback.overall_summary.total_score,
@@ -2486,6 +2508,11 @@ app.post('/api/submission/:id/grade', async (c) => {
       gradingResult.next_steps_advice || '',
       gradingResult.summary_evaluation || ''
     ).run()
+    
+    console.log('[Grade API] ✅ Summary upsert completed:', {
+      success: summaryResult.success,
+      changes: summaryResult.meta?.changes
+    });
     
     // Update submission with grading result and strictness (in two steps for D1 compatibility)
     console.log('[Grade API] Step 11: Updating submission in database...');
