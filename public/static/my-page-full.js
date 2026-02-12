@@ -2278,10 +2278,17 @@ async function executeGradingWithLoading(submissionId, feedbackLevel, strictness
     closeGradingLoadingModal();
     
     if (response.data.success) {
-      // Store grading data for review
+      // 🔥 CRITICAL FIX: Fetch updated submission AFTER grading to get grading_strictness
+      console.log('🔄 [FRONTEND] Fetching updated submission after grading...');
+      const updatedSubmissionResponse = await axios.get('/api/submission/' + submissionId);
+      const updatedSubmission = updatedSubmissionResponse.data;
+      console.log('✅ [FRONTEND] Updated submission data:', updatedSubmission);
+      console.log('✅ [FRONTEND] Updated grading_strictness:', updatedSubmission.grading_strictness);
+      
+      // Store grading data for review (use UPDATED submission)
       currentGradingData = {
         submissionId: submissionId,
-        submission: submissionData,
+        submission: updatedSubmission,  // ✅ Use updated submission with grading_strictness
         result: response.data.grading_result,
         detailedFeedback: response.data.detailed_feedback,
         fromHistory: true  // Mark that this was a regrade from history
