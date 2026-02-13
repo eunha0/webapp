@@ -2373,28 +2373,37 @@ app.post('/api/submission/:id/grade', async (c) => {
     let detailedFeedback: any
     
     try {
-      console.log('[Grade API] Step 11: Starting AI grading...');
+      console.log('[Grade API] Step 11: Starting AI grading (GPT-4o-mini only)...');
       console.log('[Grade API] Calling gradeEssayHybrid...');
       gradingResult = await gradeEssayHybrid(gradingRequest, c.env)
       
-      // Generate detailed feedback with grade-level tone adjustment and custom settings
-      detailedFeedback = await generateDetailedFeedback({
-        essay_text: submission.essay_text as string,
-        grade_level: submission.grade_level as string,
-        rubric_criteria: rubrics.results.map((r: any) => ({
-          criterion_name: r.criterion_name,
-          criterion_description: r.criterion_description,
-          max_score: r.max_score || 4
-        })),
-        criterion_scores: gradingResult.criterion_scores.map((cs: any) => ({
+      // OPTIMIZATION: Skip Claude call to avoid 503 timeout
+      // Generate detailed feedback from GPT result directly
+      console.log('[Grade API] Building feedback from GPT result (Claude call skipped)...');
+      detailedFeedback = {
+        criterion_feedbacks: gradingResult.criterion_scores.map((cs: any) => ({
           criterion_name: cs.criterion_name,
           score: cs.score,
-          strengths: cs.strengths,
-          areas_for_improvement: cs.areas_for_improvement
+          positive_feedback: cs.strengths || '잘 작성된 부분입니다.',
+          improvement_areas: cs.areas_for_improvement || '개선이 필요한 부분입니다.',
+          specific_suggestions: cs.brief_rationale || '계속 노력해주세요.'
         })),
-        feedback_level: feedbackLevel,
-        grading_strictness: gradingStrictness
-      })
+        overall_summary: {
+          total_score: gradingResult.total_score,
+          strengths: gradingResult.criterion_scores
+            .map((cs: any) => cs.strengths)
+            .filter(Boolean)
+            .join(' '),
+          weaknesses: gradingResult.criterion_scores
+            .map((cs: any) => cs.areas_for_improvement)
+            .filter(Boolean)
+            .join(' '),
+          overall_comment: gradingResult.summary_evaluation || '전반적으로 잘 작성했습니다.',
+          improvement_priority: '주요 개선 사항: ' + gradingResult.criterion_scores
+            .map((cs: any) => cs.areas_for_improvement)
+            .filter(Boolean)[0] || '없음'
+        }
+      }
     } catch (aiError) {
       console.error('[GRADING] AI grading failed, using fallback:', aiError)
       

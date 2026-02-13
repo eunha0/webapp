@@ -330,7 +330,7 @@ export async function gradeEssayHybrid(
     console.log('[Hybrid AI] Calling OpenAI API (GPT-4o-mini for speed)...');
     const scoringStartTime = Date.now();
     
-    // Add timeout wrapper (10 seconds)
+    // Add timeout wrapper (3 seconds - shorter for Workers CPU limit)
     const scoringResponsePromise = openai.chat.completions.create({
       model: 'gpt-4o-mini', // OPTIMIZED: Use mini version for speed
       messages: [
@@ -348,7 +348,7 @@ export async function gradeEssayHybrid(
     });
     
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('OpenAI API timeout (10s)')), 10000)
+      setTimeout(() => reject(new Error('OpenAI API timeout (3s)')), 3000)
     );
     
     const scoringResponse = await Promise.race([scoringResponsePromise, timeoutPromise]) as any;
