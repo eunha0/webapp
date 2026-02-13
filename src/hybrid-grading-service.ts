@@ -37,23 +37,26 @@ function initializeClients(env: any) {
     api_related_keys: envKeys.filter(k => k.includes('API') || k.includes('KEY'))
   });
   
-  // Validate OPENAI_API_KEY
+  // Validate OPENAI_API_KEY (CRITICAL - required for GPT-4o-mini)
   if (!env.OPENAI_API_KEY) {
-    console.error('[Hybrid AI] CRITICAL ERROR: OPENAI_API_KEY is missing!');
-    console.error('[Hybrid AI] This will cause 503 errors in production.');
-    console.error('[Hybrid AI] Please set OPENAI_API_KEY in Cloudflare Pages environment variables.');
-    throw new Error('OPENAI_API_KEY is not configured. Please set it in Cloudflare Pages Settings → Environment variables → Production.');
+    console.error('[Hybrid AI] ❌ CRITICAL ERROR: OPENAI_API_KEY is missing!');
+    console.error('[Hybrid AI] Cannot proceed with AI grading.');
+    console.error('[Hybrid AI] ==================================================');
+    console.error('[Hybrid AI] SETUP INSTRUCTIONS:');
+    console.error('[Hybrid AI] 1. Go to Cloudflare Dashboard');
+    console.error('[Hybrid AI] 2. Workers & Pages → ai-nonsool-kr');
+    console.error('[Hybrid AI] 3. Settings → Environment variables');
+    console.error('[Hybrid AI] 4. Production tab → Add variable');
+    console.error('[Hybrid AI] 5. Variable name: OPENAI_API_KEY');
+    console.error('[Hybrid AI] 6. Value: sk-proj-...');
+    console.error('[Hybrid AI] 7. Deploy type: Production');
+    console.error('[Hybrid AI] 8. Click Save');
+    console.error('[Hybrid AI] ==================================================');
+    throw new Error('OPENAI_API_KEY is not configured. AI grading cannot proceed. Please set it in Cloudflare Pages Dashboard: Settings → Environment variables → Production.');
   }
   
-  // Validate ANTHROPIC_API_KEY
-  if (!env.ANTHROPIC_API_KEY && !env.CLAUDE_API_KEY) {
-    console.error('[Hybrid AI] CRITICAL ERROR: ANTHROPIC_API_KEY is missing!');
-    console.error('[Hybrid AI] This will cause 503 errors in production.');
-    console.error('[Hybrid AI] Please set ANTHROPIC_API_KEY in Cloudflare Pages environment variables.');
-    throw new Error('ANTHROPIC_API_KEY is not configured. Please set it in Cloudflare Pages Settings → Environment variables → Production.');
-  }
-  
-  console.log('[Hybrid AI] ✅ All API keys are present');
+  console.log('[Hybrid AI] ✅ OPENAI_API_KEY is present');
+  console.log('[Hybrid AI] ℹ️ ANTHROPIC_API_KEY not required (Claude call removed for performance)');
   
   // OpenAI client for scoring (GPT-4o)
   const openai = new OpenAI({
@@ -62,12 +65,8 @@ function initializeClients(env: any) {
   });
   console.log('[Hybrid AI] ✅ OpenAI client initialized');
 
-  // Anthropic client for feedback generation (Claude 3.5 Sonnet)
-  // Support both ANTHROPIC_API_KEY and CLAUDE_API_KEY for flexibility
-  const anthropic = new Anthropic({
-    apiKey: env.ANTHROPIC_API_KEY || env.CLAUDE_API_KEY,
-  });
-  console.log('[Hybrid AI] ✅ Anthropic client initialized');
+  // Anthropic client removed - Claude call no longer used for performance
+  const anthropic = null; // Placeholder for backwards compatibility
 
   console.log('[Hybrid AI] ========== ENVIRONMENT CHECK END ==========');
   return { openai, anthropic };
