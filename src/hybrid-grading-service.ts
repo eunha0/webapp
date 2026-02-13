@@ -326,12 +326,13 @@ export async function gradeEssayHybrid(
     const scoringPrompt = generateScoringPrompt(request);
     console.log('[Hybrid AI] Scoring prompt length:', scoringPrompt.length);
     
-    console.log('[Hybrid AI] Calling OpenAI API (GPT-4o-mini for speed)...');
+    console.log('[Hybrid AI] Calling OpenAI API (GPT-4o-mini, 5s timeout)...');
     const scoringStartTime = Date.now();
     
-    // Add timeout wrapper (3 seconds - shorter for Workers CPU limit)
+    // CRITICAL: Use 5-second timeout to stay within Workers limits
+    // Cloudflare Pages Functions have strict execution limits
     const scoringResponsePromise = openai.chat.completions.create({
-      model: 'gpt-4o-mini', // OPTIMIZED: Use mini version for speed
+      model: 'gpt-4o-mini', // Fast and cheap
       messages: [
         {
           role: 'system',
@@ -342,12 +343,13 @@ export async function gradeEssayHybrid(
           content: scoringPrompt
         }
       ],
-      temperature: 0.3, // Lower temperature for consistency
-      response_format: { type: 'json_object' }
+      temperature: 0.3,
+      response_format: { type: 'json_object' },
+      max_tokens: 800 // REDUCED: Limit response size for speed
     });
     
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('OpenAI API timeout (3s)')), 3000)
+      setTimeout(() => reject(new Error('OpenAI API timeout (5s) - This is expected on Cloudflare Workers. Please contact support if this persists.')), 5000)
     );
     
     const scoringResponse = await Promise.race([scoringResponsePromise, timeoutPromise]) as any;

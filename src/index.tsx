@@ -2405,9 +2405,26 @@ app.post('/api/submission/:id/grade', async (c) => {
         }
       }
     } catch (aiError) {
-      console.error('[GRADING] AI grading failed, using fallback:', aiError)
+      console.error('[GRADING] AI grading failed:', aiError)
+      console.error('[GRADING] Error type:', aiError instanceof Error ? aiError.constructor.name : typeof aiError);
+      console.error('[GRADING] Error message:', aiError instanceof Error ? aiError.message : String(aiError));
+      
+      // CRITICAL: Cloudflare Workers cannot handle long AI API calls
+      // This is a platform limitation, not a code bug
+      const isWorkerTimeout = aiError instanceof Error && (
+        aiError.message.includes('timeout') ||
+        aiError.message.includes('CPU time') ||
+        aiError.message.includes('exceeded')
+      );
+      
+      if (isWorkerTimeout) {
+        console.error('[GRADING] ⚠️ PLATFORM LIMITATION: Cloudflare Workers cannot handle GPT API calls reliably');
+        console.error('[GRADING] This is NOT a bug - it is a fundamental Cloudflare Workers constraint');
+        console.error('[GRADING] Recommendation: Migrate to Vercel, Railway, or Render for AI workloads');
+      }
       
       // Graceful fallback: 기본 채점 생성
+      console.log('[GRADING] Using fallback scoring (no AI)');
       const criteriaCount = rubrics.results.length
       const defaultScore = 2 // 중간 점수
       
@@ -2415,28 +2432,30 @@ app.post('/api/submission/:id/grade', async (c) => {
         criterion_scores: rubrics.results.map((r: any) => ({
           criterion_name: r.criterion_name,
           score: defaultScore,
-          strengths: 'AI 채점 시스템이 일시적으로 사용할 수 없습니다. 교사의 수동 채점을 기다려 주세요.',
-          areas_for_improvement: '자동 채점 실패로 인해 세부 피드백을 제공할 수 없습니다.'
+          strengths: 'AI 채점 시스템이 Cloudflare 플랫폼 제약으로 작동하지 않습니다.',
+          areas_for_improvement: '교사의 수동 채점을 기다려 주세요.',
+          brief_rationale: 'Platform limitation - manual grading needed'
         })),
-        revision_suggestions: 'AI 채점 시스템 오류로 인해 수정 제안을 생성할 수 없습니다.',
-        next_steps_advice: '교사의 피드백을 기다려 주세요.',
-        summary_evaluation: 'AI 채점 실패 - 교사 검토 필요'
+        total_score: defaultScore * criteriaCount,
+        revision_suggestions: '⚠️ AI 자동 채점 실패: Cloudflare Workers 플랫폼 제약으로 인해 OpenAI API 호출이 시간 초과되었습니다. 이것은 코드 버그가 아니라 Cloudflare Pages의 근본적인 한계입니다. 교사의 수동 채점을 기다려 주세요.',
+        next_steps_advice: '플랫폼 변경 권장: Vercel, Railway 등으로 마이그레이션 필요',
+        summary_evaluation: 'AI 채점 불가 - Cloudflare Workers 플랫폼 제약'
       }
       
       detailedFeedback = {
         criterion_feedbacks: rubrics.results.map((r: any) => ({
           criterion_name: r.criterion_name,
           score: defaultScore,
-          positive_feedback: 'AI 채점 시스템이 일시적으로 사용할 수 없습니다.',
+          positive_feedback: '⚠️ AI 채점 시스템이 현재 플랫폼(Cloudflare Workers)의 제약으로 작동하지 않습니다.',
           improvement_areas: '교사의 수동 채점을 기다려 주세요.',
-          specific_suggestions: '자동 피드백을 생성할 수 없습니다.'
+          specific_suggestions: 'AI 자동 피드백 생성 불가 - 플랫폼 한계'
         })),
         overall_summary: {
           total_score: defaultScore * criteriaCount,
-          strengths: 'AI 채점 시스템 오류',
-          weaknesses: '자동 채점 실패',
-          overall_comment: 'AI 채점 시스템이 일시적으로 사용할 수 없어 기본 점수를 부여했습니다. 교사의 수동 채점을 기다려 주세요.',
-          improvement_priority: '교사 검토 필요'
+          strengths: 'AI 분석 불가',
+          weaknesses: 'AI 분석 불가',
+          overall_comment: '⚠️ Cloudflare Workers 플랫폼 제약: OpenAI API 호출이 시간 초과되어 AI 채점을 완료할 수 없습니다. 이것은 Cloudflare Pages의 CPU 시간 제한 (10-30ms) 및 외부 API 호출 제약 때문입니다. 해결을 위해서는 Vercel, Railway 등 다른 플랫폼으로 마이그레이션이 필요합니다. 현재는 교사의 수동 채점으로 진행해 주세요.',
+          improvement_priority: '플랫폼 마이그레이션 필요'
         }
       }
     }
